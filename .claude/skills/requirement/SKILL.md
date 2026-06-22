@@ -55,7 +55,7 @@ Before writing any files:
    ```
    git checkout -b <branch-name>
    ```
-   If the branch already exists, append `-2`, `-3`, etc. until the name is free.
+   If the branch already exists, append `-fix-1`, `-fix-2` for specific into task, etc. until the name is free.
 4. Print the branch name so the user can see it:
    > **Branch created:** `feature/<branch-name>`
 
