@@ -1,7 +1,6 @@
 package com.stampli.battleship.repository;
 
 import com.stampli.battleship.domain.Game;
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -17,7 +16,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * no domain or service changes required.
  */
 @Repository
-@Profile("default")
 public class InMemoryGameRepository implements GameRepository {
 
     private final ConcurrentHashMap<String, Game> store = new ConcurrentHashMap<>();

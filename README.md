@@ -89,10 +89,19 @@ echo "All checks passed"
 
 One command starts the full stack — frontend, backend, PostgreSQL, and Redis.
 
+**First time setup:**
 ```bash
 cp apps/backend/.env.example apps/backend/.env
-# Fill in POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD in apps/backend/.env
-docker compose up --build
+```
+
+**Foreground** (logs stream to terminal):
+```bash
+docker compose --env-file apps/backend/.env up --build
+```
+
+**Background** (returns to prompt immediately):
+```bash
+docker compose --env-file apps/backend/.env up --build -d
 ```
 
 | Service | URL |
@@ -102,24 +111,37 @@ docker compose up --build
 | PostgreSQL | localhost:5432 |
 | Redis | localhost:6379 |
 
+View logs when running in background:
+```bash
+docker compose logs -f
+docker compose logs -f backend   # backend only
+```
+
 Stop everything:
 ```bash
-docker compose down
+docker compose --env-file apps/backend/.env down
 ```
 
 Stop and wipe all data volumes:
 ```bash
-docker compose down -v
+docker compose --env-file apps/backend/.env down -v
 ```
 
 Rebuild a single service after a code change:
 ```bash
-docker compose up --build backend
-docker compose up --build frontend
+docker compose --env-file apps/backend/.env up --build backend -d
+docker compose --env-file apps/backend/.env up --build frontend -d
 ```
 
 > The backend starts with `SPRING_PROFILES_ACTIVE=default` (in-memory storage).
-> PostgreSQL and Redis are running and wired — switch profiles in `.env` to activate them.
+> PostgreSQL and Redis are running and wired — switch profiles in `apps/backend/.env` to activate them.
+
+**Backend only** (from `apps/backend/`, foreground or background):
+```bash
+cd apps/backend
+docker compose up --build          # foreground
+docker compose up --build -d       # background
+```
 
 ---
 

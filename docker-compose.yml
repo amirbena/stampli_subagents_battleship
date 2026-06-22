@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
 
   postgres:
@@ -40,6 +38,7 @@ services:
       - ./apps/backend/.env
     environment:
       # Internal service hostnames — not user-configurable, always match container names above
+      SPRING_PROFILES_ACTIVE: postgres
       CORS_ALLOWED_ORIGIN: http://localhost:3000
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}

@@ -1,11 +1,11 @@
 # Build stage — compile and package the Spring Boot fat jar
 FROM maven:3.9-eclipse-temurin-17 AS build
 WORKDIR /app
+
+# Copy pom.xml first so dependency layer is cached unless pom changes
 COPY pom.xml .
-# Download dependencies separately so this layer is cached on subsequent builds
-RUN mvn dependency:go-offline -q
 COPY src ./src
-RUN mvn package -DskipTests -q
+RUN mvn clean install -B --no-transfer-progress
 
 # Run stage — minimal JRE image
 FROM eclipse-temurin:17-jre-alpine

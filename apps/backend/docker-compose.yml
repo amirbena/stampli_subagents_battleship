@@ -1,5 +1,3 @@
-version: '3.9'
-
 # Runs the backend + its dependencies (PostgreSQL + Redis) in isolation.
 # Use this for backend-only development without starting the frontend.
 #
