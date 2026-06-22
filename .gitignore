@@ -1,0 +1,22 @@
+# Pipeline reports — generated artifacts, not source code
+reports/
+
+# Environment
+.env
+.env.local
+.env*.local
+apps/backend/.env
+
+# Secrets
+*.pem
+id_rsa
+id_ed25519
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.iml
