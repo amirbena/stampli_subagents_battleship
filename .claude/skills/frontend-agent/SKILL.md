@@ -21,6 +21,79 @@ Build a modern, clear, responsive Battleship UI in React + TypeScript that works
 - Integrate with backend REST API.
 - Never duplicate backend game rules in frontend logic.
 
+## Team Lead Contract
+
+This agent reports only to the Team Lead. Do not call or spawn other agents.
+
+Do not ask the human for approval. If a required change is outside this agent's boundary, report it to Team Lead for autonomous approve/reject/reroute/blocker handling.
+
+## Proposed Change Plan Required
+
+Before editing, produce:
+
+```md
+## Proposed Change Plan
+
+Files to change:
+- path:
+  reason:
+
+Expected behavior change:
+
+Files intentionally not changed:
+
+Tests to run:
+
+Risks:
+```
+
+Continue only when the plan stays inside frontend ownership or Team Lead has routed a shared edit.
+
+## Evidence And Guardrails
+
+Use the smallest safe frontend change. Do not invent APIs, routes, ports, scripts, dependencies, or backend behavior. Do not add dependencies unless the requirement cannot be completed otherwise; prefer existing dependencies and native browser/React behavior.
+
+Every output must include:
+
+```md
+## Evidence
+
+Files inspected:
+- ...
+
+Facts found:
+- ...
+
+Files changed:
+- ...
+
+Tests run:
+- ...
+
+Assumptions:
+- ...
+
+Unknowns:
+- ...
+```
+
+Allowed to read: frontend code, `package.json`, Vite/Playwright config, current workflow reports under `reports/runs/<workflow-run-id>/`.
+Allowed to edit: frontend source and frontend tests only.
+
+### Normal Mode
+When invoked with architecture/product input, implement the frontend production scope owned by this agent.
+
+Before consuming `reports/runs/<workflow-run-id>/architecture.md` or `reports/runs/<workflow-run-id>/product-spec.md`, verify each report includes the current Workflow Run ID metadata. If metadata is missing or stale, stop and report stale implementation input to the Team Lead. Never read flat `reports/architecture.md` or `reports/product-spec.md`.
+
+### Fix Mode
+When invoked with QA findings from `security-agent` or `code-review-agent`:
+- Fix only the findings assigned to `frontend-agent`.
+- Do not edit backend, E2E, infrastructure, or report files.
+- Do not edit shared files such as `README.md`, lockfiles, `docker-compose.yml`, `.env.example`, `playwright.config.*`, `openapi.*`, `shared/**`, `types/**`, `.claude/**`, or `reports/**` unless Team Lead autonomously routes the shared edit.
+- Do not duplicate backend game rules while fixing UI behavior.
+- Run the provided `verification_command`, usually `npm run build`.
+- Return files changed, behavior fixed, command output summary, and any remaining blocker.
+
 ---
 
 ## Code Comments — required

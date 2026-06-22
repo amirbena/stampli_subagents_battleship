@@ -1,185 +1,262 @@
 ---
 name: requirement
-description: Entry point for the entire factory. User describes what they want to build, the skill asks clarifying questions, writes reports/requirements.md, selects the right model tier for each agent, then automatically kicks off the full multi-agent pipeline.
+description: Autonomous requirement intake. Creates a fresh run-isolated workflow run, writes requirements.md, guards branch safety, and hands off to Team Lead without interactive approval.
 model: claude-opus-4-8
-argument-hint: optional — paste your idea inline or answer questions interactively
+argument-hint: optional - paste the requirement inline
 ---
 
-# Requirement Intake & Pipeline Launcher
+# Requirement Intake
 
 ## Mission
-Turn a freeform user description into a structured `reports/requirements.md`, select the right model tier for each agent based on complexity, then launch the full agent pipeline without further human input.
+Capture the user's request, create a fresh isolated Workflow Run, write `reports/runs/<workflow-run-id>/requirements.md`, and hand off to Team Lead autonomously.
 
----
+Human involvement is limited to final PR review. Do not ask follow-up questions during execution. If safe autonomous execution is impossible, write `reports/runs/<workflow-run-id>/workflow-blocker.md` and stop.
 
-## Step 1 — Gather the requirement
+## Evidence Requirement
 
-If the user passed text via `$ARGUMENTS`, use that as the starting point.
-If `$ARGUMENTS` is empty, ask the user:
+Every output must include:
 
-> **What do you want to build?**
-> Describe it in plain language — what it does, who uses it, and any specific features you care about. Everything else will be filled in automatically.
+```md
+## Evidence
 
-Wait for the user's response before continuing.
+Files inspected:
+- ...
 
----
+Facts found:
+- ...
 
-## Step 2 — Analyze & ask targeted follow-up questions
+Files changed:
+- ...
 
-Read what the user wrote. Identify gaps in these four areas only — skip any area where the user already gave a clear answer:
+Tests run:
+- ...
 
-| Area | Ask if unclear |
-|------|---------------|
-| **Core action** | What is the primary thing a user does in the app? |
-| **Multiplayer / single user** | Is this one person or multiple people interacting? |
-| **Data persistence** | Does data need to survive a page refresh or server restart? |
-| **Out of scope** | Is there anything they explicitly do NOT want in v1? |
+Assumptions:
+- ...
 
-Ask only the questions that are genuinely unanswered. Maximum 4 questions. If everything is clear, skip to Step 3.
-
-Wait for the user's answers before continuing.
-
----
-
-## Step 3 — Sync with main and create feature branch
-
-Before writing any files:
-
-1. Pull the latest main branch:
-   ```
-   git checkout main && git pull origin main
-   ```
-2. Derive a branch name from the user's requirement: summarize in 3–5 words (lowercase, hyphen-separated, no special characters), prefix with `feature/`.  
-   Example: "change hosting place" → `feature/change-hosting-place`
-3. Create and switch to the branch:
-   ```
-   git checkout -b <branch-name>
-   ```
-   If the branch already exists, append `-fix-1`, `-fix-2` for specific into task, etc. until the name is free.
-4. Print the branch name so the user can see it:
-   > **Branch created:** `feature/<branch-name>`
-
----
-
-## Step 4 — Write reports/requirements.md
-
-Create the `reports/` directory if it does not exist before writing.
-
-Using all information gathered, write `reports/requirements.md` at the project root with this exact structure:
-
-```markdown
-# Requirements
-
-## What I want to build
-<1-3 sentence plain-language description>
-
-## Core features
-<bullet list — one concrete feature per line, specific enough for an engineer to implement>
-
-## Out of scope (v1)
-<bullet list — things deliberately excluded>
-
-## Open decisions
-<bullet list — anything ambiguous that agents should resolve with sensible defaults>
+Unknowns:
+- ...
 ```
 
-Be concrete. "Users can create a room and share a code" is good. "Good UX" is not.
+If evidence is missing, write `Evidence not found.`
 
 ---
 
-## Step 5 — Detect complexity and select model tier
+## Step 1 — Concurrency Lock
 
-Analyze the requirements and assign a complexity tier. This determines which model each agent runs on.
+Before creating a new run, check for an existing lock:
 
-### Complexity signals
-
-| Signal | Points |
-|--------|--------|
-| Multiplayer / real-time | +2 |
-| Auth / user accounts | +2 |
-| Complex domain rules (game logic, workflows, calculations) | +2 |
-| External integrations (payment, email, OAuth) | +1 |
-| Persistent storage (SQL/NoSQL) | +1 |
-| Multiple user roles | +1 |
-| Simple CRUD only | -2 |
-| Single user, no auth | -1 |
-
-**Tier assignment:**
-
-| Total points | Tier | Label |
-|---|---|---|
-| 5+ | HIGH | Complex system — use Opus for planning, architecture, review |
-| 2–4 | MEDIUM | Standard app — balanced model mix |
-| 0–1 | LOW | Simple app — Sonnet/Haiku for most phases |
-
-### Model assignment per tier
-
-| Agent | HIGH | MEDIUM | LOW |
-|-------|------|--------|-----|
-| product-agent | claude-sonnet-4-6 | claude-sonnet-4-6 | claude-haiku-4-5-20251001 |
-| architect-agent | claude-opus-4-8 | claude-sonnet-4-6 | claude-sonnet-4-6 |
-| java-backend-agent | claude-sonnet-4-6 | claude-sonnet-4-6 | claude-sonnet-4-6 |
-| frontend-agent | claude-sonnet-4-6 | claude-sonnet-4-6 | claude-sonnet-4-6 |
-| backend-unit-tests-agent | claude-sonnet-4-6 | claude-sonnet-4-6 | claude-haiku-4-5-20251001 |
-| playwright-e2e-agent | claude-sonnet-4-6 | claude-sonnet-4-6 | claude-haiku-4-5-20251001 |
-| security-agent | claude-opus-4-8 | claude-sonnet-4-6 | claude-sonnet-4-6 |
-| code-review-agent | claude-opus-4-8 | claude-sonnet-4-6 | claude-sonnet-4-6 |
-| infrastructure-agent | claude-haiku-4-5-20251001 | claude-haiku-4-5-20251001 | claude-haiku-4-5-20251001 |
-| release-pr-agent | claude-haiku-4-5-20251001 | claude-haiku-4-5-20251001 | claude-haiku-4-5-20251001 |
-
-Print the detected tier and model assignments before continuing so the user can see what was selected.
-
----
-
-## Step 6 — Confirm with the user
-
-Print the contents of `reports/requirements.md` and ask:
-
-> **Does this capture what you want?**
-> Reply `yes` to launch the pipeline, or tell me what to change.
-
-If the user requests changes, update `reports/requirements.md` and show it again.
-Repeat until the user confirms.
-
----
-
-## Step 7 — Launch the pipeline
-
-Once confirmed, print:
-
-```
-Requirements locked. Complexity: <TIER>. Launching the full agent pipeline...
-
-Phase 1  → product-agent        writes reports/product-spec.md
-Phase 2  → architect-agent      writes reports/architecture.md
-Phase 3  → java-backend-agent   builds apps/backend/
-Phase 4  → frontend-agent       builds apps/frontend/       [parallel with Phase 3]
-Phase 5  → backend-unit-tests   runs ./mvnw test
-Phase 6  → playwright-e2e       runs npm run test:e2e       [parallel with Phase 5]
-Phase 7  → security-agent       writes reports/security-report.md
-Phase 8  → code-review-agent    writes reports/code-review-report.md
-Phase 9  → infrastructure-agent writes docker-compose.yml + README.md
-Phase 10 → release-pr-agent     opens GitHub PR
+```bash
+test -f reports/.workflow.lock && cat reports/.workflow.lock
 ```
 
-Then follow the Team Lead orchestration logic defined in `.claude/skills/team-lead/SKILL.md` exactly — spawn each agent using the model assignments computed in Step 5, enforce quality gates, and do not stop until the PR URL is printed.
+If a lock exists with `"status": "running"`, do not start a new run. Write a run-conflict report to stdout and exit. Two concurrent runs in one working tree corrupt branch state and reports.
 
-Once all quality gates pass, push the feature branch and open a PR to `main`:
+If no lock exists or status is not `running`, create the lock:
 
-1. Push the branch:
-   ```
-   git push -u origin <branch-name>
-   ```
+```json
+{
+  "workflowRunId": "<workflow-run-id>",
+  "branch": "<current-branch>",
+  "createdAt": "<iso-timestamp>",
+  "status": "running"
+}
+```
 
-2. Read the PR title from `reports/requirements.md` — use the content of the **"## What I want to build"** section (first 1–2 sentences, trimmed to ≤72 characters).
+Write to `reports/.workflow.lock`.
 
-3. Read the PR description from `reports/final-pr-summary.md`.
+---
 
-4. Open the PR:
-   ```
-   gh pr create --base main --head <branch-name> \
-     --title "<title from requirements doc>" \
-     --body "$(cat reports/final-pr-summary.md)"
-   ```
+## Step 2 — Generate Workflow Run ID
 
-5. Print the PR URL as the final output.
+Format: `<YYYYMMDD-HHMMSS>-<short-commit-sha>`
+
+```bash
+git rev-parse --short HEAD
+```
+
+Create run directory:
+
+```
+reports/runs/<workflow-run-id>/
+```
+
+Write the global pointer:
+
+```json
+// reports/current-run.json
+{
+  "workflowRunId": "<workflow-run-id>",
+  "runDirectory": "reports/runs/<workflow-run-id>",
+  "branch": "<current-branch>",
+  "baseBranch": "main",
+  "baseCommit": "<base-commit>",
+  "createdAt": "<iso-timestamp>",
+  "status": "running"
+}
+```
+
+All subsequent reports for this run are written under `reports/runs/<workflow-run-id>/`.
+
+---
+
+## Step 3 — Capture Requirement
+
+Use `$ARGUMENTS` or the latest user request as the source. If the request is ambiguous, choose the smallest safe interpretation and document assumptions. Do not ask follow-up questions.
+
+If the requirement is too ambiguous to safely implement, create `reports/runs/<workflow-run-id>/workflow-blocker.md`:
+
+```md
+## Blocker: Ambiguous Requirement
+
+Reason:
+
+Missing information:
+
+Smallest safe interpretation attempted:
+
+Why execution stopped:
+
+Required human action:
+Clarify the requirement and rerun the workflow.
+```
+
+Then stop. Mark lock `"status": "blocked"`.
+
+---
+
+## Step 4 — Branch Safety Gate
+
+Base branch is always `main`. Source of truth is always `origin/main`.
+
+Before branch operations:
+
+```bash
+git status --porcelain
+```
+
+If dirty, do not ask, stash, discard, or overwrite. Create `reports/runs/<workflow-run-id>/workflow-blocker.md`:
+
+```md
+## Blocker: Dirty Working Tree
+
+Reason:
+The working tree contains uncommitted changes before agent execution.
+
+Files:
+- ...
+
+Action taken:
+No branch sync was performed.
+No tracked files were modified.
+No PR was opened.
+
+Required human action:
+Clean, commit, stash, or discard local changes, then rerun the workflow.
+```
+
+Then stop. Mark lock `"status": "blocked"`.
+
+### If Current Branch Is `main`
+
+```bash
+git status --porcelain
+git checkout main
+git pull origin main
+git checkout -b feature/<safe-requirement-name>
+```
+
+Derive `<safe-requirement-name>` from the requirement: 3–5 words, lowercase, hyphens only.
+If the branch exists, append `-fix-1`, `-fix-2`, etc.
+
+Print: **Branch created:** `feature/<safe-requirement-name>`
+
+### If Current Branch Is Not `main`
+
+Treat it as a feature branch. Do not rely on upstream tracking.
+
+```bash
+git status --porcelain
+git fetch origin
+git rebase origin/main
+```
+
+If rebase conflicts occur:
+
+1. Capture conflicted files.
+2. Run `git rebase --abort` if safe.
+3. Create `reports/runs/<workflow-run-id>/workflow-blocker.md`:
+
+```md
+## Blocker: Rebase Conflict
+
+Reason:
+Feature branch could not be rebased onto origin/main automatically.
+
+Conflicted files:
+- ...
+
+Action taken:
+Rebase was aborted.
+Repository was returned to pre-rebase state.
+No implementation changes were made after the conflict.
+
+Required human action:
+Resolve branch conflicts manually or rerun from a clean branch.
+```
+
+Then stop. Mark lock `"status": "blocked"`.
+
+---
+
+## Step 5 — Write Requirements
+
+Write `reports/runs/<workflow-run-id>/requirements.md`:
+
+```md
+# Requirement
+
+## Raw User Request
+
+<exact original text>
+
+## Requirement Summary
+
+<1-3 sentence plain interpretation>
+
+## Initial Scope
+
+<bullet list of what is in scope>
+
+## Initial Risks
+
+<bullet list of known risks>
+
+## Notes For Product
+
+<anything the Product Agent should know or watch for>
+
+## Workflow Metadata
+
+Workflow Run ID: <id>
+Generated From Branch: <branch>
+Generated From Commit: <sha>
+Generated At: <iso-timestamp>
+Source: user-input
+```
+
+Continue autonomously to Team Lead when the smallest safe interpretation is implementable.
+
+---
+
+## Step 6 — Hand Off
+
+Hand control to `.claude/skills/team-lead/SKILL.md`.
+
+Requirement Intake must not:
+- Request interactive confirmation.
+- Spawn implementation agents directly.
+- Run QA loops directly.
+- Push branches.
+- Open PRs.
+- Consume old reports as memory.

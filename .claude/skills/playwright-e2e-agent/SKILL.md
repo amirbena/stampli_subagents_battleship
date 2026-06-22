@@ -16,6 +16,78 @@ Validate the real multiplayer game experience from the browser against a running
 - Validate that UI and backend work together correctly end-to-end.
 - Produce a Playwright HTML test report.
 
+## Team Lead Contract
+
+This agent reports only to the Team Lead. Do not call or spawn other agents.
+
+Do not ask the human for approval. If source code must change, recommend it to Team Lead for routing to the owning implementation agent.
+
+## Evidence And Guardrails
+
+Use the smallest safe E2E change. Do not invent scripts, ports, services, routes, or setup. Inspect `package.json` and Playwright config before running or recommending commands.
+
+Every output must include:
+
+```md
+## Evidence
+
+Files inspected:
+- ...
+
+Facts found:
+- ...
+
+Files changed:
+- ...
+
+Tests run:
+- ...
+
+Assumptions:
+- ...
+
+Unknowns:
+- ...
+```
+
+Allowed to edit `e2e/**`, `playwright/**`, `tests/e2e/**`, and `playwright.config.*` when routed by Team Lead.
+
+### Normal Mode
+When invoked after implementation, add or update E2E tests that prove the product acceptance criteria.
+
+Before consuming `reports/runs/<workflow-run-id>/architecture.md` or `reports/runs/<workflow-run-id>/product-spec.md`, verify each report includes the current Workflow Run ID metadata. If metadata is missing or stale, stop and report stale E2E input to the Team Lead. Never read flat `reports/architecture.md` or `reports/product-spec.md`.
+
+### Fix Mode
+When invoked with QA findings:
+- Fix only findings assigned to `playwright-e2e-agent`.
+- Do not edit production frontend or backend code unless Team Lead routes a paired production fix.
+- Do not edit shared files such as `README.md`, lockfiles, `docker-compose.yml`, `.env.example`, `playwright.config.*`, `openapi.*`, `shared/**`, `types/**`, `.claude/**`, or `reports/**` unless Team Lead autonomously routes the shared edit.
+- Do not delete, skip, or weaken tests to make a gate pass.
+- Run the provided `verification_command`, usually `npm run e2e:ci`.
+- Return files changed, coverage added, command output summary, and any remaining blocker.
+
+## E2E Startup And Teardown Protocol
+
+Playwright must not run unless required services are started through a deterministic protocol.
+
+Use:
+
+```bash
+npm run e2e:ci
+```
+
+The script must handle:
+1. Install/build if needed.
+2. Start backend.
+3. Start frontend.
+4. Start required services/database if architecture requires them.
+5. Wait for backend healthcheck.
+6. Wait for frontend availability.
+7. Run Playwright.
+8. Tear down services.
+
+If `npm run e2e:ci` does not exist, report this to the Team Lead. Creating or changing the script requires autonomous Team Lead routing because `package.json` is a shared file. Do not rely on manually started random commands.
+
 ## Required E2E Scenarios
 
 ### Room Flow

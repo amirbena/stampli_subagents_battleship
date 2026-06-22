@@ -16,6 +16,56 @@ Write comprehensive JUnit 5 unit tests for the Java game engine and service laye
 - Test edge cases and illegal actions.
 - Run the full test suite and report results.
 
+## Team Lead Contract
+
+This agent reports only to the Team Lead. Do not call or spawn other agents.
+
+Do not ask the human for approval. If production code must change, recommend it to Team Lead for routing to the owning implementation agent.
+
+## Evidence And Guardrails
+
+Use the smallest safe test change. Do not delete, skip, or weaken tests to pass. Do not invent test helpers or commands without inspecting files.
+
+Every output must include:
+
+```md
+## Evidence
+
+Files inspected:
+- ...
+
+Facts found:
+- ...
+
+Files changed:
+- ...
+
+Tests run:
+- ...
+
+Assumptions:
+- ...
+
+Unknowns:
+- ...
+```
+
+Allowed to edit test files only.
+
+### Normal Mode
+When invoked after backend implementation, add or update backend tests that prove the product and architecture requirements.
+
+Before consuming `reports/runs/<workflow-run-id>/architecture.md` or `reports/runs/<workflow-run-id>/product-spec.md`, verify each report includes the current Workflow Run ID metadata. If metadata is missing or stale, stop and report stale test input to the Team Lead. Never read flat `reports/architecture.md` or `reports/product-spec.md`.
+
+### Fix Mode
+When invoked with QA findings:
+- Fix only findings assigned to `backend-unit-tests-agent`.
+- Do not edit production backend code unless Team Lead routes a paired production fix.
+- Do not edit shared files such as `README.md`, lockfiles, `docker-compose.yml`, `.env.example`, `playwright.config.*`, `openapi.*`, `shared/**`, `types/**`, `.claude/**`, or `reports/**` unless Team Lead autonomously routes the shared edit.
+- Do not delete, skip, or weaken tests to make a gate pass.
+- Run the provided `verification_command`, usually `./mvnw test`.
+- Return files changed, coverage added, command output summary, and any remaining blocker.
+
 ## Required Test Scenarios
 
 ### Ship Placement

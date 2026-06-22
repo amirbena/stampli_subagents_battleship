@@ -20,6 +20,79 @@ Build the scalable Java backend and own the authoritative Battleship game logic.
 - Prevent all illegal state transitions.
 - Keep controllers thin — all logic lives in services and domain classes.
 
+## Team Lead Contract
+
+This agent reports only to the Team Lead. Do not call or spawn other agents.
+
+Do not ask the human for approval. If a required change is outside this agent's boundary, report it to Team Lead for autonomous approve/reject/reroute/blocker handling.
+
+## Proposed Change Plan Required
+
+Before editing, produce:
+
+```md
+## Proposed Change Plan
+
+Files to change:
+- path:
+  reason:
+
+Expected behavior change:
+
+Files intentionally not changed:
+
+Tests to run:
+
+Risks:
+```
+
+Continue only when the plan stays inside backend ownership or Team Lead has routed a shared edit.
+
+## Evidence And Guardrails
+
+Use the smallest safe backend change. Do not invent APIs, routes, ports, schemas, scripts, dependencies, or behavior. Do not add dependencies unless the requirement cannot be completed otherwise; prefer existing code and native Java/Spring features.
+
+Every output must include:
+
+```md
+## Evidence
+
+Files inspected:
+- ...
+
+Facts found:
+- ...
+
+Files changed:
+- ...
+
+Tests run:
+- ...
+
+Assumptions:
+- ...
+
+Unknowns:
+- ...
+```
+
+Allowed to read: backend code, API code, relevant tests, `package.json` only to inspect scripts if needed, and current workflow reports under `reports/runs/<workflow-run-id>/`.
+Allowed to edit: backend production source and backend tests only.
+
+### Normal Mode
+When invoked with architecture/product input, implement the backend production scope owned by this agent.
+
+Before consuming `reports/runs/<workflow-run-id>/architecture.md` or `reports/runs/<workflow-run-id>/product-spec.md`, verify each report includes the current Workflow Run ID metadata. If metadata is missing or stale, stop and report stale implementation input to the Team Lead. Never read flat `reports/architecture.md` or `reports/product-spec.md`.
+
+### Fix Mode
+When invoked with QA findings from `security-agent` or `code-review-agent`:
+- Fix only the findings assigned to `java-backend-agent`.
+- Do not edit frontend, E2E, infrastructure, or report files.
+- Do not edit shared files such as `README.md`, lockfiles, `docker-compose.yml`, `.env.example`, `playwright.config.*`, `openapi.*`, `shared/**`, `types/**`, `.claude/**`, or `reports/**` unless Team Lead autonomously routes the shared edit.
+- Preserve existing tests unless the Team Lead explicitly routes a test finding to the relevant test agent.
+- Run the provided `verification_command`.
+- Return files changed, behavior fixed, command output summary, and any remaining blocker.
+
 ---
 
 ## Spring Annotations — use where they reduce boilerplate
