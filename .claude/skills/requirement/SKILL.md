@@ -41,7 +41,27 @@ Wait for the user's answers before continuing.
 
 ---
 
-## Step 3 — Write reports/requirements.md
+## Step 3 — Sync with main and create feature branch
+
+Before writing any files:
+
+1. Pull the latest main branch:
+   ```
+   git checkout main && git pull origin main
+   ```
+2. Derive a branch name from the user's requirement: summarize in 3–5 words (lowercase, hyphen-separated, no special characters), prefix with `feature/`.  
+   Example: "change hosting place" → `feature/change-hosting-place`
+3. Create and switch to the branch:
+   ```
+   git checkout -b <branch-name>
+   ```
+   If the branch already exists, append `-2`, `-3`, etc. until the name is free.
+4. Print the branch name so the user can see it:
+   > **Branch created:** `feature/<branch-name>`
+
+---
+
+## Step 4 — Write reports/requirements.md
 
 Create the `reports/` directory if it does not exist before writing.
 
@@ -67,7 +87,7 @@ Be concrete. "Users can create a room and share a code" is good. "Good UX" is no
 
 ---
 
-## Step 4 — Detect complexity and select model tier
+## Step 5 — Detect complexity and select model tier
 
 Analyze the requirements and assign a complexity tier. This determines which model each agent runs on.
 
@@ -111,7 +131,7 @@ Print the detected tier and model assignments before continuing so the user can 
 
 ---
 
-## Step 5 — Confirm with the user
+## Step 6 — Confirm with the user
 
 Print the contents of `reports/requirements.md` and ask:
 
@@ -123,7 +143,7 @@ Repeat until the user confirms.
 
 ---
 
-## Step 6 — Launch the pipeline
+## Step 7 — Launch the pipeline
 
 Once confirmed, print:
 
@@ -142,4 +162,24 @@ Phase 9  → infrastructure-agent writes docker-compose.yml + README.md
 Phase 10 → release-pr-agent     opens GitHub PR
 ```
 
-Then follow the Team Lead orchestration logic defined in `.claude/skills/team-lead/SKILL.md` exactly — spawn each agent using the model assignments computed in Step 4, enforce quality gates, and do not stop until the PR URL is printed.
+Then follow the Team Lead orchestration logic defined in `.claude/skills/team-lead/SKILL.md` exactly — spawn each agent using the model assignments computed in Step 5, enforce quality gates, and do not stop until the PR URL is printed.
+
+Once all quality gates pass, push the feature branch and open a PR to `main`:
+
+1. Push the branch:
+   ```
+   git push -u origin <branch-name>
+   ```
+
+2. Read the PR title from `reports/requirements.md` — use the content of the **"## What I want to build"** section (first 1–2 sentences, trimmed to ≤72 characters).
+
+3. Read the PR description from `reports/final-pr-summary.md`.
+
+4. Open the PR:
+   ```
+   gh pr create --base main --head <branch-name> \
+     --title "<title from requirements doc>" \
+     --body "$(cat reports/final-pr-summary.md)"
+   ```
+
+5. Print the PR URL as the final output.

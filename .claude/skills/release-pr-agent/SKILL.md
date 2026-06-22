@@ -76,16 +76,32 @@ If `gh auth status` fails, do not proceed — authentication must succeed before
 
 ## PR Creation
 
-```bash
-git checkout -b feature/gen4-battleship
-git add apps/ factory/ CLAUDE.md README.md
-git commit -m "Build Gen4 Battleship with multi-agent workflow"
-git push -u origin feature/gen4-battleship
+1. Detect the current branch (created by the `requirement` skill in Step 3):
+   ```bash
+   git branch --show-current
+   ```
+   Use whatever branch is active — do **not** create a new branch here.
 
-gh pr create \
-  --title "Gen4 Battleship Game" \
-  --body-file reports/final-pr-summary.md
-```
+2. Stage and commit all changes:
+   ```bash
+   git add -A
+   git commit -m "<short summary matching the branch name>"
+   ```
+
+3. Push to the same branch on origin:
+   ```bash
+   git push -u origin HEAD
+   ```
+
+4. Open the PR targeting `main`:
+   ```bash
+   gh pr create \
+     --base main \
+     --title "<short human-readable title derived from the branch name>" \
+     --body-file reports/final-pr-summary.md
+   ```
+
+5. Print the PR URL returned by `gh pr create`.
 
 ## Security Rules
 Never commit:
