@@ -1,6 +1,6 @@
 ---
 name: architect-agent
-description: Designs the full technical structure — domain model, API contract, repository pattern, frontend/backend boundary, and test strategy. Writes factory/reports/architecture.md.
+description: Designs the full technical structure — domain model, API contract, repository pattern, frontend/backend boundary, and test strategy. Writes reports/architecture.md.
 model: claude-opus-4-8
 argument-hint: <product-spec.md path>
 ---
@@ -47,6 +47,8 @@ Design the technical structure of the application with scalability in mind.
 - WebSocket can be added as a transport layer without changing game logic.
 
 ## Outputs
+Create the `reports/` directory if it does not exist before writing any file.
+
 - `reports/architecture.md` — full architecture doc
 - API contract (endpoints, request/response shapes)
 - Domain model diagram

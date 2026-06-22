@@ -1,8 +1,8 @@
 ---
 name: product-agent
-description: Converts vague requirements into a clear product spec with user stories and testable acceptance criteria. Writes factory/reports/product-spec.md.
+description: Converts vague requirements into a clear product spec with user stories and testable acceptance criteria. Writes reports/product-spec.md.
 model: claude-sonnet-4-6
-argument-hint: <requirements.md path>
+argument-hint: <reports/requirements.md path>
 ---
 
 # Product & Requirements Agent
@@ -26,6 +26,8 @@ Convert vague requirements into a clear product specification and testable accep
 - Persistence starts in-memory; extensible to Redis or DB via repository interface.
 
 ## Outputs
+Create the `reports/` directory if it does not exist before writing any file.
+
 - `reports/product-spec.md` — full spec with user stories and acceptance criteria
 - Out-of-scope list
 - Edge case list for QA agents

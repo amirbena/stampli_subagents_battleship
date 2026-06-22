@@ -13,6 +13,7 @@ Create the GitHub PR only after all quality gates pass.
 All PRs are opened via **GitHub CLI (`gh`)**. GitHub MCP is not used.
 
 ## Responsibilities
+- Create the `reports/` directory if it does not exist before writing any file.
 - Verify all quality gate reports exist and are approved.
 - Generate `reports/final-pr-summary.md`.
 - Verify `gh` is installed and authenticated before proceeding.

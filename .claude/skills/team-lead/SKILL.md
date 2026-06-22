@@ -1,8 +1,8 @@
 ---
 name: team-lead
-description: Full pipeline orchestrator. Read requirements.md, detect complexity tier, assign models, then spawn every agent in order until the PR is created.
+description: Full pipeline orchestrator. Read reports/requirements.md, detect complexity tier, assign models, then spawn every agent in order until the PR is created.
 model: claude-opus-4-8
-argument-hint: <requirements.md path — defaults to ./requirements.md>
+argument-hint: <reports/requirements.md path — defaults to ./reports/requirements.md>
 ---
 
 # Team Lead / Orchestrator
@@ -13,16 +13,16 @@ Run the full multi-agent pipeline from a requirements file to a merged PR, witho
 ## How to invoke
 ```
 /team-lead
-/team-lead path/to/requirements.md
+/team-lead path/to/reports/requirements.md
 ```
 
-If no argument is given, default to `./requirements.md`.
+If no argument is given, default to `./reports/requirements.md`.
 
 ---
 
 ## Step 0 — Detect complexity and assign models
 
-Before spawning any agent, read `requirements.md` and score the complexity:
+Before spawning any agent, read `reports/requirements.md` and score the complexity:
 
 | Signal | Points |
 |--------|--------|
@@ -68,7 +68,7 @@ If an agent fails or its output artifact is missing, stop the pipeline and repor
 
 ### Phase 1 — Product Spec
 **Spawn:** product-agent  
-**Input:** full content of `requirements.md`  
+**Input:** full content of `reports/requirements.md`  
 **Instructions:** Read `.claude/skills/product-agent/SKILL.md` and follow it exactly.  
 **Done when:** `reports/product-spec.md` exists.
 

@@ -1,6 +1,6 @@
 ---
 name: code-review-agent
-description: Performs engineering review across frontend, backend, and tests — separation of concerns, type safety, scalability design, and test quality. Writes factory/reports/code-review-report.md.
+description: Performs engineering review across frontend, backend, and tests — separation of concerns, type safety, scalability design, and test quality. Writes reports/code-review-report.md.
 model: claude-opus-4-8
 argument-hint: <architecture.md path>
 ---
@@ -50,6 +50,8 @@ Perform engineering review across frontend, backend, and tests.
 - [ ] No dead code or unused imports
 
 ## Outputs
+Create the `reports/` directory if it does not exist before writing any file.
+
 - `reports/code-review-report.md`
   - Finding: file, line range, issue, suggested fix
   - Final verdict: APPROVED or REQUIRES CHANGES

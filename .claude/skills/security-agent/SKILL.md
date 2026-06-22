@@ -1,6 +1,6 @@
 ---
 name: security-agent
-description: Reviews the system for security vulnerabilities and game-integrity issues. Writes factory/reports/security-report.md with APPROVED or REQUIRES CHANGES verdict.
+description: Reviews the system for security vulnerabilities and game-integrity issues. Writes reports/security-report.md with APPROVED or REQUIRES CHANGES verdict.
 model: claude-opus-4-8
 argument-hint: <architecture.md path>
 ---
@@ -41,6 +41,8 @@ Review the system for security vulnerabilities and game-integrity issues.
 - [ ] `application.yml` contains no credentials (only placeholder defaults)
 
 ## Outputs
+Create the `reports/` directory if it does not exist before writing any file.
+
 - `reports/security-report.md`
   - Finding: description, severity (HIGH/MEDIUM/LOW), file/endpoint, required fix
   - Final verdict: APPROVED or REQUIRES CHANGES

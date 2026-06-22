@@ -1,6 +1,6 @@
 ---
 name: requirement
-description: Entry point for the entire factory. User describes what they want to build, the skill asks clarifying questions, writes requirements.md, selects the right model tier for each agent, then automatically kicks off the full multi-agent pipeline.
+description: Entry point for the entire factory. User describes what they want to build, the skill asks clarifying questions, writes reports/requirements.md, selects the right model tier for each agent, then automatically kicks off the full multi-agent pipeline.
 model: claude-opus-4-8
 argument-hint: optional — paste your idea inline or answer questions interactively
 ---
@@ -8,7 +8,7 @@ argument-hint: optional — paste your idea inline or answer questions interacti
 # Requirement Intake & Pipeline Launcher
 
 ## Mission
-Turn a freeform user description into a structured `requirements.md`, select the right model tier for each agent based on complexity, then launch the full agent pipeline without further human input.
+Turn a freeform user description into a structured `reports/requirements.md`, select the right model tier for each agent based on complexity, then launch the full agent pipeline without further human input.
 
 ---
 
@@ -41,9 +41,11 @@ Wait for the user's answers before continuing.
 
 ---
 
-## Step 3 — Write requirements.md
+## Step 3 — Write reports/requirements.md
 
-Using all information gathered, write `requirements.md` at the project root with this exact structure:
+Create the `reports/` directory if it does not exist before writing.
+
+Using all information gathered, write `reports/requirements.md` at the project root with this exact structure:
 
 ```markdown
 # Requirements
@@ -111,12 +113,12 @@ Print the detected tier and model assignments before continuing so the user can 
 
 ## Step 5 — Confirm with the user
 
-Print the contents of `requirements.md` and ask:
+Print the contents of `reports/requirements.md` and ask:
 
 > **Does this capture what you want?**
 > Reply `yes` to launch the pipeline, or tell me what to change.
 
-If the user requests changes, update `requirements.md` and show it again.
+If the user requests changes, update `reports/requirements.md` and show it again.
 Repeat until the user confirms.
 
 ---
