@@ -362,7 +362,9 @@ git pull origin main
 git checkout -b feature/<safe-requirement-name>
 ```
 
-If current branch is a feature branch:
+If current branch is a feature branch, first check whether it matches the incoming requirement:
+
+**Case A — branch scope matches requirement Y** (branch name or description clearly corresponds to Y):
 
 ```bash
 git fetch origin
@@ -370,6 +372,33 @@ git rebase origin/main
 ```
 
 If rebase conflict: capture files, `git rebase --abort`, write workflow-blocker.md, stop.
+
+**Case B — branch scope does NOT match requirement Y** (currently on branch X, requirement Y is unrelated):
+
+Do NOT implement Y on top of branch X. Instead:
+
+```bash
+git fetch origin
+git checkout main
+git pull origin main
+git checkout -b feature/<safe-requirement-Y-name>
+```
+
+Then implement Y on the new branch. Branch X is left untouched.
+
+Write this decision into `reports/runs/<workflow-run-id>/team-lead-classification.md`:
+
+```md
+## Branch Decision
+
+Was on branch: <branch-X>
+Requirement: <Y>
+Branch matched requirement: No
+Action: Created new branch feature/<safe-requirement-Y-name> from origin/main
+Branch X left untouched.
+```
+
+**How to determine if branch matches:** compare the requirement summary from product-spec with the branch name and the last few commits on the branch (`git log --oneline -5`). If there is no clear overlap, treat as Case B.
 
 ---
 
