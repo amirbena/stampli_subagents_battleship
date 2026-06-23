@@ -178,11 +178,15 @@ Or run alongside unit tests:
 
 Both integration and unit tests run in the same `./mvnw test` pass since they are in `src/test/`.
 
-## Fix Mode
+## Fix Mode — Fallback Only (20% case)
 
-When invoked with QA findings:
-- Fix only findings assigned to `backend-integration-tests-agent`.
-- Do not edit production code or unit tests.
+This agent is the **fallback fixer** for integration test failures. Team Lead routes here only after `java-backend-agent` has attempted a fix for 2 cycles without success — meaning the test setup or assertion itself is likely wrong, not the production code.
+
+When invoked:
+- Read the failure output carefully. Confirm production code is not the root cause before editing any test.
+- Fix only the test setup, request body, assertion, or helper — do not edit production code.
 - Do not delete or weaken tests to make a gate pass.
 - Run `./mvnw test -Dtest="*IntegrationTest"` to verify.
-- Return files changed, coverage added, command output summary, and any remaining blocker.
+- Return files changed, what was wrong in the test, command output summary, and any remaining blocker.
+
+If after inspection the root cause is clearly in production code (not the test), report back to Team Lead rather than editing out of scope.

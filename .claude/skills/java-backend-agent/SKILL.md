@@ -415,6 +415,28 @@ junit.jupiter.execution.parallel.config.strategy=dynamic
 ### Test naming
 Every test has a clear name describing the scenario: `cannotShootSameCoordinateTwice()`.
 
+### Self-fix loop — unit tests
+
+When `./mvnw test` fails, this agent self-heals without routing through Team Lead:
+
+1. Read the failure output — identify whether production code or the test itself is wrong.
+2. Fix the root cause (production code or test assertion).
+3. Re-run `./mvnw test`.
+4. Repeat up to **5 cycles**. If still failing after 5 cycles, report to Team Lead with full evidence.
+
+Never route a unit test failure to Team Lead before attempting a fix.
+
+### Self-fix loop — integration tests (primary fixer)
+
+When `backend-integration-tests-agent` reports a `@SpringBootTest` / MockMvc failure, Team Lead routes it here first (~80% of cases are backend issues):
+
+- Wrong HTTP status code from a controller
+- Missing or misconfigured `@ExceptionHandler`
+- DTO field serialization mismatch (wrong field name, wrong type)
+- Wrong `@RequestMapping` path or HTTP method
+
+Fix the production code and re-run `./mvnw test -Dtest="*IntegrationTest"`. After **2 failed cycles** with no fix, report back to Team Lead — the remaining 20% chance is that the test itself is wrong.
+
 ### Fix rule
 Never delete or weaken an existing test to make the suite pass — fix the production code instead.
 

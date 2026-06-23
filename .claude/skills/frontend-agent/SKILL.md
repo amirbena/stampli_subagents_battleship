@@ -272,7 +272,7 @@ After implementing production code, always add or update tests. Check `apps/fron
 
 Before writing or running frontend integration tests, check the `backend-contract-changed` flag passed by Team Lead:
 
-- **`backend-contract-changed: yes`** — Do NOT run frontend integration tests until Team Lead confirms `backend-unit-tests-agent` has completed with a green result. Unit tests (component-level, no HTTP) may proceed in parallel with backend work. Only start integration tests after receiving the go-ahead from Team Lead.
+- **`backend-contract-changed: yes`** — Do NOT run frontend integration tests until Team Lead confirms `java-backend-agent` unit tests have completed with a green result. Unit tests (component-level, no HTTP) may proceed in parallel with backend work. Only start integration tests after receiving the go-ahead from Team Lead.
 - **`backend-contract-changed: no`** — Frontend unit and integration tests may run fully in parallel with backend test work.
 
 ### Parallel Test Execution — Required
@@ -347,5 +347,16 @@ This test:
 **Smoke test must pass before this agent reports success.** If it fails, fix the regression before returning to Team Lead.
 
 If new screens or user-facing flows are added as part of the change, extend `apps/frontend/tests/e2e/smoke.spec.ts` with a minimal scenario covering the new flow. Keep additions focused — one or two assertions per new screen.
+
+### Self-fix loop — unit tests
+
+When `npm run test` fails, this agent self-heals without routing through Team Lead:
+
+1. Read the failure output — identify whether the component/hook or the test assertion is wrong.
+2. Fix the root cause (production code or test).
+3. Re-run `npm run test`.
+4. Repeat up to **5 cycles**. If still failing after 5 cycles, report to Team Lead with full evidence.
+
+Never route a Vitest / RTL failure to Team Lead before attempting a fix.
 
 ### Never modify, skip, or delete existing passing tests to make the suite green.

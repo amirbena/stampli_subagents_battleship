@@ -986,26 +986,27 @@ When any agent in the parallel test phase reports a failure, Team Lead is the so
 
 ### Classification and routing table
 
-| Failure symptom | Responsible agent | Action |
+| Failure symptom | Routing | Action |
 |---|---|---|
-| JUnit test fails on domain or service logic | `java-backend-agent` | Fix the production code; re-run `./mvnw test` |
-| JUnit unit test itself is wrong (wrong assertion, wrong mock) | `java-backend-agent` | Fix the test; re-run `./mvnw test` |
-| `@SpringBootTest` / MockMvc fails — wrong status code or response body | `java-backend-agent` | Fix the controller or DTO; re-run `*IntegrationTest` |
-| `@SpringBootTest` / MockMvc fails — test setup or assertion wrong | `backend-integration-tests-agent` | Fix the test; re-run `*IntegrationTest` |
-| Vitest / RTL test fails on component rendering or logic | `frontend-agent` | Fix the component or hook; re-run `npm run test` |
-| Vitest / RTL test itself is wrong (wrong assertion, wrong mock) | `frontend-agent` | Fix the test; re-run `npm run test` |
-| TypeScript compile error in frontend | `frontend-agent` | Fix the type error; re-run `npm run build` |
+| JUnit unit test fails (production code wrong) | `java-backend-agent` **self-heals** — no Team Lead hop | Fix code; re-run `./mvnw test` |
+| JUnit unit test itself wrong (bad assertion/mock) | `java-backend-agent` **self-heals** — no Team Lead hop | Fix test; re-run `./mvnw test` |
+| `@SpringBootTest` / MockMvc fails (80% case) | `java-backend-agent` directly | Fix controller/DTO/exception handler; re-run `*IntegrationTest` |
+| `@SpringBootTest` / MockMvc fails after 2 java-backend cycles | Team Lead reads output → `backend-integration-tests-agent` | Fix the test setup/assertion; re-run `*IntegrationTest` |
+| Vitest / RTL test fails (component, hook, logic) | `frontend-agent` **self-heals** — no Team Lead hop | Fix component/hook; re-run `npm run test` |
+| Vitest / RTL test itself wrong (bad assertion/mock) | `frontend-agent` **self-heals** — no Team Lead hop | Fix test; re-run `npm run test` |
+| TypeScript compile error in frontend | `frontend-agent` **self-heals** — no Team Lead hop | Fix type error; re-run `npm run build` |
 | Playwright test fails — backend returns unexpected response | `java-backend-agent` | Fix the backend; re-run `npm run test:e2e` |
 | Playwright test fails — UI behaves incorrectly | `frontend-agent` | Fix the component; re-run `npm run test:e2e` |
 | Playwright test fails — test is flaky or assertion is wrong | `playwright-e2e-agent` | Fix the test; re-run `npm run test:e2e` |
 
 ### Routing rules
 
-1. **Read the failure output before routing.** Do not guess ownership from the file path alone — a backend bug can surface in a frontend test and vice versa.
-2. **Route to exactly one agent.** Do not spawn multiple fix agents for the same failure — diagnose the root cause first.
-3. **After the fix, re-run only the failing test suite** — not all tests. Only re-run the full parallel phase if the fix could plausibly have broken a different suite.
-4. **If the root cause is unclear**, route to `java-backend-agent` for backend failures and `frontend-agent` for frontend failures as the default, and ask them to report back with the root cause before fixing.
-5. **E2E does not start until the parallel test phase is fully green.** A fix cycle in the parallel phase must complete and be verified before Playwright is spawned.
+1. **Unit test failures never route through Team Lead.** `java-backend-agent` and `frontend-agent` own their tests and self-heal directly. Team Lead only steps in when the fix cycle limit is reached.
+2. **Integration test failures default to `java-backend-agent`** — wrong status code, missing exception handler, DTO serialization mismatch account for ~80% of cases. Only route to `backend-integration-tests-agent` if java-backend-agent fails to fix it after 2 cycles.
+3. **Read the failure output before routing** for Playwright failures — a backend bug can surface in a frontend test and vice versa.
+4. **Route to exactly one agent.** Do not spawn multiple fix agents for the same failure.
+5. **After the fix, re-run only the failing suite** — not all tests.
+6. **E2E does not start until all test gates are green.**
 
 ### Fix cycle limit
 
