@@ -167,6 +167,8 @@ This makes the pipeline **single-tenant by design**: one requirement in flight a
 
 ### E2E Modes
 
+Team Lead picks the mode based on what changed. The mode controls whether `playwright-e2e-agent` is spawned and what it runs.
+
 | Mode | When | What runs |
 |------|------|-----------|
 | **Full** | API contract changed (new/modified endpoints, DTOs, response shapes), or new backend-coordinated flow | All E2E specs against live backend on port 8081 |
@@ -174,6 +176,14 @@ This makes the pipeline **single-tenant by design**: one requirement in flight a
 | **None** | Backend-only change, zero frontend impact | E2E skipped |
 
 Full mode requires the E2E Infrastructure Pre-Gate to pass before the Playwright agent runs. Smoke mode bypasses the pre-gate entirely.
+
+#### Frontend Agent — Internal Smoke Gate (selective)
+
+The `frontend-agent` runs `smoke.spec.ts` as its own verification step, but only when the change affects **user-visible behavior**: routing, page rendering, game interaction, placement flow, validation, navigation, or visible UI state.
+
+**Skip** the internal smoke gate for: pure refactors, type-only changes, test-only changes, copy-only changes, or isolated CSS tweaks already covered by build/unit tests. When skipped, the agent records the reason in its Evidence section and Team Lead records it in `test-results.md`.
+
+This is separate from the Team Lead E2E mode decision above — it is a lightweight pre-check the agent runs on itself before reporting done.
 
 ### Quality Gates (all must pass before PR)
 - `./mvnw test` — backend unit tests

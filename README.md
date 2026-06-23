@@ -81,7 +81,7 @@ echo "All checks passed"
 | Unit Tests | JUnit 5 + Mockito (backend) · Vitest + React Testing Library (frontend) |
 | E2E Tests | Playwright |
 | Storage | In-memory (Redis-ready via repository interface) |
-| Release | GitHub MCP or GitHub CLI fallback |
+| Release | GitHub CLI (`gh`) |
 
 ## How To Run
 
@@ -224,7 +224,7 @@ Phase 4b — INTEGRATION TESTS (after unit gate, if HTTP layer changed)
 
 Phase 5   playwright-e2e-agent       → apps/frontend/tests/e2e/
           • Full mode  — all specs + live backend (when API contract changed)
-          • Smoke mode — smoke.spec.ts only, no backend (frontend-only change)
+          • Smoke mode — smoke.spec.ts only, no backend (user-visible frontend change, no contract change)
           • None       — skipped (backend-only change)
 
 Phase 6   security-agent  ──┐        → reports/runs/<id>/security-report.md
@@ -271,9 +271,9 @@ All pipeline artifacts live in [`reports/`](reports/) — gitignored so they nev
 
 | File | Written by |
 |------|-----------|
-| `reports/requirements.md` | `/requirement` skill (you) |
-| `reports/product-spec.md` | product-agent |
-| `reports/architecture.md` | architect-agent |
-| `reports/security-report.md` | security-agent |
-| `reports/code-review-report.md` | code-review-agent |
-| `reports/final-pr-summary.md` | release-pr-agent |
+| `reports/runs/<id>/requirements.md` | `/requirement` skill (you) |
+| `reports/runs/<id>/product-spec.md` | product-agent |
+| `reports/runs/<id>/architecture.md` | architect-agent |
+| `reports/runs/<id>/security-report.md` | security-agent |
+| `reports/runs/<id>/code-review-report.md` | code-review-agent |
+| `reports/runs/<id>/release-summary.md` | release-pr-agent |

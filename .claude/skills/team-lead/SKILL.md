@@ -1246,9 +1246,9 @@ Level 3: targeted E2E
 Level 4: full E2E/regression
 ```
 
-### Smoke Test Gate (Level 0) — Required For All Frontend Routes
+### Smoke Test Gate (Level 0) — Required For User-Visible Frontend Behavior Changes
 
-For any route that includes frontend changes (`frontend-only`, `backend-and-frontend`, `full-stack-complex`), the smoke test is a mandatory gate even in **cheap mode**:
+For routes that include frontend changes (`frontend-only`, `backend-and-frontend`, `full-stack-complex`), run the smoke gate when the change affects user-visible behavior: routing, page rendering, game interaction, placement flow, validation, navigation, or visible UI state.
 
 ```bash
 cd apps/frontend && npx playwright test smoke.spec.ts
@@ -1257,7 +1257,7 @@ cd apps/frontend && npx playwright test smoke.spec.ts
 - No backend required — the Playwright `webServer` config starts `npm run dev` automatically.
 - Must pass before routing to code review or release.
 - If it fails after a frontend change, route back to `frontend-agent` as a `frontend-runtime` finding.
-- Do not skip the smoke gate to save cost — it is fast (< 30 s) and backend-free.
+- **Skip** for purely internal refactors, type-only changes, test-only changes, copy-only changes, or isolated CSS tweaks already covered by build/unit tests. When skipped, `frontend-agent` records the reason in its Evidence section and Team Lead records it in `test-results.md`.
 
 If a test command does not exist:
 - Do not block by default
@@ -1366,7 +1366,7 @@ For pure cosmetic/audio changes where all unvalidated criteria are Risk: Low —
 - Do not run security-full unless auth, sessions, permissions, tokens, secrets, user data, external integrations, or persistence security are affected. Security review is optional in cheap/normal for non-security routes.
 - Do not run backend unit tests for CSS-only or copy-only changes. Run only `npm run build`.
 - Do not run infrastructure unless Docker, CI, env, deployment, ports, startup, or runtime config changes
-- Always run `npx playwright test smoke.spec.ts` for any frontend change — it is fast, backend-free, and never skipped.
+- Run `npx playwright test smoke.spec.ts` for frontend changes that affect user-visible behavior (routing, rendering, interaction, validation, navigation, UI state). Skip for pure refactors, type-only, test-only, copy-only, or isolated CSS changes — record the skip reason in `test-results.md`.
 - Do not run full Playwright by default (only smoke unless E2E is explicitly required)
 - Do not run backend for frontend-only visual/audio changes
 - Do not run frontend for backend-only internal logic changes
