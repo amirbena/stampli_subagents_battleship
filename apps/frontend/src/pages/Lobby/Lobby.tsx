@@ -11,6 +11,7 @@ import { ErrorMessage } from '../../components/common/ErrorMessage/ErrorMessage'
 import { LoadingSpinner } from '../../components/common/LoadingSpinner/LoadingSpinner';
 import type { Coordinate, ShipType } from '../../types/game';
 import { computeOwnBoardCells } from '../../utils/boardHelpers';
+import './Lobby.css';
 
 function emptyGrid() {
   return Array.from({ length: 10 }, () => Array<import('../../types/game').CellState>(10).fill('empty'));
