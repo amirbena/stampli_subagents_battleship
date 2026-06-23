@@ -75,6 +75,24 @@ If metadata is missing or stale, stop and report the stale report to the Team Le
 
 `reports/final-pr-summary.md` must include the same metadata block near the top of the file.
 
+## Required Artifact Reads
+
+Before writing `release-summary.md` or creating the PR, read every artifact listed below that exists for the current run. Do not skip any that exist — the PR summary must synthesise all of them.
+
+| Artifact | Path | Required? |
+|----------|------|-----------|
+| Requirements | `reports/runs/<id>/requirements.md` | Always |
+| Product spec | `reports/runs/<id>/product-spec.md` | Always |
+| Team Lead plan | `reports/runs/<id>/team-lead-plan.md` | Always |
+| Architecture | `reports/runs/<id>/architecture.md` | If it exists |
+| Code review | `reports/runs/<id>/code-review-report.md` | Always |
+| Security report | `reports/runs/<id>/security-report.md` | If it exists |
+| Test results | `reports/runs/<id>/test-results.md` | If it exists |
+| Infra non-modification check | `reports/runs/<id>/infra-non-modification-check.md` | If it exists |
+| Validation gap check | `reports/runs/<id>/validation-gap-check.md` | If it exists |
+
+If any always-required artifact is missing or stale, stop and report to Team Lead before continuing.
+
 ## Quality Gate Verification
 
 Read current run ID from `reports/current-run.json`. All gate reports must be read from `reports/runs/<workflow-run-id>/`:
@@ -83,6 +101,7 @@ Read current run ID from `reports/current-run.json`. All gate reports must be re
 - [ ] `reports/runs/<workflow-run-id>/code-review-report.md` verdict: `APPROVED` (or only non-Critical findings with `Blocks PR: No`)
 - [ ] Backend unit tests: `./mvnw test` exits 0 (if backend was in scope)
 - [ ] Frontend build: `npm run build` exits 0 (if frontend was in scope)
+- [ ] Frontend unit tests: `npm run test` exits 0 (if frontend was in scope)
 - [ ] Playwright E2E: `npm run e2e:ci` exits 0 (if E2E was required)
 - [ ] README.md exists and documents how to run the app
 
@@ -167,25 +186,43 @@ Install/authenticate gh and rerun release.
      --body-file reports/runs/<workflow-run-id>/release-summary.md
    ```
 
-   **PR description must contain all three of these sections** (write them into `release-summary.md` before creating the PR):
+   **PR description must contain all sections below** (write them into `release-summary.md` before creating the PR):
 
    ```md
-   ## What Changed
-   - <bullet per file/area changed, e.g. "GameService.java — added win detection logic">
-   - <frontend change if any>
-   - <config/infra change if any>
+   ## Requirement
+   <One paragraph from requirements.md summarising what was requested.>
 
-   ## Tests Changed
-   - <unit tests added or modified, e.g. "GameServiceTest — 3 new scenarios for win condition">
-   - <integration tests added or modified>
-   - <E2E tests added or modified, or "none">
+   ## Product Behavior
+   <Key acceptance criteria from product-spec.md that this PR satisfies.>
+
+   ## Architecture / API Changes
+   <From architecture.md if it exists. State "No architecture changes — frontend-only / docs-only" if not applicable.>
+
+   ## Backend Changes
+   - <file or area — what changed and why>
+   - None (if backend was not in scope)
+
+   ## Frontend Changes
+   - <file or area — what changed and why>
+   - None (if frontend was not in scope)
+
+   ## Test Coverage
+   - Backend unit tests: <added/updated test classes and scenario count, or "not in scope">
+   - Frontend unit tests: <added/updated test files and scenario count, or "not in scope">
+   - Playwright E2E: <added/updated specs and scenario count, or "skipped — not required for this route">
 
    ## How This Was Verified
-   - `./mvnw test` — X tests passed, 0 failed
-   - `npm run test` — X tests passed, 0 failed (if frontend in scope)
-   - `npm run e2e:ci` — X scenarios passed (if E2E in scope, else "skipped — not required for this route")
+   - `./mvnw test` — X tests passed, 0 failed (or "skipped — backend not in scope")
+   - `npm run test` — X tests passed, 0 failed (or "skipped — frontend not in scope")
+   - `npm run e2e:ci` — X scenarios passed (or "skipped — not required for this route")
    - Code review: APPROVED (report: reports/runs/<id>/code-review-report.md)
-   - Security review: APPROVED / skipped (reason)
+   - Security review: APPROVED / skipped — <reason>
+
+   ## Security Considerations
+   <From security-report.md if it exists. State "Security review not required for this route" if not applicable.>
+
+   ## Known Limitations / Follow-up Tasks
+   <Unresolved non-critical findings, known gaps, or intentional deferred scope. State "None" if clean.>
    ```
 
 4. Print the PR URL returned by `gh pr create`.

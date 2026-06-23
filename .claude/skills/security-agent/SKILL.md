@@ -157,5 +157,6 @@ On `REQUIRES CHANGES`:
 - Findings must be grouped by owner.
 - Each finding must include a verification command.
 - Do not fix the issue yourself.
-- Do not call another agent.
-- Return control to the Team Lead.
+- **Do not call or spawn another agent directly — not even the suspected owner.**
+- Return control to the Team Lead. Team Lead is the only entry point for routing fixes to developer agents.
+- If a finding reveals a hidden data exposure or auth boundary issue, flag it so Team Lead can decide whether Architecture must be re-evaluated before the fix is routed.

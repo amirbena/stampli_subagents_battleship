@@ -101,6 +101,15 @@ If the requirement involves audio, video, or external media assets:
 - State whether sound should be toggleable by the user (mute button) — if not stated, default assumption is: mute control is out of scope for v1, document as a known UX gap.
 - If assets are external (CDN), note the dependency on network availability as a risk.
 
+## Output Scale Rule
+
+**Scale output to task complexity.** Do not write all sections for a simple change:
+
+- **Simple/cheap** (styling, copy, single UI tweak, color, sound): write only `Requirement Summary`, `Acceptance Criteria`, `Suggested Classification Hints`, and `Cost-Saving Notes`. Skip User Flows, Edge Cases, Data/State, Permissions sections unless relevant.
+- **Normal/full** (new feature, API change, multiplayer behavior, auth): write the full spec.
+
+Filling unused sections with "N/A" or placeholder text wastes tokens and time.
+
 ## Output
 
 Create the `reports/runs/<workflow-run-id>/` directory if it does not exist before writing.

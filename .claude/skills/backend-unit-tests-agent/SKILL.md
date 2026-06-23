@@ -110,9 +110,9 @@ src/test/java/com/stampli/battleship/
     └── GameServiceTest.java
 ```
 
-## Integration Tests — Required
+## Integration Tests — Required (HTTP layer only, in-memory)
 
-After unit tests pass, add at least one Spring Boot integration test class:
+After unit tests pass, add at least one Spring Boot integration test class that exercises the HTTP layer against the in-memory repository:
 
 ```
 src/test/java/com/stampli/battleship/
@@ -133,6 +133,17 @@ Integration test rules:
 - Use `MockMvc` for HTTP calls — do NOT use `RestTemplate` or `WebClient`.
 - No external services (no real DB, no Redis) — use the in-memory repository.
 - Each test must be independent and clean up after itself.
+
+## DB Integration Tests — Not In Scope
+
+Do **not** add `@DataJpaTest`, Testcontainers, or repository-layer DB integration tests at this stage.
+
+The backend uses in-memory storage by default. DB integration tests should only be introduced when:
+- PostgreSQL / JPA / Hibernate becomes the primary persistence layer, AND
+- Schema migrations exist, AND
+- A dedicated DB Integration Tests Agent is added to the workflow.
+
+A new agent is warranted only when the responsibility is clearly separate from existing agents or the test type requires a different execution context. Until those conditions are met, keep all tests against the in-memory repository.
 
 ## Parallel Test Execution — Required
 

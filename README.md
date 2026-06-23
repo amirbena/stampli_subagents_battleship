@@ -78,7 +78,7 @@ echo "All checks passed"
 |-------|-----------|
 | Frontend | React + TypeScript + Vite |
 | Backend | Java 17 + Spring Boot 3 |
-| Unit Tests | JUnit 5 + Mockito |
+| Unit Tests | JUnit 5 + Mockito (backend) · Vitest + React Testing Library (frontend) |
 | E2E Tests | Playwright |
 | Storage | In-memory (Redis-ready via repository interface) |
 | Release | GitHub MCP or GitHub CLI fallback |
@@ -106,7 +106,8 @@ docker compose --env-file apps/backend/.env up --build -d
 
 | Service | URL |
 |---------|-----|
-| Frontend | http://localhost:3000 |
+| Frontend (docker) | http://localhost:3000 |
+| Frontend (dev server) | http://localhost:3001 |
 | Backend API | http://localhost:8080/api/v1 |
 | PostgreSQL | localhost:5432 |
 | Redis | localhost:6379 |
@@ -159,8 +160,10 @@ cd apps/backend
 cd apps/frontend
 npm install
 npm run dev
-# UI available at http://localhost:5173
+# UI available at http://localhost:3001
 ```
+
+> Port 3001 is intentional — docker-compose uses 3000 for the built frontend image so the dev server gets its own port.
 
 **Backend unit tests**
 ```bash
@@ -168,10 +171,22 @@ cd apps/backend
 ./mvnw test
 ```
 
-**Playwright E2E tests** (requires both services running)
+**Frontend unit tests** (Vitest + React Testing Library — no server needed)
 ```bash
 cd apps/frontend
+npm test          # one-shot
+npm run test:watch  # interactive watch mode
+```
+
+**Playwright E2E tests**
+```bash
+cd apps/frontend
+
+# Against dev server (auto-starts npm run dev on port 3001):
 npm run test:e2e
+
+# Against docker-compose (must be running on port 3000):
+E2E_BASE_URL=http://localhost:3000 npm run test:e2e
 ```
 
 ## Using the Factory
@@ -196,8 +211,9 @@ You can also pass your idea inline:
 Phase 1   product-agent           → reports/product-spec.md
 Phase 2   architect-agent         → reports/architecture.md
 Phase 3   java-backend-agent      → apps/backend/src/main/java/
-Phase 4   frontend-agent          → apps/frontend/src/              (mobile-first)
-Phase 5   backend-unit-tests      → apps/backend/src/test/
+Phase 4   frontend-agent          → apps/frontend/src/              (mobile-first, component-per-folder)
+Phase 5   backend-unit-tests      → apps/backend/src/test/          (JUnit 5)
+           frontend-agent          → apps/frontend/src/**/*.test.*   (Vitest — co-located with components)
 Phase 6   playwright-e2e-agent    → apps/frontend/tests/e2e/
 Phase 7   security-agent          → reports/security-report.md
 Phase 8   code-review-agent       → reports/code-review-report.md
