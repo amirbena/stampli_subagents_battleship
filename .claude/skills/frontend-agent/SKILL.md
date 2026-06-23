@@ -270,10 +270,10 @@ After implementing production code, always add or update tests. Check `apps/fron
 
 ### Backend Contract Dependency — Required
 
-Before writing or running frontend integration tests, check the `backend-contract-changed` flag passed by Team Lead:
+Before writing or running frontend tests, check the `backend-contract-changed` flag passed by Team Lead:
 
-- **`backend-contract-changed: yes`** — Do NOT run frontend integration tests until Team Lead confirms `java-backend-agent` unit tests have completed with a green result. Unit tests (component-level, no HTTP) may proceed in parallel with backend work. Only start integration tests after receiving the go-ahead from Team Lead.
-- **`backend-contract-changed: no`** — Frontend unit and integration tests may run fully in parallel with backend test work.
+- **`backend-contract-changed: yes`** — Frontend unit tests (component-level, no HTTP) may proceed immediately. Do not run frontend integration tests until Team Lead confirms backend unit tests are green.
+- **`backend-contract-changed: no`** — Frontend unit tests may run immediately with no dependency.
 
 ### Parallel Test Execution — Required
 
