@@ -1,7 +1,8 @@
 import React from 'react';
-import { BoardCell } from './BoardCell';
-import type { CellState, Coordinate } from '../../types/game';
-import { coordKey } from '../../utils/boardHelpers';
+import { BoardCell } from '../BoardCell/BoardCell';
+import type { CellState, Coordinate } from '../../../types/game';
+import { coordKey } from '../../../utils/boardHelpers';
+import './GameBoard.css';
 
 interface GameBoardProps {
   cells: CellState[][];

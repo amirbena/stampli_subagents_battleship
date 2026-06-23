@@ -1,5 +1,6 @@
 import React from 'react';
-import type { CellState } from '../../types/game';
+import type { CellState } from '../../../types/game';
+import './BoardCell.css';
 
 interface BoardCellProps {
   state: CellState;

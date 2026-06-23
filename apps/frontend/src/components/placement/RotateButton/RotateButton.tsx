@@ -1,5 +1,6 @@
 import React from 'react';
-import type { Orientation } from '../../types/game';
+import type { Orientation } from '../../../types/game';
+import './RotateButton.css';
 
 interface RotateButtonProps {
   orientation: Orientation;

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useGamePolling } from '../hooks/useGamePolling';
+import { useGamePolling } from '../../hooks/useGamePolling';
+import './GameOver.css';
 
 export function GameOver(): React.ReactElement {
   const navigate = useNavigate();

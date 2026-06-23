@@ -1,6 +1,7 @@
 import React from 'react';
-import type { ShipType } from '../../types/game';
-import { SHIP_DISPLAY_NAMES, SHIP_SIZES } from '../../types/game';
+import type { ShipType } from '../../../types/game';
+import { SHIP_DISPLAY_NAMES, SHIP_SIZES } from '../../../types/game';
+import './FleetShipItem.css';
 
 interface FleetShipItemProps {
   shipType: ShipType;

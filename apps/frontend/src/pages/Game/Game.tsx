@@ -1,15 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fireShot } from '../api/gameApi';
-import { useGamePolling } from '../hooks/useGamePolling';
-import { GameBoard } from '../components/board/GameBoard';
-import { TurnIndicator } from '../components/game/TurnIndicator';
-import { ShotResultToast } from '../components/game/ShotResultToast';
-import { ShipStatusPanel } from '../components/game/ShipStatusPanel';
-import { ErrorMessage } from '../components/common/ErrorMessage';
-import { LoadingSpinner } from '../components/common/LoadingSpinner';
-import { computeOwnBoardCells, computeOpponentBoardCells, getSunkShipTypes } from '../utils/boardHelpers';
-import type { ShotResult, ShipType } from '../types/game';
+import { fireShot } from '../../api/gameApi';
+import { useGamePolling } from '../../hooks/useGamePolling';
+import { GameBoard } from '../../components/board/GameBoard/GameBoard';
+import { TurnIndicator } from '../../components/game/TurnIndicator/TurnIndicator';
+import { ShotResultToast } from '../../components/game/ShotResultToast/ShotResultToast';
+import { ShipStatusPanel } from '../../components/game/ShipStatusPanel/ShipStatusPanel';
+import { ErrorMessage } from '../../components/common/ErrorMessage/ErrorMessage';
+import { LoadingSpinner } from '../../components/common/LoadingSpinner/LoadingSpinner';
+import { computeOwnBoardCells, computeOpponentBoardCells, getSunkShipTypes } from '../../utils/boardHelpers';
+import type { ShotResult, ShipType } from '../../types/game';
+import './Game.css';
 
 export function Game(): React.ReactElement {
   const navigate = useNavigate();

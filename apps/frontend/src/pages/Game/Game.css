@@ -1,0 +1,38 @@
+.game-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  width: 100%;
+}
+
+.game-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.game-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+@media (min-width: 900px) {
+  .game-layout { flex-direction: row; align-items: flex-start; }
+}
+
+.game-boards {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+@media (min-width: 900px) {
+  .game-boards { flex-direction: row; gap: 3rem; }
+}
+
+@media (max-width: 480px) {
+  .game-header { flex-direction: column; align-items: flex-start; }
+}
