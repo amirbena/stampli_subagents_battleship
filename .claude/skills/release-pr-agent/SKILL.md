@@ -177,6 +177,17 @@ Install/authenticate gh and rerun release.
    git push -u origin HEAD
    ```
 
+2b. Check whether an open PR already exists for this branch:
+   ```bash
+   gh pr list --head $(git branch --show-current) --state open --json number,url
+   ```
+   - If an open PR exists → do **not** run `gh pr create`. Update the PR body instead:
+     ```bash
+     gh pr edit <number> --body-file reports/runs/<workflow-run-id>/release-summary.md
+     ```
+     Print the existing PR URL and stop.
+   - If no open PR exists → proceed to step 3.
+
 3. Open the PR targeting `main`. Title must be ≤ 60 characters, imperative, human-readable:
 
    ```bash
@@ -223,6 +234,12 @@ Install/authenticate gh and rerun release.
 
    ## Known Limitations / Follow-up Tasks
    <Unresolved non-critical findings, known gaps, or intentional deferred scope. State "None" if clean.>
+
+   ## Agents That Ran
+   - <agent-name>: <one-line summary of what it did or was skipped>
+
+   ## Manual / UI Verification Notes
+   <Smoke test result from Frontend Agent, or "Not applicable — no frontend change.">
    ```
 
 4. Print the PR URL returned by `gh pr create`.

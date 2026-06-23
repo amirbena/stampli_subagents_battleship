@@ -70,7 +70,7 @@ Product Spec Read: Yes / No (stale → stop)
 |-------|-----------|--------|
 | java-backend-agent | Yes / No | ... |
 | frontend-agent | Yes / No | ... |
-| backend-unit-tests-agent | Yes / No | ... |
+| backend-integration-tests-agent | Yes / No | ... |
 | playwright-e2e-agent | Yes / No | ... |
 | infrastructure-agent | Yes / No | ... |
 | security-agent | Yes / No | ... |
@@ -201,6 +201,8 @@ Run Architecture for **any** of the following — one match is sufficient:
 - Hidden opponent data boundaries or new data visibility rules
 - Shared types or contracts consumed by both frontend and backend
 - Large cross-cutting behavior that spans more than two layers
+- Domain model structural changes (`Game`, `Board`, `Ship`) that introduce new invariants, new fields, or cross-class rules not yet surfaced in the API contract
+- Major game rule changes (ship placement rules, fleet composition, turn logic, win conditions) that affect more than one layer or require coordinated backend + frontend behavior
 
 When Architecture runs, it writes `reports/runs/<workflow-run-id>/architecture.md` and returns to Team Lead. Architecture must not activate developers.
 
@@ -277,9 +279,27 @@ If infra change appears required: route to infrastructure-agent only if explicit
 
 Yes/No and reason.
 
-## E2E Required
+## Backend Integration Tests Required
 
-Yes/No and reason.
+Yes / No — and exact trigger (which of the five conditions matched, or why all were absent).
+
+## E2E Mode
+
+None / Smoke / Full — and reason.
+
+**Decision rules (pick the first that matches):**
+
+| Condition | E2E Mode |
+|-----------|----------|
+| API contract changed (new endpoint, changed request/response shape, new status codes) | **Full** — frontend + live backend on port 8081 |
+| New game mode, state machine transition, or multiplayer flow requiring backend coordination | **Full** |
+| New frontend pages/flows/components but NO contract change | **Smoke** — `smoke.spec.ts` only, no backend |
+| Pure styling, copy, or layout change | **Smoke** |
+| Backend-only change, zero frontend impact | **None** |
+
+When mode is **Full**, Team Lead must pass the E2E Infrastructure Pre-Gate before spawning playwright-e2e-agent (see Step 6).
+When mode is **Smoke**, Team Lead spawns playwright-e2e-agent with instruction to run `smoke.spec.ts` only — no backend webServer needed.
+When mode is **None**, playwright-e2e-agent is not spawned.
 
 ## Demo Config / Dotenv Plan
 
@@ -766,16 +786,87 @@ Team Lead MUST spawn all assigned developer agents automatically using the `Agen
 - `java-backend-only`: spawn only `java-backend-agent`.
 - `frontend-only`: spawn only `frontend-agent`.
 
-#### Test phase (after implementation, run in parallel where safe)
+#### E2E Infrastructure Pre-Gate — Required Only When E2E Mode Is Full
 
-**If the route touched only backend OR backend and frontend with no contract change:**
-- Spawn `backend-unit-tests-agent` and (if E2E required) `playwright-e2e-agent` in **parallel**.
+Skip this gate entirely when E2E mode is **Smoke** or **None**.
 
-**If the route changed the backend API contract (new/changed endpoints, DTOs, or status codes):**
-1. First: spawn `backend-unit-tests-agent` and wait for it to complete (backend contract must be stable and green before frontend integration tests run against it).
-2. Then: spawn frontend integration test validation and (if E2E required) `playwright-e2e-agent` in parallel.
+When mode is **Full**, verify the complete E2E environment before spawning `playwright-e2e-agent`. Run these checks in order:
 
-All unit test _scenarios_ within a single agent run must also be parallelized — see backend-unit-tests-agent for JUnit 5 parallel config.
+```bash
+# 1. Backend E2E Spring profile exists
+test -f apps/backend/src/main/resources/application-e2e.yml && echo "OK" || echo "MISSING"
+
+# 2. Maven e2e profile exists in pom.xml
+grep -q '<id>e2e</id>' apps/backend/pom.xml && echo "OK" || echo "MISSING"
+
+# 3. playwright.config.ts has a backend webServer entry
+grep -q 'spring-boot:run' apps/frontend/playwright.config.ts && echo "OK" || echo "MISSING"
+
+# 4. playwright.config.ts passes VITE_API_BASE_URL to frontend webServer
+grep -q 'VITE_API_BASE_URL' apps/frontend/playwright.config.ts && echo "OK" || echo "MISSING"
+```
+
+If any check fails, route to the owning agent before spawning playwright-e2e-agent:
+- `application-e2e.yml` missing → route to `java-backend-agent`
+- Maven `e2e` profile missing → route to `java-backend-agent`
+- `playwright.config.ts` missing backend webServer → route to `playwright-e2e-agent` with explicit instruction to add it
+- `VITE_API_BASE_URL` missing → route to `playwright-e2e-agent` with explicit instruction to add it
+
+Do not spawn `playwright-e2e-agent` until all four checks pass.
+
+#### Backend Integration Tests Decision
+
+Integration tests validate the HTTP layer — things Mockito never catches because they only materialize inside the Spring context. They cost more than unit tests, so Team Lead must only spawn `backend-integration-tests-agent` when the HTTP layer itself is at risk.
+
+**Run `backend-integration-tests-agent` when ANY of these are true:**
+
+| Trigger | Why unit tests are not enough |
+|---------|-------------------------------|
+| New REST endpoint added | Route wiring, path variables, and response serialization are untested by Mockito |
+| DTO field added, renamed, or removed | JSON serialization breaks at runtime, not at compile time |
+| `@Valid` / `@NotNull` / `@Size` or any constraint annotation added to a request body | Validation annotations only fire when Spring processes the request |
+| HTTP status code changed on an existing endpoint | Unit tests mock the service — they never see the actual HTTP response code |
+| New exception → error response mapping added | Only visible through the full Spring context |
+
+**Skip `backend-integration-tests-agent` when ALL of these are true:**
+- No new endpoints, no removed endpoints
+- No DTO field changes (no additions, renames, removals, type changes)
+- No new validation annotations on request bodies
+- No status code changes
+- No new exception mappings
+
+Typical skip cases: service/domain logic change only, frontend-only change, refactor with identical API surface, test-only change, config/docs only.
+
+#### Test phase — Sequential by cost, cheapest first
+
+**Step 1 — Unit tests in parallel (cheapest, fastest):**
+
+Spawn simultaneously:
+- `java-backend-agent` (unit test run: `./mvnw test`) — if backend was touched
+- `frontend-agent` (unit test run: `npm run test`) — if frontend was touched
+
+These two are fully independent and run at the same time.
+
+**Step 2 — Gate: unit tests must be green before integration tests start.**
+
+If either unit test run fails, route the fix to the owning agent. Do not spawn `backend-integration-tests-agent` until both unit test runs pass. Running integration tests on already-broken code wastes the cost of booting a full Spring context.
+
+**Step 3 — Integration tests (after unit tests are green):**
+
+Spawn `backend-integration-tests-agent` only if any of the five HTTP-layer triggers are true (see above). This runs after Step 2 is fully green.
+
+**Step 4 — Gate: integration tests must be green before E2E starts.**
+
+**Step 5 — Spawn `playwright-e2e-agent` (if E2E mode is not None):**
+
+Only after Steps 1–3 are all green:
+- E2E mode **Full** → spawn with backend webServer, run all specs
+- E2E mode **Smoke** → spawn with smoke-only instruction, no backend needed
+- E2E mode **None** → skip, do not spawn
+
+This order minimises cost: unit tests catch obvious breaks cheaply, integration tests catch HTTP-layer issues before the expensive E2E run.
+
+All unit test _scenarios_ within a single agent run must also be parallelized — see java-backend-agent for JUnit 5 parallel config.
 
 #### Review phase (after all tests pass)
 - Spawn `code-review-agent` automatically. If the route triggered security requirements, spawn `security-agent` in **parallel** with `code-review-agent`.
@@ -888,6 +979,40 @@ Continue / Escalate / Continue With Risk / Hard Block
 ```
 
 Prefer escalation over blocker when safe. Hard block only for unsafe Git state, forbidden infrastructure change, obvious real leaked credential, or unrecoverable repo state.
+
+---
+
+## Step 7d — Test Failure Routing
+
+When any agent in the parallel test phase reports a failure, Team Lead is the sole decision-maker on who owns the fix. Never route blindly — read the failure output and classify it first.
+
+### Classification and routing table
+
+| Failure symptom | Routing | Action |
+|---|---|---|
+| JUnit unit test fails (production code wrong) | `java-backend-agent` **self-heals** — no Team Lead hop | Fix code; re-run `./mvnw test` |
+| JUnit unit test itself wrong (bad assertion/mock) | `java-backend-agent` **self-heals** — no Team Lead hop | Fix test; re-run `./mvnw test` |
+| `@SpringBootTest` / MockMvc fails (80% case) | `java-backend-agent` directly | Fix controller/DTO/exception handler; re-run `*IntegrationTest` |
+| `@SpringBootTest` / MockMvc fails after 2 java-backend cycles | Team Lead reads output → `backend-integration-tests-agent` | Fix the test setup/assertion; re-run `*IntegrationTest` |
+| Vitest / RTL test fails (component, hook, logic) | `frontend-agent` **self-heals** — no Team Lead hop | Fix component/hook; re-run `npm run test` |
+| Vitest / RTL test itself wrong (bad assertion/mock) | `frontend-agent` **self-heals** — no Team Lead hop | Fix test; re-run `npm run test` |
+| TypeScript compile error in frontend | `frontend-agent` **self-heals** — no Team Lead hop | Fix type error; re-run `npm run build` |
+| Playwright test fails — backend returns unexpected response | `java-backend-agent` | Fix the backend; re-run `npm run test:e2e` |
+| Playwright test fails — UI behaves incorrectly | `frontend-agent` | Fix the component; re-run `npm run test:e2e` |
+| Playwright test fails — test is flaky or assertion is wrong | `playwright-e2e-agent` | Fix the test; re-run `npm run test:e2e` |
+
+### Routing rules
+
+1. **Unit test failures never route through Team Lead.** `java-backend-agent` and `frontend-agent` own their tests and self-heal directly. Team Lead only steps in when the fix cycle limit is reached.
+2. **Integration test failures default to `java-backend-agent`** — wrong status code, missing exception handler, DTO serialization mismatch account for ~80% of cases. Only route to `backend-integration-tests-agent` if java-backend-agent fails to fix it after 2 cycles.
+3. **Read the failure output before routing** for Playwright failures — a backend bug can surface in a frontend test and vice versa.
+4. **Route to exactly one agent.** Do not spawn multiple fix agents for the same failure.
+5. **After the fix, re-run only the failing suite** — not all tests.
+6. **E2E does not start until all test gates are green.**
+
+### Fix cycle limit
+
+Maximum 5 fix cycles per test suite per run. If a suite is still failing after 5 cycles, write `reports/runs/<workflow-run-id>/workflow-blocker.md` and stop.
 
 ---
 
@@ -1121,9 +1246,9 @@ Level 3: targeted E2E
 Level 4: full E2E/regression
 ```
 
-### Smoke Test Gate (Level 0) — Required For All Frontend Routes
+### Smoke Test Gate (Level 0) — Required For User-Visible Frontend Behavior Changes
 
-For any route that includes frontend changes (`frontend-only`, `backend-and-frontend`, `full-stack-complex`), the smoke test is a mandatory gate even in **cheap mode**:
+For routes that include frontend changes (`frontend-only`, `backend-and-frontend`, `full-stack-complex`), run the smoke gate when the change affects user-visible behavior: routing, page rendering, game interaction, placement flow, validation, navigation, or visible UI state.
 
 ```bash
 cd apps/frontend && npx playwright test smoke.spec.ts
@@ -1132,7 +1257,7 @@ cd apps/frontend && npx playwright test smoke.spec.ts
 - No backend required — the Playwright `webServer` config starts `npm run dev` automatically.
 - Must pass before routing to code review or release.
 - If it fails after a frontend change, route back to `frontend-agent` as a `frontend-runtime` finding.
-- Do not skip the smoke gate to save cost — it is fast (< 30 s) and backend-free.
+- **Skip** for purely internal refactors, type-only changes, test-only changes, copy-only changes, or isolated CSS tweaks already covered by build/unit tests. When skipped, `frontend-agent` records the reason in its Evidence section and Team Lead records it in `test-results.md`.
 
 If a test command does not exist:
 - Do not block by default
@@ -1241,7 +1366,7 @@ For pure cosmetic/audio changes where all unvalidated criteria are Risk: Low —
 - Do not run security-full unless auth, sessions, permissions, tokens, secrets, user data, external integrations, or persistence security are affected. Security review is optional in cheap/normal for non-security routes.
 - Do not run backend unit tests for CSS-only or copy-only changes. Run only `npm run build`.
 - Do not run infrastructure unless Docker, CI, env, deployment, ports, startup, or runtime config changes
-- Always run `npx playwright test smoke.spec.ts` for any frontend change — it is fast, backend-free, and never skipped.
+- Run `npx playwright test smoke.spec.ts` for frontend changes that affect user-visible behavior (routing, rendering, interaction, validation, navigation, UI state). Skip for pure refactors, type-only, test-only, copy-only, or isolated CSS changes — record the skip reason in `test-results.md`.
 - Do not run full Playwright by default (only smoke unless E2E is explicitly required)
 - Do not run backend for frontend-only visual/audio changes
 - Do not run frontend for backend-only internal logic changes
@@ -1255,10 +1380,9 @@ Team Lead owns routing, coordination, shared contracts, QA reassignment, retry l
 
 Product owns `reports/runs/<workflow-run-id>/product-spec.md`.
 Architect owns `reports/runs/<workflow-run-id>/architecture.md` and `reports/runs/<workflow-run-id>/technical-plan.md`.
-Backend owns backend source and backend tests only.
-Frontend owns frontend source and frontend tests only.
+Backend owns backend production source and backend unit tests (`*Test.java`, not `*IntegrationTest.java`).
+Frontend owns frontend source and frontend unit tests (Vitest, co-located).
 Infrastructure owns Docker, CI, env examples, deployment files, service startup scripts.
-Backend Unit Tests owns test files only.
 Playwright owns E2E files and `playwright.config.*`.
 Security owns `reports/runs/<workflow-run-id>/security-report.md`.
 Code Review owns `reports/runs/<workflow-run-id>/code-review-report.md`.

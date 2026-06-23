@@ -270,10 +270,10 @@ After implementing production code, always add or update tests. Check `apps/fron
 
 ### Backend Contract Dependency — Required
 
-Before writing or running frontend integration tests, check the `backend-contract-changed` flag passed by Team Lead:
+Before writing or running frontend tests, check the `backend-contract-changed` flag passed by Team Lead:
 
-- **`backend-contract-changed: yes`** — Do NOT run frontend integration tests until Team Lead confirms `backend-unit-tests-agent` has completed with a green result. Unit tests (component-level, no HTTP) may proceed in parallel with backend work. Only start integration tests after receiving the go-ahead from Team Lead.
-- **`backend-contract-changed: no`** — Frontend unit and integration tests may run fully in parallel with backend test work.
+- **`backend-contract-changed: yes`** — Frontend unit tests (component-level, no HTTP) may proceed immediately. Do not run frontend integration tests until Team Lead confirms backend unit tests are green.
+- **`backend-contract-changed: no`** — Frontend unit tests may run immediately with no dependency.
 
 ### Parallel Test Execution — Required
 
@@ -331,21 +331,51 @@ Integration test rules:
 - Integration tests render full pages/routes, not isolated components.
 - Each test must clean up mocks and router state between runs.
 
-### Smoke Test Gate — Required After Every Frontend Change
+### E2E Mode — Smoke Only
 
-After implementing any frontend change (cheap or normal mode), run the smoke test before reporting done:
+**Trigger:** frontend-only changes (no API contract change) OR backend is mocked/stubbed.
+
+This agent runs `smoke.spec.ts` only. No live backend is required.
+
+| Condition | E2E mode | Files run |
+|-----------|----------|-----------|
+| Frontend-only change, no contract change | Smoke | `smoke.spec.ts` only |
+| Backend mocked/stubbed (MSW, axios-mock-adapter) | Smoke | `smoke.spec.ts` only |
+| API contract changed (new endpoint, shape change) | Full — routed by Team Lead | all spec files |
+
+Never run full E2E from this agent. If a change requires the live backend, report it to Team Lead and stop.
+
+### Smoke Test Gate — Required For User-Visible Frontend Behavior Changes
+
+Run the smoke test when the frontend change affects user-visible behavior, routing, page rendering, game interaction, placement flow, validation, navigation, or visible UI state.
+
+Use:
 
 ```bash
 cd apps/frontend && npx playwright test smoke.spec.ts
 ```
 
-This test:
-- Starts the frontend dev server automatically (no backend required).
-- Validates that the home page renders with title, Create Game button, Join form, and validation error.
-- Validates that `/lobby` redirects to `/` when session is missing.
+Do not run Playwright smoke for purely internal refactors, type-only changes, test-only changes, copy-only changes, or isolated CSS tweaks that are already covered by build/unit tests.
+When smoke is skipped, record the reason in the Evidence section.
 
-**Smoke test must pass before this agent reports success.** If it fails, fix the regression before returning to Team Lead.
+Smoke mode must remain lightweight:
 
-If new screens or user-facing flows are added as part of the change, extend `apps/frontend/tests/e2e/smoke.spec.ts` with a minimal scenario covering the new flow. Keep additions focused — one or two assertions per new screen.
+* run `smoke.spec.ts` only
+* do not run full E2E from this agent
+* do not start a live backend unless Team Lead explicitly routes that work
+* if a live backend is required, report to Team Lead and stop
+
+If new user-facing screens or flows are added and smoke mode is applicable, extend `apps/frontend/tests/e2e/smoke.spec.ts` with a minimal focused scenario. Keep additions small: one or two assertions per new screen/flow.
+
+### Self-fix loop — unit tests
+
+When `npm run test` fails, this agent self-heals without routing through Team Lead:
+
+1. Read the failure output — identify whether the component/hook or the test assertion is wrong.
+2. Fix the root cause (production code or test).
+3. Re-run `npm run test`.
+4. Repeat up to **5 cycles**. If still failing after 5 cycles, report to Team Lead with full evidence.
+
+Never route a Vitest / RTL failure to Team Lead before attempting a fix.
 
 ### Never modify, skip, or delete existing passing tests to make the suite green.

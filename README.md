@@ -81,7 +81,7 @@ echo "All checks passed"
 | Unit Tests | JUnit 5 + Mockito (backend) · Vitest + React Testing Library (frontend) |
 | E2E Tests | Playwright |
 | Storage | In-memory (Redis-ready via repository interface) |
-| Release | GitHub MCP or GitHub CLI fallback |
+| Release | GitHub CLI (`gh`) |
 
 ## How To Run
 
@@ -208,21 +208,33 @@ You can also pass your idea inline:
 ### What happens after you confirm
 
 ```
-Phase 1   product-agent           → reports/product-spec.md
-Phase 2   architect-agent         → reports/architecture.md
-Phase 3   java-backend-agent      → apps/backend/src/main/java/
-Phase 4   frontend-agent          → apps/frontend/src/              (mobile-first, component-per-folder)
-Phase 5   backend-unit-tests      → apps/backend/src/test/          (JUnit 5)
-           frontend-agent          → apps/frontend/src/**/*.test.*   (Vitest — co-located with components)
-Phase 6   playwright-e2e-agent    → apps/frontend/tests/e2e/
-Phase 7   security-agent          → reports/security-report.md
-Phase 8   code-review-agent       → reports/code-review-report.md
-Phase 9   infrastructure-agent    → docker-compose.yml + README.md
-Phase 10  release-pr-agent        → GitHub PR
+Phase 1   product-agent              → reports/runs/<id>/product-spec.md
+Phase 2   architect-agent            → reports/runs/<id>/architecture.md  (only if contract changed)
+Phase 3   java-backend-agent  ──┐    → apps/backend/src/main/java/
+          frontend-agent      ──┘    → apps/frontend/src/               (parallel)
+
+Phase 4a — UNIT TESTS (parallel, cheapest first)
+          java-backend-agent         → ./mvnw test            (unit tests, if backend touched)
+          frontend-agent             → npm run test           (Vitest, if frontend touched)
+          ── gate: both must be green before integration tests start ──
+
+Phase 4b — INTEGRATION TESTS (after unit gate, if HTTP layer changed)
+          backend-integration-tests  → ./mvnw test *IntegrationTest
+          ── gate: must be green before E2E starts ──
+
+Phase 5   playwright-e2e-agent       → apps/frontend/tests/e2e/
+          • Full mode  — all specs + live backend (when API contract changed)
+          • Smoke mode — smoke.spec.ts only, no backend (user-visible frontend change, no contract change)
+          • None       — skipped (backend-only change)
+
+Phase 6   security-agent  ──┐        → reports/runs/<id>/security-report.md
+          code-review-agent ┘        → reports/runs/<id>/code-review-report.md  (parallel)
+
+Phase 7   release-pr-agent           → GitHub PR
 ```
 
-Phases 3 + 4 run in parallel. Phases 5 + 6 run in parallel after those complete.
-Security and code review auto-retry if they return REQUIRES CHANGES.
+Phases 3 (backend + frontend) run in parallel. Phase 4 tests run in parallel and gate Phase 5.
+Security and code review (Phase 6) run in parallel after all tests pass.
 The pipeline stops only when the PR URL is printed.
 
 ### Agent definitions
@@ -234,9 +246,9 @@ Each agent is a skill in [`.claude/skills/`](.claude/skills/) with a `model:` fi
 | team-lead | claude-opus-4-8 | Orchestrates all phases |
 | product-agent | claude-sonnet-4-6 | User stories + acceptance criteria |
 | architect-agent | claude-opus-4-8 | API contract + domain model |
-| java-backend-agent | claude-sonnet-4-6 | Game logic + REST API |
-| frontend-agent | claude-sonnet-4-6 | React UI (mobile-first) |
-| backend-unit-tests-agent | claude-sonnet-4-6 | JUnit domain tests |
+| java-backend-agent | claude-sonnet-4-6 | Game logic + REST API + JUnit unit tests |
+| frontend-agent | claude-sonnet-4-6 | React UI (mobile-first) + Vitest unit tests |
+| backend-integration-tests-agent | claude-sonnet-4-6 | @SpringBootTest HTTP layer tests |
 | playwright-e2e-agent | claude-sonnet-4-6 | Browser E2E tests |
 | security-agent | claude-opus-4-8 | Security + integrity review |
 | code-review-agent | claude-opus-4-8 | Engineering review |
@@ -259,9 +271,9 @@ All pipeline artifacts live in [`reports/`](reports/) — gitignored so they nev
 
 | File | Written by |
 |------|-----------|
-| `reports/requirements.md` | `/requirement` skill (you) |
-| `reports/product-spec.md` | product-agent |
-| `reports/architecture.md` | architect-agent |
-| `reports/security-report.md` | security-agent |
-| `reports/code-review-report.md` | code-review-agent |
-| `reports/final-pr-summary.md` | release-pr-agent |
+| `reports/runs/<id>/requirements.md` | `/requirement` skill (you) |
+| `reports/runs/<id>/product-spec.md` | product-agent |
+| `reports/runs/<id>/architecture.md` | architect-agent |
+| `reports/runs/<id>/security-report.md` | security-agent |
+| `reports/runs/<id>/code-review-report.md` | code-review-agent |
+| `reports/runs/<id>/release-summary.md` | release-pr-agent |

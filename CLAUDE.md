@@ -26,17 +26,52 @@ To extend an agent, edit its `SKILL.md` — do not create parallel files.
 
 | Agent | Skill folder | Model | Owns |
 |-------|-------------|-------|------|
-| Team Lead | `.claude/skills/team-lead` | claude-opus-4-8 | Planning, task assignment, quality gates, final release decision |
-| Product Agent | `.claude/skills/product-agent` | claude-sonnet-4-6 | `reports/product-spec.md`, user stories, acceptance criteria |
-| Architect Agent | `.claude/skills/architect-agent` | claude-opus-4-8 | `reports/architecture.md`, API contract, domain model |
-| Java Backend Agent | `.claude/skills/java-backend-agent` | claude-sonnet-4-6 | `apps/backend/src/main/java/` — all production backend code |
-| Frontend Agent | `.claude/skills/frontend-agent` | claude-sonnet-4-6 | `apps/frontend/src/` — all React/TypeScript UI code |
-| Backend Unit Tests Agent | `.claude/skills/backend-unit-tests-agent` | claude-sonnet-4-6 | `apps/backend/src/test/` — all Java unit tests |
-| Playwright E2E Agent | `.claude/skills/playwright-e2e-agent` | claude-sonnet-4-6 | `apps/frontend/tests/e2e/` — all browser tests |
-| Security Agent | `.claude/skills/security-agent` | claude-opus-4-8 | `reports/security-report.md` |
-| Code Review Agent | `.claude/skills/code-review-agent` | claude-opus-4-8 | `reports/code-review-report.md` |
+| Team Lead | `.claude/skills/team-lead` | claude-opus-4-8 | Planning, task assignment, quality gates, E2E infrastructure pre-gate, final release decision |
+| Product Agent | `.claude/skills/product-agent` | claude-sonnet-4-6 | `reports/runs/<id>/product-spec.md`, user stories, acceptance criteria |
+| Architect Agent | `.claude/skills/architect-agent` | claude-opus-4-8 | `reports/runs/<id>/architecture.md`, API contract, domain model — structure only, not environment setup |
+| Java Backend Agent | `.claude/skills/java-backend-agent` | claude-sonnet-4-6 | `apps/backend/src/main/java/` — all production backend code; `src/test/**/*Test.java` — all JUnit 5 unit tests (domain + service layer) |
+| Frontend Agent | `.claude/skills/frontend-agent` | claude-sonnet-4-6 | `apps/frontend/src/` — all React/TypeScript UI code + Vitest unit tests |
+| Backend Integration Tests Agent | `.claude/skills/backend-integration-tests-agent` | claude-sonnet-4-6 | `apps/backend/src/test/**/*IntegrationTest.java` — `@SpringBootTest` + MockMvc, HTTP layer |
+| Playwright E2E Agent | `.claude/skills/playwright-e2e-agent` | claude-sonnet-4-6 | `apps/frontend/tests/e2e/` — all browser tests; never assumes servers are running |
+| Security Agent | `.claude/skills/security-agent` | claude-opus-4-8 | `reports/runs/<id>/security-report.md` |
+| Code Review Agent | `.claude/skills/code-review-agent` | claude-opus-4-8 | `reports/runs/<id>/code-review-report.md` |
 | Infrastructure Agent | `.claude/skills/infrastructure-agent` | claude-haiku-4-5-20251001 | `docker-compose.yml`, env documentation, run instructions |
-| Release PR Agent | `.claude/skills/release-pr-agent` | claude-haiku-4-5-20251001 | `reports/final-pr-summary.md`, PR creation |
+| Release PR Agent | `.claude/skills/release-pr-agent` | claude-haiku-4-5-20251001 | `reports/runs/<id>/release-summary.md`, PR creation |
+
+## E2E Decision Rule
+
+There are two E2E modes. Team Lead picks the correct one based on what changed.
+
+### Full E2E (frontend + live backend on port 8081)
+Run ONLY when the **API contract changed**:
+- New REST endpoint added
+- Existing endpoint request/response shape changed (new fields, renamed fields, status codes)
+- New game mode, state machine transition, or multiplayer flow that requires backend coordination
+
+Before spawning the Playwright agent in Full E2E mode, Team Lead must pass the **E2E Infrastructure Pre-Gate**:
+1. `apps/backend/src/main/resources/application-e2e.yml` exists (port 8081, H2, correct CORS)
+2. Maven `e2e` profile with `useTestClasspath=true` exists in `pom.xml`
+3. `playwright.config.ts` has a dual `webServer` array (frontend + backend)
+4. Frontend `webServer` entry sets `env: { VITE_API_BASE_URL: 'http://localhost:8081' }`
+
+If any check fails, route to the owning agent to fix it before E2E runs.
+
+### Smoke E2E (frontend only — no backend)
+Run when frontend pages or flows are added/changed but **no contract change**:
+- New UI pages, components, or navigation flows
+- Copy, styling, or layout changes
+- Frontend validation, error states, or client-side logic
+
+Smoke E2E runs `smoke.spec.ts` only. No backend webServer entry required.
+
+#### Frontend Agent — Internal Smoke Gate (selective)
+
+When the `frontend-agent` implements a change, it runs `smoke.spec.ts` as its own pre-report verification — but only when the change affects **user-visible behavior** (routing, rendering, game interaction, placement flow, validation, navigation, visible UI state).
+
+**Skip** for: pure refactors, type-only changes, test-only changes, copy-only changes, or isolated CSS tweaks covered by build/unit tests. Record the skip reason in the Evidence section.
+
+### No E2E
+- Backend-only changes with zero frontend impact
 
 ## Git Branch Handling Policy
 The full policy lives in `.claude/skills/team-lead/SKILL.md` (Step 5). Key rules:
@@ -57,17 +92,18 @@ Do not add a new agent unless **both** conditions are true:
 
 Current decisions locked in:
 - **No separate Frontend Unit Tests Agent.** Frontend unit tests (Vitest + RTL) are owned by the Frontend Agent. When frontend logic, component state, validation, rendering conditions, hooks, or helpers are changed, the Frontend Agent adds or updates the relevant tests co-located with the affected code.
+- **No separate Backend Unit Tests Agent.** Java unit tests (JUnit 5 + Mockito, domain + service layer) are owned by the Java Backend Agent — same rationale as frontend. When backend logic changes, the Java Backend Agent adds or updates the corresponding `*Test.java` files in the same pass.
 - **No DB Integration Tests Agent at this stage.** The backend uses in-memory storage by default. A dedicated DB integration tests agent should only be introduced if the codebase moves to PostgreSQL/JPA/Hibernate as the primary persistence layer, adds schema migrations, or requires repository-level tests with a real database or Testcontainers.
 
-## Quality Gates (all required before PR)
-- [ ] `./mvnw test` passes (backend)
-- [ ] `npm run build` passes (frontend)
-- [ ] `npm run test` passes (frontend unit tests — Vitest)
-- [ ] `npm run test:e2e` passes (Playwright)
-- [ ] `reports/security-report.md` verdict: APPROVED
-- [ ] `reports/code-review-report.md` verdict: APPROVED
+## Quality Gates (all required before PR, run in this order)
+- [ ] `./mvnw test` passes (backend unit tests — if backend touched)
+- [ ] `npm run test` passes (frontend unit tests — Vitest, if frontend touched) — parallel with above
+- [ ] `./mvnw test -Dtest="*IntegrationTest"` passes (backend integration tests — after unit tests green, when HTTP layer changed)
+- [ ] `npm run test:e2e` passes (Playwright — after all tests green, Full or Smoke mode depending on change)
+- [ ] `reports/runs/<id>/security-report.md` verdict: APPROVED
+- [ ] `reports/runs/<id>/code-review-report.md` verdict: APPROVED
 - [ ] `README.md` documents how to run the full app
-- [ ] `reports/final-pr-summary.md` exists
+- [ ] `reports/runs/<id>/release-summary.md` exists
 
 ## Release Strategy
 All PRs are opened via **GitHub CLI (`gh`)** — not GitHub MCP.

@@ -3,6 +3,7 @@ package com.stampli.battleship.controller;
 import com.stampli.battleship.dto.ErrorResponse;
 import com.stampli.battleship.service.GameException;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -24,6 +25,18 @@ public class GlobalExceptionHandler {
                 .orElse("Validation failed");
         return ResponseEntity.badRequest()
                 .body(new ErrorResponse(message, "VALIDATION_ERROR"));
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex) {
+        return ResponseEntity.badRequest()
+                .body(new ErrorResponse(ex.getMessage(), "INVALID_ARGUMENT"));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleUnreadableBody(HttpMessageNotReadableException ex) {
+        return ResponseEntity.badRequest()
+                .body(new ErrorResponse("Request body is missing or malformed", "BAD_REQUEST"));
     }
 
     @ExceptionHandler(Exception.class)
