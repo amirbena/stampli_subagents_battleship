@@ -39,44 +39,43 @@ User Requirement
          │                                        │ returns to Team Lead
          │◄───────────────────────────────────────┘
          │
-         ├─────────────────────────────────────────────────────────┐
-         ▼                                                         ▼
-┌─────────────────┐                                   ┌───────────────────┐
-│  Java Backend   │  Spring Boot game engine,         │  Frontend Agent   │  React/TypeScript UI,
-│  Agent          │  domain model, REST API,          │                   │  pages, components,
-│                 │  repository layer                 │                   │  frontend unit tests
-└────────┬────────┘                                   └─────────┬─────────┘
-         │  (parallel when independent)                         │
-         └──────────────────────┬───────────────────────────────┘
-                                │
-                                ▼
-                    ┌───────────────────────┐
-                    │  Backend Unit Tests   │  JUnit 5 + Mockito,
-                    │  Agent                │  domain + service layer
-                    └───────────┬───────────┘
-                                │
-                                │  Contract changed?
-                                ├─── Yes ──────────────────────────────────────────┐
-                                │                                                  ▼
-                                │                              ┌───────────────────────────────┐
-                                │                              │  Backend Integration Tests    │  @SpringBootTest + MockMvc,
-                                │                              │  Agent                        │  controllers, DTOs, status codes,
-                                │                              │                               │  request validation (e2e profile)
-                                │                              └──────────────┬────────────────┘
-                                │                                             │
-                                │◄────────────────────────────────────────────┘
-                                │
-                                │  E2E mode = Full?  ──► E2E Infrastructure Pre-Gate
-                                │  (only when contract changed)  • application-e2e.yml
-                                │                                • Maven e2e profile
-                                │                                • dual webServer
-                                │                                • VITE_API_BASE_URL
-                                │
-                                ▼
-                    ┌───────────────────────┐
-                    │  Playwright E2E       │  Full: all specs + live backend
-                    │  Agent                │  Smoke: smoke.spec.ts only, no backend
-                    └───────────┬───────────┘
+         ├──────────────────────────────────────────────────────────┐
+         ▼                                                          ▼
+┌─────────────────┐                                    ┌───────────────────┐
+│  Java Backend   │  Spring Boot game engine,          │  Frontend Agent   │  React/TypeScript UI,
+│  Agent          │  domain model, REST API,           │                   │  pages, components,
+│                 │  repository layer                  │                   │  frontend unit tests
+└────────┬────────┘                                    └─────────┬─────────┘
+         │               (parallel)                              │
+         └─────────────────────┬──────────────────────────────────┘
+                               │
+                               │  ── PARALLEL TEST PHASE ──────────────────────────────┐
+                               ▼                                                        │
+         ┌─────────────────────────────┐                                               │
+         │                             │  all three spawn simultaneously               │
+         ▼                             ▼                             ▼                  │
+┌──────────────────┐  ┌────────────────────────┐  ┌──────────────────────────┐        │
+│  Backend Unit    │  │  Frontend Unit Tests   │  │  Backend Integration     │        │
+│  Tests Agent     │  │  (via Frontend Agent)  │  │  Tests Agent             │        │
+│  JUnit5+Mockito  │  │  Vitest + RTL          │  │  @SpringBootTest+MockMvc │        │
+│  domain+service  │  │  (if frontend touched) │  │  (if HTTP layer changed) │        │
+└────────┬─────────┘  └───────────┬────────────┘  └────────────┬─────────────┘        │
+         │                        │                             │                      │
+         └────────────────────────┴─────────────────────────────┘                     │
+                               │  ── ALL MUST BE GREEN ────────────────────────────────┘
+                               │
+                               │  E2E mode = Full?  ──► E2E Infrastructure Pre-Gate
+                               │  (only when contract changed)  • application-e2e.yml
+                               │                                • Maven e2e profile
+                               │                                • dual webServer
+                               │                                • VITE_API_BASE_URL
+                               │
+                               ▼
+                   ┌───────────────────────┐
+                   │  Playwright E2E       │  Full: all specs + live backend
+                   │  Agent                │  Smoke: smoke.spec.ts only, no backend
+                   │                       │  None: skipped
+                   └───────────┬───────────┘
                                 │
                     ┌───────────┴───────────┐
                     ▼                       ▼

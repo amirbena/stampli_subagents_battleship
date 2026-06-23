@@ -836,17 +836,29 @@ Integration tests validate the HTTP layer — things Mockito never catches becau
 
 Typical skip cases: service/domain logic change only, frontend-only change, refactor with identical API surface, test-only change, config/docs only.
 
-#### Test phase (after implementation, run in parallel where safe)
+#### Test phase — Parallel first, E2E last
 
-**Backend-only or backend+frontend — no contract change:**
-- Spawn `backend-unit-tests-agent` only.
-- E2E mode is Smoke or None — spawn `playwright-e2e-agent` in Smoke mode if frontend changed.
+**Step 1 — Run all cheap tests in parallel (one response, multiple Agent calls):**
 
-**Backend API contract changed (new/changed endpoints, DTOs, status codes):**
-1. Spawn `backend-unit-tests-agent` and wait for it to pass.
-2. Then spawn `backend-integration-tests-agent` and (if E2E mode is Full) `playwright-e2e-agent` in **parallel**.
+Spawn every applicable test agent simultaneously:
+- `backend-unit-tests-agent` — if backend was touched
+- `frontend-agent` (unit test run) — if frontend was touched (Vitest, co-located tests)
+- `backend-integration-tests-agent` — if any of the five HTTP-layer triggers are true (see above)
 
-The contract must be stable and green before integration or E2E tests run against it.
+These three are fully independent. There is no reason to sequence them. All three run at the same time and report back to Team Lead.
+
+**Step 2 — Gate: all parallel tests must be green before E2E starts.**
+
+If any parallel test agent reports a failure, route the fix to the owning agent. Do not spawn `playwright-e2e-agent` until all parallel tests pass. This prevents wasting the cost of a full E2E run on code that is already broken at the unit or integration level.
+
+**Step 3 — Spawn `playwright-e2e-agent` (if E2E mode is not None):**
+
+Only after Step 2 is fully green:
+- E2E mode **Full** → spawn with backend webServer, run all specs
+- E2E mode **Smoke** → spawn with smoke-only instruction, no backend needed
+- E2E mode **None** → skip, do not spawn
+
+This order maximises parallelism where safe and minimises expensive E2E runs on broken code.
 
 All unit test _scenarios_ within a single agent run must also be parallelized — see backend-unit-tests-agent for JUnit 5 parallel config.
 
