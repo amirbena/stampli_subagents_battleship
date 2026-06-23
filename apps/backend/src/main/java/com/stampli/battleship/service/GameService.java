@@ -86,15 +86,17 @@ public class GameService {
      * @param anchor      top-left (horizontal) or top (vertical) starting coordinate
      * @param orientation HORIZONTAL or VERTICAL
      * @return the computed cells that the ship now occupies
-     * @throws GameException 409 if the game is not in PLACING_SHIPS phase
+     * @throws GameException 409 if the game is in progress or finished
      * @throws GameException 400 if placement is out of bounds or overlaps another ship
      */
     public PlaceShipResponse placeShip(String gameId, String playerId, ShipType shipType,
                                        Coordinate anchor, Orientation orientation) {
         Game game = findGameOrThrow(gameId);
         synchronized (game) {
-            if (game.getStatus() != GameStatus.PLACING_SHIPS) {
-                throw new GameException("Ships can only be placed during PLACING_SHIPS phase",
+            // Allow placement in both WAITING_FOR_PLAYERS (Player A pre-places before opponent joins)
+            // and PLACING_SHIPS (both players present). Block only once the game is underway.
+            if (game.getStatus() == GameStatus.IN_PROGRESS || game.getStatus() == GameStatus.FINISHED) {
+                throw new GameException("Ships can only be placed before the game starts",
                         "WRONG_PHASE", HttpStatus.CONFLICT);
             }
             Player player = getPlayerOrThrow(game, playerId);
@@ -121,14 +123,15 @@ public class GameService {
      * @param gameId   the target game
      * @param playerId the requesting player
      * @param shipType the ship to remove
-     * @throws GameException 409 if the game is not in PLACING_SHIPS phase
+     * @throws GameException 409 if the game is in progress or finished
      * @throws GameException 400 if the ship has not been placed yet
      */
     public void removeShip(String gameId, String playerId, ShipType shipType) {
         Game game = findGameOrThrow(gameId);
         synchronized (game) {
-            if (game.getStatus() != GameStatus.PLACING_SHIPS) {
-                throw new GameException("Ships can only be removed during PLACING_SHIPS phase",
+            // Mirror placeShip policy: removal is allowed in pre-game phases so players can reposition.
+            if (game.getStatus() == GameStatus.IN_PROGRESS || game.getStatus() == GameStatus.FINISHED) {
+                throw new GameException("Ships can only be removed before the game starts",
                         "WRONG_PHASE", HttpStatus.CONFLICT);
             }
             Player player = getPlayerOrThrow(game, playerId);
