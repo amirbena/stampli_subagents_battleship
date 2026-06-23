@@ -9,6 +9,7 @@ import type {
   GameStateResponse,
   ShipType,
   Orientation,
+  GameMode,
 } from '../types/game';
 
 /**
@@ -44,8 +45,9 @@ api.interceptors.response.use(
  *
  * @returns gameId (6-char room code) and the creator's playerId
  */
-export async function createGame(): Promise<CreateGameResponse> {
-  const { data } = await api.post<CreateGameResponse>('/games');
+export async function createGame(mode?: GameMode): Promise<CreateGameResponse> {
+  const params = mode ? { mode } : undefined;
+  const { data } = await api.post<CreateGameResponse>('/games', undefined, { params });
   return data;
 }
 

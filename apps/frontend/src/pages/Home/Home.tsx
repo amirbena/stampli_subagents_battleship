@@ -18,6 +18,23 @@ export function Home(): React.ReactElement {
       const res = await createGame();
       sessionStorage.setItem('gameId', res.gameId);
       sessionStorage.setItem('playerId', res.playerId);
+      sessionStorage.setItem('gameMode', 'HUMAN');
+      navigate('/lobby');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create game');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleCreateVsComputer = async () => {
+    setError(null);
+    setCreating(true);
+    try {
+      const res = await createGame('COMPUTER');
+      sessionStorage.setItem('gameId', res.gameId);
+      sessionStorage.setItem('playerId', res.playerId);
+      sessionStorage.setItem('gameMode', 'COMPUTER');
       navigate('/lobby');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create game');
@@ -39,6 +56,7 @@ export function Home(): React.ReactElement {
       const res = await joinGame(code);
       sessionStorage.setItem('gameId', res.gameId);
       sessionStorage.setItem('playerId', res.playerId);
+      sessionStorage.setItem('gameMode', 'HUMAN');
       navigate('/lobby');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to join game');
@@ -64,6 +82,15 @@ export function Home(): React.ReactElement {
             type="button"
           >
             {creating ? 'Creating…' : 'Create Game'}
+          </button>
+          <button
+            className="btn btn--secondary"
+            onClick={() => { void handleCreateVsComputer(); }}
+            disabled={creating}
+            type="button"
+            style={{ marginTop: '0.5rem' }}
+          >
+            {creating ? 'Creating…' : 'Play vs Computer'}
           </button>
         </section>
 

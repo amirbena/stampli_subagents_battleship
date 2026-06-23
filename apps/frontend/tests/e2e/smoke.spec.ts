@@ -14,6 +14,13 @@ test.describe('Home page smoke', () => {
     await page.getByRole('button', { name: /join game/i }).click();
     await expect(page.getByText(/please enter a room code/i)).toBeVisible();
   });
+
+  test('shows Play vs Computer button alongside Create Game', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('button', { name: /play vs computer/i })).toBeVisible();
+    // Both mode buttons must coexist on the home page (AC-1)
+    await expect(page.getByRole('button', { name: /create game/i })).toBeVisible();
+  });
 });
 
 test.describe('Lobby redirect smoke', () => {

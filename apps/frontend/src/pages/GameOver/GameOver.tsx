@@ -8,7 +8,7 @@ export function GameOver(): React.ReactElement {
   const gameId = sessionStorage.getItem('gameId') ?? '';
   const playerId = sessionStorage.getItem('playerId') ?? '';
 
-  const { gameState } = useGamePolling(gameId, playerId, false);
+  const { gameState } = useGamePolling(gameId, playerId, true);
 
   const didWin = gameState?.winnerId === playerId;
 

@@ -9,10 +9,18 @@ public class GameStateResponse {
     private final BoardStateDto opponentBoard;
     private final boolean myReady;
     private final boolean opponentReady;
+    private final String gameMode;
 
     public GameStateResponse(String gameId, String status, String currentTurnPlayerId,
                              String winnerId, BoardStateDto myBoard, BoardStateDto opponentBoard,
                              boolean myReady, boolean opponentReady) {
+        this(gameId, status, currentTurnPlayerId, winnerId, myBoard, opponentBoard,
+                myReady, opponentReady, null);
+    }
+
+    public GameStateResponse(String gameId, String status, String currentTurnPlayerId,
+                             String winnerId, BoardStateDto myBoard, BoardStateDto opponentBoard,
+                             boolean myReady, boolean opponentReady, String gameMode) {
         this.gameId = gameId;
         this.status = status;
         this.currentTurnPlayerId = currentTurnPlayerId;
@@ -21,6 +29,7 @@ public class GameStateResponse {
         this.opponentBoard = opponentBoard;
         this.myReady = myReady;
         this.opponentReady = opponentReady;
+        this.gameMode = gameMode;
     }
 
     public String getGameId() { return gameId; }
@@ -31,4 +40,5 @@ public class GameStateResponse {
     public BoardStateDto getOpponentBoard() { return opponentBoard; }
     public boolean isMyReady() { return myReady; }
     public boolean isOpponentReady() { return opponentReady; }
+    public String getGameMode() { return gameMode; }
 }

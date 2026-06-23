@@ -21,6 +21,8 @@ export function Lobby(): React.ReactElement {
   const navigate = useNavigate();
   const gameId = sessionStorage.getItem('gameId') ?? '';
   const playerId = sessionStorage.getItem('playerId') ?? '';
+  const gameMode = sessionStorage.getItem('gameMode') ?? 'HUMAN';
+  const isVsComputer = gameMode === 'COMPUTER';
   const [placementToastError, setPlacementToastError] = useState<string | null>(null);
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -147,10 +149,13 @@ export function Lobby(): React.ReactElement {
     <main className="lobby-page">
       <header className="lobby-header">
         <h1>Place Your Ships</h1>
-        {gameId && <RoomCodeDisplay gameId={gameId} />}
+        {!isVsComputer && gameId && <RoomCodeDisplay gameId={gameId} />}
       </header>
 
-      {isWaiting && (
+      {isVsComputer && (
+        <div className="vs-computer-banner">Playing vs Computer — place your ships and ready up</div>
+      )}
+      {!isVsComputer && isWaiting && (
         <div className="waiting-banner">Waiting for opponent to join…</div>
       )}
 

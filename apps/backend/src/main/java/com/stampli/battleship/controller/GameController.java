@@ -1,6 +1,7 @@
 package com.stampli.battleship.controller;
 
 import com.stampli.battleship.domain.Coordinate;
+import com.stampli.battleship.domain.GameMode;
 import com.stampli.battleship.domain.ShipType;
 import com.stampli.battleship.dto.*;
 import com.stampli.battleship.service.GameService;
@@ -21,8 +22,10 @@ public class GameController {
 
     // POST /api/v1/games — Create Game
     @PostMapping
-    public ResponseEntity<CreateGameResponse> createGame() {
-        CreateGameResponse response = gameService.createGame();
+    public ResponseEntity<CreateGameResponse> createGame(
+            @RequestParam(value = "mode", defaultValue = "HUMAN") String mode) {
+        GameMode gameMode = GameMode.valueOf(mode.toUpperCase());
+        CreateGameResponse response = gameService.createGame(gameMode);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 

@@ -23,10 +23,20 @@ export default defineConfig({
   // Remove this block when running against docker-compose (set E2E_BASE_URL=http://localhost:3000).
   webServer: process.env.E2E_BASE_URL
     ? undefined
-    : {
-        command: 'npm run dev',
-        url: 'http://localhost:3001',
-        reuseExistingServer: !process.env.CI,
-        timeout: 30000,
-      },
+    : [
+        {
+          command: 'npm run dev',
+          url: 'http://localhost:3001',
+          reuseExistingServer: !process.env.CI,
+          timeout: 30000,
+          env: { VITE_API_BASE_URL: 'http://localhost:8081' },
+        },
+        {
+          command: 'C:\\apache-maven-3.8.1-bin\\apache-maven-3.8.1\\bin\\mvn.cmd spring-boot:run -Pe2e -Dspring-boot.run.profiles=e2e',
+          port: 8081,
+          reuseExistingServer: !process.env.CI,
+          timeout: 120000,
+          cwd: '../backend',
+        },
+      ],
 });
