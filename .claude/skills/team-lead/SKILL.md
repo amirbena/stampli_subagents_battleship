@@ -327,49 +327,421 @@ Workflow Run ID:
 
 ---
 
-## Step 5 — Branch Safety Gate
+## Step 5 — Git Branch Handling Policy
 
-Base branch is always `main`. Source of truth is `origin/main`. Feature branches sync with explicit fetch plus rebase onto `origin/main`. Do not rely on upstream tracking.
+This policy defines how Team Lead decides whether to continue on the current branch, create a new branch, rebase, stash, or commit work before implementation begins.
 
-Before branch operations:
+**Goal:** never work on unrelated branches, never implement on `main`, never pollute existing PRs, avoid merge commits, preserve existing work, keep PRs clean.
+
+---
+
+### Core Principles
+
+1. Never start implementation before inspecting the current Git state.
+2. Never modify an unrelated branch.
+3. Never implement, edit, or commit directly on `main`.
+4. `main` is only a clean base branch.
+5. Prefer clean, linear history.
+6. Prefer `rebase` over merge commits on feature branches.
+7. Prefer `git pull --ff-only` when updating `main`.
+8. Preserve existing local work before rebasing or switching branches.
+9. If a branch already has an open PR and the new requirement belongs to the same logical change set, continue on that branch.
+10. If the new requirement is unrelated, create a new feature branch from updated `main`.
+11. Before creating any new branch, verify the branch name does not already exist locally or remotely. If it exists, stop and report — never silently reuse or check out an existing branch for a new requirement.
+11. Never run `git pull origin main` directly on a feature branch — use `git fetch origin && git rebase origin/main`.
+12. If `main` is dirty, stop and report. Do not commit, stash, reset, clean, or continue automatically.
+
+---
+
+### Mandatory Pre-Flight Checks
+
+Before doing any work:
 
 ```bash
-git status --porcelain
+git status
+git branch --show-current
+git fetch origin
+git log --oneline -5
 ```
 
-If dirty, create `reports/runs/<workflow-run-id>/workflow-blocker.md`:
+Determine:
+- current branch name
+- whether working tree is clean or dirty
+- whether current branch is `main`
+- whether current branch relates to the new requirement
+- whether there is an existing open or merged PR for this branch
+- whether the new requirement belongs to the same logical change set
+
+No implementation may start before the branch decision is made and written to `reports/runs/<workflow-run-id>/team-lead-classification.md`.
+
+---
+
+### New Branch Guard — Required Before Every `git checkout -b`
+
+Whenever a new branch is about to be created (Cases B, D, G, H), first verify the name does not already exist locally or remotely:
+
+```bash
+git branch --list feature/<requirement-name>          # local
+git branch -r --list origin/feature/<requirement-name> # remote
+```
+
+If the branch exists locally or remotely:
+- Do **not** check it out.
+- Do **not** assume it belongs to this requirement.
+- Write `workflow-blocker.md` and stop:
 
 ```md
-## Blocker: Dirty Working Tree
+## Blocker: Branch Already Exists
 
-Files:
-- ...
+Branch name: feature/<requirement-name>
+Found: local / remote / both
 
-Action taken:
-No sync. No PR.
+This branch may belong to another team member or an unrelated change.
+I will not check out, reuse, or modify it automatically.
 
 Required human action:
-Clean, commit, stash, or discard changes, then rerun.
+Choose a different branch name, or confirm this branch is safe to reuse, then rerun.
 ```
 
-Stop. Do not stash, discard, or overwrite.
+Only proceed with `git checkout -b` after confirming the name is free on both local and remote.
 
-If current branch is `main`:
+---
 
-```bash
-git checkout main
-git pull origin main
-git checkout -b feature/<safe-requirement-name>
-```
+### Branch Decision Matrix
 
-If current branch is a feature branch:
+| Case | Situation | Action |
+|---|---|---|
+| A | Current branch already doing this exact requirement | Rebase onto `origin/main`, continue |
+| B | Current branch completely unrelated | Leave untouched, checkout updated `main`, create fresh branch |
+| C | Current branch is related continuation (X.1 → X.2) | Continue same branch after rebase, same PR/change set |
+| D | Current branch is `main` and clean | Update `main`, create new branch, implement only on new branch |
+| E | Current branch is `main` and dirty | Stop and report — no automatic action |
+| F | Working tree dirty on feature branch | Preserve via WIP commit or stash before rebase/switch |
+| G | Branch already merged | Create fresh branch from updated `main` |
+| H | Branch has open PR but new requirement is unrelated | Leave old branch untouched, create new branch |
+| I | Branch has open PR and new requirement is related | Continue same branch after rebase |
 
+---
+
+### Case A — Branch Already Matches This Exact Requirement
+
+Stay on the current branch and update it.
+
+**If clean:**
 ```bash
 git fetch origin
 git rebase origin/main
 ```
 
-If rebase conflict: capture files, `git rebase --abort`, write workflow-blocker.md, stop.
+**If dirty with meaningful changes:**
+```bash
+git add .
+git commit -m "wip: checkpoint before rebase"
+git fetch origin
+git rebase origin/main
+```
+
+**If dirty with temporary changes:**
+```bash
+git stash push -u -m "wip-before-rebase"
+git fetch origin
+git rebase origin/main
+git stash pop
+```
+
+If rebase conflict: `git rebase --abort`, write workflow-blocker.md, stop.
+
+---
+
+### Case B — Current Branch Is Completely Unrelated
+
+Leave it untouched. Move to updated `main`, create fresh branch.
+
+Before creating the new branch, run the **New Branch Guard** (see above).
+
+**If clean:**
+```bash
+git fetch origin
+# verify branch name is free (New Branch Guard)
+git checkout main
+git pull --ff-only origin main
+git checkout -b feature/<requirement-name>
+```
+
+**If dirty — preserve work on the current branch:**
+```bash
+git add .
+git commit -m "wip: preserve unrelated branch work"
+# verify branch name is free (New Branch Guard)
+git checkout main
+git pull --ff-only origin main
+git checkout -b feature/<requirement-name>
+```
+
+**If dirty — temporary changes:**
+```bash
+git stash push -u -m "wip-unrelated-branch"
+# verify branch name is free (New Branch Guard)
+git checkout main
+git pull --ff-only origin main
+git checkout -b feature/<requirement-name>
+```
+
+Do not `stash pop` unrelated changes onto the new branch.
+
+---
+
+### Case C — Related Continuation (X.1 → X.2)
+
+Continue on same branch only if: not merged, PR still open or no PR yet, and new requirement belongs to the same logical change set.
+
+**If clean:**
+```bash
+git fetch origin
+git rebase origin/main
+```
+
+**If dirty with meaningful changes:**
+```bash
+git add .
+git commit -m "wip: checkpoint before related continuation"
+git fetch origin
+git rebase origin/main
+```
+
+**If dirty with temporary changes:**
+```bash
+git stash push -u -m "wip-before-related-continuation"
+git fetch origin
+git rebase origin/main
+git stash pop
+```
+
+Never use `git pull origin main` on a feature branch — always rebase.
+
+If rebase conflict: `git rebase --abort`, write workflow-blocker.md, stop.
+If stash pop conflict: write workflow-blocker.md, stop.
+
+---
+
+### Case D — Current Branch Is Main And Clean
+
+```bash
+git status
+git checkout main
+git pull --ff-only origin main
+# verify branch name is free (New Branch Guard)
+git checkout -b feature/<requirement-name>
+```
+
+Implement only on the new branch. Forbidden on `main`: `git add .`, `git commit`.
+
+---
+
+### Case E — Current Branch Is Main And Dirty
+
+Run `git status`. Then stop and write:
+
+```md
+Current branch is main and the working tree is dirty.
+I will not modify, commit, stash, reset, or clean directly on main.
+Please decide whether to preserve, discard, or move these changes to a branch.
+```
+
+Forbidden on dirty `main` unless explicitly human-approved: `git add`, `git commit`, `git stash`, `git reset --hard`, `git clean -fd`, `git checkout -b`.
+
+---
+
+### Case F — Dirty Feature Branch (Before Rebase Or Switch)
+
+**Use commit when** changes are meaningful, branch is correct, changes are part of current task.
+**Use stash when** changes are temporary or experimental.
+
+Always include untracked files in stash:
+```bash
+git stash push -u -m "wip-before-branch-operation"
+```
+Never use bare `git stash` when untracked files exist.
+
+---
+
+### Case G — Branch Already Merged
+
+```bash
+git checkout main
+git pull --ff-only origin main
+# verify branch name is free (New Branch Guard)
+git checkout -b feature/<requirement-name>
+```
+
+Do not continue development on merged branches.
+
+---
+
+### Case H — Open PR But Requirement Is Unrelated
+
+Leave old branch untouched.
+
+Before creating the new branch, run the **New Branch Guard** (see above).
+
+**If clean:**
+```bash
+git checkout main
+git pull --ff-only origin main
+# verify branch name is free (New Branch Guard)
+git checkout -b feature/<new-requirement-name>
+```
+
+**If dirty:**
+```bash
+git add .
+git commit -m "wip: preserve open PR work"
+git checkout main
+git pull --ff-only origin main
+# verify branch name is free (New Branch Guard)
+git checkout -b feature/<new-requirement-name>
+```
+
+---
+
+### Case I — Open PR And Requirement Is Related
+
+Continue on same branch.
+
+**If clean:**
+```bash
+git fetch origin
+git rebase origin/main
+```
+
+**If dirty:**
+```bash
+git add .
+git commit -m "wip: checkpoint before updating open PR"
+git fetch origin
+git rebase origin/main
+```
+
+---
+
+### Pull / Fetch / Rebase Rules
+
+**On `main`:** `git pull --ff-only origin main` only.
+
+**On feature branches:** `git fetch origin && git rebase origin/main` — never `git pull origin main`.
+
+**Recommended config:**
+```bash
+git config pull.ff only
+git config rebase.autoStash false
+```
+
+---
+
+### Branch Naming Policy
+
+```
+feature/<short-requirement-name>
+fix/<short-bug-name>
+chore/<short-maintenance-name>
+test/<short-test-name>
+```
+
+Lowercase, hyphens, short but meaningful. Avoid generic names like `feature/fix`, `feature/update`.
+
+---
+
+### Commit Message Policy
+
+```bash
+fix: allow ship placement during manual setup
+feat: add toast for invalid ship placement
+wip: checkpoint before rebase          # WIP only when preserving state
+```
+
+Avoid: `fix`, `changes`, `update`, `stuff`.
+
+---
+
+### Conflict Handling
+
+**Rebase conflict:**
+```bash
+git status
+# resolve file by file
+git add <resolved-files>
+git rebase --continue
+# or if unsafe:
+git rebase --abort
+```
+
+**Stash pop conflict:**
+```bash
+git status
+# resolve
+git add <resolved-files>
+git stash list
+git stash drop   # if stash was not auto-dropped
+```
+
+Never continue implementation while Git is in a conflicted state.
+
+---
+
+### Forbidden Actions
+
+```bash
+git pull origin main          # on feature branch — creates merge commit
+git add . && git commit       # on main
+git reset --hard              # unless explicitly approved
+git clean -fd                 # unless explicitly approved
+git branch -D                 # unless explicitly approved
+git push --force              # always forbidden; use --force-with-lease if needed
+```
+
+---
+
+### Branch Decision Log (Required)
+
+Write to `reports/runs/<workflow-run-id>/team-lead-classification.md`:
+
+```md
+## Branch Decision
+
+Starting branch: <name>
+Final branch: <name>
+Case: A / B / C / D / E / F / G / H / I
+Was on main: Yes / No
+Main dirty: Yes / No
+Working tree was dirty: Yes / No
+Dirty state handled by: WIP commit / stash / N/A
+Rebased from origin/main: Yes / No
+New branch created: Yes / No
+Existing PR updated: Yes / No
+Stash used: Yes / No
+Conflicts encountered: Yes / No
+Result: Clean / Blocker
+Reason: <one sentence>
+```
+
+---
+
+### Safe Execution Order
+
+```
+1. git status + git branch --show-current + git fetch origin + git log --oneline -5
+2. Determine: main or feature branch? clean or dirty? related or unrelated?
+3. Check for existing open/merged PR
+4. Classify case (A–I)
+5. Preserve local changes if needed (commit or stash)
+6. Sync from origin/main correctly (ff-only on main, rebase on feature)
+7. Create or stay on branch
+8. Write Branch Decision Log
+9. Assign developer agents and implement
+10. Run tests
+11. Commit with clear message
+12. Update or create PR
+```
 
 ---
 
@@ -417,6 +789,7 @@ Never pause the workflow and ask the human to "send a message to continue". The 
 Each `Agent` call must pass a self-contained prompt that includes:
 ```
 workflow-run-id: <id>
+branch: <exact branch name — Team Lead has already set this up and synced it>
 assignment: <from team-lead-plan.md>
 allowed scope: <from team-lead-plan.md>
 required output: <from team-lead-plan.md>
@@ -424,6 +797,8 @@ product-spec path: reports/runs/<id>/product-spec.md
 architecture path: reports/runs/<id>/architecture.md (if exists)
 backend-contract-changed: yes/no
 ```
+
+The `branch` field tells the implementation agent exactly which branch to confirm they are on. Team Lead has already run the full Git Branch Handling Policy (Cases A–I) in Step 5 and left the repo in a clean, correct state. Implementation agents must not re-run branch decisions — they only confirm the branch matches what Team Lead passed.
 
 ---
 
