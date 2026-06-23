@@ -297,4 +297,21 @@ Integration test rules:
 - Integration tests render full pages/routes, not isolated components.
 - Each test must clean up mocks and router state between runs.
 
+### Smoke Test Gate — Required After Every Frontend Change
+
+After implementing any frontend change (cheap or normal mode), run the smoke test before reporting done:
+
+```bash
+cd apps/frontend && npx playwright test smoke.spec.ts
+```
+
+This test:
+- Starts the frontend dev server automatically (no backend required).
+- Validates that the home page renders with title, Create Game button, Join form, and validation error.
+- Validates that `/lobby` redirects to `/` when session is missing.
+
+**Smoke test must pass before this agent reports success.** If it fails, fix the regression before returning to Team Lead.
+
+If new screens or user-facing flows are added as part of the change, extend `apps/frontend/tests/e2e/smoke.spec.ts` with a minimal scenario covering the new flow. Keep additions focused — one or two assertions per new screen.
+
 ### Never modify, skip, or delete existing passing tests to make the suite green.

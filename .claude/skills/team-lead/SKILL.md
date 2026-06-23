@@ -739,11 +739,25 @@ Write `reports/runs/<workflow-run-id>/demo-config-check.md` when config changes 
 Choose the cheapest sufficient level. Do not run all tests by default. Run only commands that exist.
 
 ```
+Level 0: smoke test (frontend-only, no backend, always required for any frontend change)
 Level 1: typecheck, lint, relevant unit tests
 Level 2: integration tests
 Level 3: targeted E2E
 Level 4: full E2E/regression
 ```
+
+### Smoke Test Gate (Level 0) — Required For All Frontend Routes
+
+For any route that includes frontend changes (`frontend-only`, `backend-and-frontend`, `full-stack-complex`), the smoke test is a mandatory gate even in **cheap mode**:
+
+```bash
+cd apps/frontend && npx playwright test smoke.spec.ts
+```
+
+- No backend required — the Playwright `webServer` config starts `npm run dev` automatically.
+- Must pass before routing to code review or release.
+- If it fails after a frontend change, route back to `frontend-agent` as a `frontend-runtime` finding.
+- Do not skip the smoke gate to save cost — it is fast (< 30 s) and backend-free.
 
 If a test command does not exist:
 - Do not block by default
@@ -852,7 +866,8 @@ For pure cosmetic/audio changes where all unvalidated criteria are Risk: Low —
 - Do not run security-full unless auth, sessions, permissions, tokens, secrets, user data, external integrations, or persistence security are affected. Security review is optional in cheap/normal for non-security routes.
 - Do not run backend unit tests for CSS-only or copy-only changes. Run only `npm run build`.
 - Do not run infrastructure unless Docker, CI, env, deployment, ports, startup, or runtime config changes
-- Do not run Playwright by default
+- Always run `npx playwright test smoke.spec.ts` for any frontend change — it is fast, backend-free, and never skipped.
+- Do not run full Playwright by default (only smoke unless E2E is explicitly required)
 - Do not run backend for frontend-only visual/audio changes
 - Do not run frontend for backend-only internal logic changes
 - Do not inspect the entire repository unless the route requires it
