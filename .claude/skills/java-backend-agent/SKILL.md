@@ -322,6 +322,42 @@ logging:
     com.stampli.battleship: ${LOG_LEVEL:INFO}
 ```
 
+## Coding Standards
+
+### Field injection
+`@Autowired` always goes on its own line, not inline with the declaration:
+```java
+// correct
+@Autowired
+private GameService gameService;
+
+// wrong
+@Autowired GameService gameService;
+```
+Visibility: `private` by default. `protected` only for subclass access. Package-private only when intentionally scoped to the same package.
+
+### Constructors — use Lombok
+Never write boilerplate constructors manually:
+```java
+// correct
+@AllArgsConstructor
+public class GameService {
+    private final GameRepository gameRepository;
+    private final ComputerPlayerService computerPlayerService;
+}
+
+// wrong
+public GameService(GameRepository r, ComputerPlayerService c) {
+    this.gameRepository = r;
+    this.computerPlayerService = c;
+}
+```
+- `@AllArgsConstructor` — all fields need injection
+- `@RequiredArgsConstructor` — only `final` fields need injection
+- `@NoArgsConstructor` — no-arg constructor required (e.g. JPA entities)
+
+---
+
 ## Backend Rules
 - Never expose opponent ship coordinates in any API response before they are hit.
 - Validate all input at the controller boundary using Bean Validation (`@Valid`).

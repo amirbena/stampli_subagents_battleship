@@ -6,19 +6,17 @@ import com.stampli.battleship.domain.ShipType;
 import com.stampli.battleship.dto.*;
 import com.stampli.battleship.service.GameService;
 import jakarta.validation.Valid;
+import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/games")
+@AllArgsConstructor
 public class GameController {
 
     private final GameService gameService;
-
-    public GameController(GameService gameService) {
-        this.gameService = gameService;
-    }
 
     // POST /api/v1/games — Create Game
     @PostMapping

@@ -55,31 +55,71 @@ Unknowns:
 Allowed to edit: `apps/backend/src/test/java/**/*IntegrationTest.java` only.
 Never edit production code. Never edit unit test files (`*Test.java` without `Integration` suffix).
 
-## Test Approach — @WebMvcTest (not @SpringBootTest)
+## Coding Standards
 
-Use `@WebMvcTest` instead of `@SpringBootTest`. This loads only the controller layer and mocks all services with `@MockBean` — startup takes ~1s instead of 5-10s for the full context. No database or Redis needed at all.
-
+### Field injection
+Always put `@Autowired` on its own line, never inline with the declaration:
 ```java
-@WebMvcTest(GameController.class)
-class GameControllerIntegrationTest {
-    @Autowired
-    private MockMvc mockMvc;
+// correct
+@Autowired
+private MockMvc mockMvc;
 
-    @MockBean
-    private GameService gameService;
+@Autowired
+private ObjectMapper objectMapper;
 
-    @MockBean
-    private ComputerPlayerService computerPlayerService;
-    // ...
+// wrong — never do this
+@Autowired MockMvc mockMvc;
+```
+
+Visibility rules: `private` by default. `protected` only if a subclass needs access. Package-private (no modifier) only when scoped to the same package intentionally.
+
+### Constructors — use Lombok instead of boilerplate
+```java
+// correct — let Lombok generate the constructor
+@AllArgsConstructor
+public class MyService {
+    private final GameRepository gameRepository;
+    private final GameService gameService;
+}
+
+// wrong — never write boilerplate constructors manually
+public MyService(GameRepository r, GameService s) {
+    this.gameRepository = r;
+    this.gameService = s;
 }
 ```
 
-**Why @WebMvcTest over @SpringBootTest:**
-- `@SpringBootTest` boots the full application context — slow, needs a DB profile, expensive in CI
-- `@WebMvcTest` loads only the web layer (controller + serialization + validation) — fast, no DB, same HTTP-layer coverage
-- Services are `@MockBean` — same pattern as unit tests, but the HTTP layer is real (routing, status codes, Jackson serialization, `@Valid` constraints)
+Use `@AllArgsConstructor` when all fields need injection. Use `@NoArgsConstructor` when a no-arg constructor is required (e.g. JPA). Use `@RequiredArgsConstructor` when only `final` fields need injection.
 
-No Spring profile needed. No `application-e2e.yml` dependency. Runs in `./mvnw test` alongside unit tests with no extra setup.
+---
+
+## Test Approach — @SpringBootTest (full flow, no mocks)
+
+Use `@SpringBootTest` with `WebEnvironment.MOCK` + `@AutoConfigureMockMvc` + `@ActiveProfiles("e2e")`. This boots the full Spring context against H2 in-memory storage — no mocks, no `@MockBean`. Every test exercises the real service and repository layer.
+
+```java
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
+@AutoConfigureMockMvc
+@ActiveProfiles("e2e")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+class GameControllerIntegrationTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+}
+```
+
+`@DirtiesContext` resets the in-memory repository between tests so each test starts with a clean state.
+
+`application-e2e.yml` must exist (`port: 8081`, H2, Redis excluded). If it is missing, report to Team Lead — do not create it (owned by java-backend-agent).
+
+**Why not @WebMvcTest:**
+- `@WebMvcTest` mocks services — same as unit tests, defeats the purpose of integration tests
+- `@SpringBootTest` with H2 is the only way to test the real request → service → repository → response chain
+- H2 is `scope=test` in pom.xml, so it is on the classpath automatically during `./mvnw test` — no extra Maven profile needed for running tests (only for `spring-boot:run` E2E)
 
 ## Test File Naming
 

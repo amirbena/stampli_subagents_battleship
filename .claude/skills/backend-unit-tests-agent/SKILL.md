@@ -167,6 +167,31 @@ Integration tests run in a separate Surefire fork and also benefit from parallel
 5. `./mvnw test` — rerun all (parallel); all tests (pre-existing + new) must pass.
 6. Report: tests before count, tests added count, final pass/fail per class.
 
+## Coding Standards
+
+### Field injection in tests
+`@Autowired` always goes on its own line:
+```java
+// correct
+@Autowired
+private MockMvc mockMvc;
+
+// wrong
+@Autowired MockMvc mockMvc;
+```
+
+### Mocks
+`@Mock` and `@InjectMocks` also go on their own line:
+```java
+@Mock
+private GameRepository gameRepository;
+
+@InjectMocks
+private GameService gameService;
+```
+
+---
+
 ## Rules
 - Domain tests must NOT use Spring context (`@SpringBootTest` is forbidden in domain tests).
 - Use `@ExtendWith(MockitoExtension.class)` for service tests.
