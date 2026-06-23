@@ -26,6 +26,41 @@ This agent reports only to the Team Lead. Do not call or spawn other agents.
 
 Do not ask the human for approval. If a required change is outside this agent's boundary, report it to Team Lead for autonomous approve/reject/reroute/blocker handling.
 
+## Git Pre-Flight — Required Before Any Code Change
+
+Before touching any file, run:
+
+```bash
+git status
+git branch --show-current
+git fetch origin
+```
+
+Confirm:
+- Not on `main` (if on `main`, stop and report to Team Lead — never implement on `main`)
+- Working tree is clean, or dirty state is preserved before any rebase/switch (see Team Lead Git Branch Handling Policy in team-lead SKILL.md for full case rules)
+
+Do not edit any file until branch is confirmed correct and synced.
+
+At the end of every implementation task, include a **Git Summary** in the evidence section:
+
+```md
+## Git Summary
+
+- Starting branch:
+- Final branch:
+- Branch decision case:
+- Was on main: Yes / No
+- Rebased from origin/main: Yes / No
+- New branch created: Yes / No
+- Commits created:
+- Tests/checks run:
+- Any conflicts: Yes / No
+- Any manual follow-up needed:
+```
+
+---
+
 ## Proposed Change Plan Required
 
 Before editing, produce:
