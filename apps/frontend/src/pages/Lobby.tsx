@@ -6,6 +6,7 @@ import { useGamePolling } from '../hooks/useGamePolling';
 import { GameBoard } from '../components/board/GameBoard';
 import { FleetListPanel } from '../components/placement/FleetListPanel';
 import { RoomCodeDisplay } from '../components/common/RoomCodeDisplay';
+import { PlacementErrorToast } from '../components/common/PlacementErrorToast';
 import { ErrorMessage } from '../components/common/ErrorMessage';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import type { Coordinate, ShipType } from '../types/game';
@@ -19,7 +20,8 @@ export function Lobby(): React.ReactElement {
   const navigate = useNavigate();
   const gameId = sessionStorage.getItem('gameId') ?? '';
   const playerId = sessionStorage.getItem('playerId') ?? '';
-  const [error, setError] = React.useState<string | null>(null);
+  const [placementToastError, setPlacementToastError] = React.useState<string | null>(null);
+  const [generalError, setGeneralError] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
 
   const placement = usePlacement();
@@ -50,15 +52,36 @@ export function Lobby(): React.ReactElement {
     return () => window.removeEventListener('keydown', handler);
   }, [placement]);
 
+  /**
+   * Maps raw backend/internal error messages to user-friendly placement copy.
+   * Prevents technical phase errors from appearing directly in the UI.
+   */
+  const toFriendlyPlacementError = (raw: string): string => {
+    const lower = raw.toLowerCase();
+    if (lower.includes('occupied') || lower.includes('overlap')) {
+      return 'This position is already occupied. Choose another cell.';
+    }
+    if (lower.includes('phase') || lower.includes('wrong_phase') || lower.includes('placing_ships')) {
+      return 'Cannot place this ship here. Try another position.';
+    }
+    if (lower.includes('bounds') || lower.includes('invalid_placement')) {
+      return 'Cannot place this ship here. Try another position.';
+    }
+    if (lower.includes('already placed') || lower.includes('already_placed')) {
+      return 'That ship type has already been placed.';
+    }
+    return 'Cannot place this ship here. Try another position.';
+  };
+
   const handleCellClick = useCallback(async (row: number, col: number) => {
     if (!placement.selectedShipType) return;
     const anchor: Coordinate = { row, col };
     const placed = placement.placeShip(anchor);
     if (!placed) {
-      setError('Invalid placement — try again');
+      setPlacementToastError('This position is already occupied. Choose another cell.');
       return;
     }
-    setError(null);
+    setPlacementToastError(null);
     try {
       await placeShip(gameId, playerId, {
         shipType: placed.shipType,
@@ -67,9 +90,10 @@ export function Lobby(): React.ReactElement {
         orientation: placement.orientation,
       });
     } catch (e) {
-      // Roll back local placement
+      // Roll back local placement on backend rejection
       placement.removeShip(placed.shipType);
-      setError(e instanceof Error ? e.message : 'Placement failed');
+      const raw = e instanceof Error ? e.message : 'Placement failed';
+      setPlacementToastError(toFriendlyPlacementError(raw));
     }
   }, [placement, gameId, playerId]);
 
@@ -78,17 +102,17 @@ export function Lobby(): React.ReactElement {
     try {
       await removeShip(gameId, playerId, type);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Remove failed');
+      setGeneralError(e instanceof Error ? e.message : 'Remove failed');
     }
   }, [placement, gameId, playerId]);
 
   const handleConfirmReady = async () => {
     setSubmitting(true);
-    setError(null);
+    setGeneralError(null);
     try {
       await setReady(gameId, playerId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to confirm ready');
+      setGeneralError(e instanceof Error ? e.message : 'Failed to confirm ready');
     } finally {
       setSubmitting(false);
     }
@@ -122,7 +146,8 @@ export function Lobby(): React.ReactElement {
         <div className="waiting-banner">Waiting for opponent to join…</div>
       )}
 
-      <ErrorMessage message={error} />
+      <PlacementErrorToast message={placementToastError} />
+      <ErrorMessage message={generalError} />
 
       {isLoading && !gameState && <LoadingSpinner label="Loading game…" />}
 
