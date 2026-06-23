@@ -278,6 +278,10 @@ If infra change appears required: route to infrastructure-agent only if explicit
 
 Yes/No and reason.
 
+## Backend Integration Tests Required
+
+Yes / No — and exact trigger (which of the five conditions matched, or why all were absent).
+
 ## E2E Mode
 
 None / Smoke / Full — and reason.
@@ -811,15 +815,26 @@ Do not spawn `playwright-e2e-agent` until all four checks pass.
 
 #### Backend Integration Tests Decision
 
-Run `backend-integration-tests-agent` when **ANY** of these are true:
-- A new controller or REST endpoint was added
-- An existing endpoint request/response shape changed (DTO fields, status codes)
-- A new `@Valid` / constraint annotation was added to a request body
+Integration tests validate the HTTP layer — things Mockito never catches because they only materialize inside the Spring context. They cost more than unit tests, so Team Lead must only spawn `backend-integration-tests-agent` when the HTTP layer itself is at risk.
 
-Skip when:
-- Frontend-only change (backend untouched)
-- Pure domain/service logic change with no API surface change — unit tests cover that
-- Config or docs only
+**Run `backend-integration-tests-agent` when ANY of these are true:**
+
+| Trigger | Why unit tests are not enough |
+|---------|-------------------------------|
+| New REST endpoint added | Route wiring, path variables, and response serialization are untested by Mockito |
+| DTO field added, renamed, or removed | JSON serialization breaks at runtime, not at compile time |
+| `@Valid` / `@NotNull` / `@Size` or any constraint annotation added to a request body | Validation annotations only fire when Spring processes the request |
+| HTTP status code changed on an existing endpoint | Unit tests mock the service — they never see the actual HTTP response code |
+| New exception → error response mapping added | Only visible through the full Spring context |
+
+**Skip `backend-integration-tests-agent` when ALL of these are true:**
+- No new endpoints, no removed endpoints
+- No DTO field changes (no additions, renames, removals, type changes)
+- No new validation annotations on request bodies
+- No status code changes
+- No new exception mappings
+
+Typical skip cases: service/domain logic change only, frontend-only change, refactor with identical API surface, test-only change, config/docs only.
 
 #### Test phase (after implementation, run in parallel where safe)
 
