@@ -38,6 +38,14 @@ To extend an agent, edit its `SKILL.md` — do not create parallel files.
 | Infrastructure Agent | `.claude/skills/infrastructure-agent` | claude-haiku-4-5-20251001 | `docker-compose.yml`, env documentation, run instructions |
 | Release PR Agent | `.claude/skills/release-pr-agent` | claude-haiku-4-5-20251001 | `reports/final-pr-summary.md`, PR creation |
 
+## Git Branch Handling Policy
+The full policy lives in `.claude/skills/team-lead/SKILL.md` (Step 5). Key rules:
+- Team Lead owns all branch decisions (Cases A–I) before any implementation agent is spawned.
+- Implementation agents (frontend, backend) only confirm they are on the branch Team Lead assigned — they never run branch operations themselves.
+- Never implement directly on `main`. Dirty `main` is always a hard stop.
+- New branches are verified free on local and remote before creation (multi-team safety guard).
+- Feature branches always sync via `git fetch origin && git rebase origin/main`, never `git pull origin main`.
+
 ## File Ownership Rule
 Agents must not edit files outside their ownership domain without explicit Team Lead approval.
 
