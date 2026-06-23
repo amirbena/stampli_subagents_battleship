@@ -55,23 +55,31 @@ Unknowns:
 Allowed to edit: `apps/backend/src/test/java/**/*IntegrationTest.java` only.
 Never edit production code. Never edit unit test files (`*Test.java` without `Integration` suffix).
 
-## Spring Profile
+## Test Approach — @WebMvcTest (not @SpringBootTest)
 
-All integration tests run under the `e2e` Spring profile:
+Use `@WebMvcTest` instead of `@SpringBootTest`. This loads only the controller layer and mocks all services with `@MockBean` — startup takes ~1s instead of 5-10s for the full context. No database or Redis needed at all.
 
 ```java
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@ActiveProfiles("e2e")
+@WebMvcTest(GameController.class)
 class GameControllerIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
+
+    @MockBean
+    private GameService gameService;
+
+    @MockBean
+    private ComputerPlayerService computerPlayerService;
     // ...
 }
 ```
 
-This uses `application-e2e.yml`: H2 in-memory DB, no Redis, isolated from the dev environment.
+**Why @WebMvcTest over @SpringBootTest:**
+- `@SpringBootTest` boots the full application context — slow, needs a DB profile, expensive in CI
+- `@WebMvcTest` loads only the web layer (controller + serialization + validation) — fast, no DB, same HTTP-layer coverage
+- Services are `@MockBean` — same pattern as unit tests, but the HTTP layer is real (routing, status codes, Jackson serialization, `@Valid` constraints)
 
-If `application-e2e.yml` does not exist, report the blocker to Team Lead — do not create it (owned by java-backend-agent).
+No Spring profile needed. No `application-e2e.yml` dependency. Runs in `./mvnw test` alongside unit tests with no extra setup.
 
 ## Test File Naming
 
