@@ -115,9 +115,28 @@ If `npm run e2e:ci` does not exist, report this to the Team Lead. Creating or ch
 - [ ] Player A cannot see Player B's un-hit ships on the opponent board
 - [ ] Only hit cells and miss markers are visible on the opponent board
 
+## Smoke Test — Lightweight Frontend-Only Layer
+
+`apps/frontend/tests/e2e/smoke.spec.ts` is a fast, backend-free smoke test that validates the basic UI is alive and navigable. It is always maintained alongside the other E2E specs.
+
+**What it covers:**
+- Home page renders: title, Create Game button, Room code input, Join Game button.
+- Joining with empty code shows a validation error.
+- Navigating to `/lobby` without a session redirects to `/`.
+
+**Running it (no backend needed):**
+```bash
+cd apps/frontend && npx playwright test smoke.spec.ts
+```
+
+The Playwright `webServer` config starts `npm run dev` automatically, so no manual server startup is needed.
+
+**Ownership rule:** When the frontend agent adds or changes a screen or flow, it must also extend `smoke.spec.ts` with a minimal scenario for that screen. The playwright-e2e-agent maintains `smoke.spec.ts` only when Team Lead routes a dedicated E2E task.
+
 ## Test File Location
 ```
 apps/frontend/tests/e2e/
+├── smoke.spec.ts        ← always present; frontend-only; no backend needed
 ├── room.spec.ts
 ├── placement.spec.ts
 ├── gameplay.spec.ts
