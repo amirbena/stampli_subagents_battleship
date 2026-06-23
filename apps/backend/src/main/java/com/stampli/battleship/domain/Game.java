@@ -11,10 +11,16 @@ public class Game {
     private String currentTurnPlayerId;
     private String winnerPlayerId;
     private final List<Shot> shotHistory;
+    private final GameMode gameMode;
 
     public Game(String id, Player playerA) {
+        this(id, playerA, GameMode.HUMAN);
+    }
+
+    public Game(String id, Player playerA, GameMode gameMode) {
         this.id = id;
         this.playerA = playerA;
+        this.gameMode = gameMode;
         this.status = GameStatus.WAITING_FOR_PLAYERS;
         this.shotHistory = new ArrayList<>();
     }
@@ -61,6 +67,10 @@ public class Game {
 
     public String getWinnerPlayerId() {
         return winnerPlayerId;
+    }
+
+    public GameMode getGameMode() {
+        return gameMode;
     }
 
     public List<Shot> getShotHistory() {

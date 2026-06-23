@@ -1,5 +1,6 @@
 export type ShipType = 'CARRIER' | 'BATTLESHIP' | 'CRUISER' | 'SUBMARINE' | 'DESTROYER';
 export type Orientation = 'HORIZONTAL' | 'VERTICAL';
+export type GameMode = 'HUMAN' | 'COMPUTER';
 export type ShotResult = 'MISS' | 'HIT' | 'SUNK';
 export type GameStatus =
   | 'WAITING_FOR_PLAYERS'
@@ -24,6 +25,15 @@ export interface BoardStateDto {
   missedShots: Coordinate[];
 }
 
+export interface ComputerShotDto {
+  row: number;
+  col: number;
+  result: ShotResult;
+  sunkShipType: ShipType | null;
+  winnerId: string | null;
+  gameStatus: string;
+}
+
 export interface GameStateResponse {
   gameId: string;
   status: GameStatus;
@@ -33,12 +43,14 @@ export interface GameStateResponse {
   opponentBoard: BoardStateDto;
   myReady: boolean;
   opponentReady: boolean;
+  gameMode?: GameMode;
 }
 
 export interface CreateGameResponse {
   gameId: string;
   playerId: string;
   status: GameStatus;
+  gameMode?: GameMode;
 }
 
 export interface JoinGameResponse {
@@ -79,6 +91,7 @@ export interface FireShotResponse {
   nextTurnPlayerId: string | null;
   gameStatus: GameStatus;
   winnerId: string | null;
+  computerShot: ComputerShotDto | null;
 }
 
 export interface ApiError {

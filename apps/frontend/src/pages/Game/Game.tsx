@@ -9,7 +9,7 @@ import { ShipStatusPanel } from '../../components/game/ShipStatusPanel/ShipStatu
 import { ErrorMessage } from '../../components/common/ErrorMessage/ErrorMessage';
 import { LoadingSpinner } from '../../components/common/LoadingSpinner/LoadingSpinner';
 import { computeOwnBoardCells, computeOpponentBoardCells, getSunkShipTypes } from '../../utils/boardHelpers';
-import type { ShotResult, ShipType } from '../../types/game';
+import type { ShotResult, ShipType, CellState } from '../../types/game';
 import './Game.css';
 
 export function Game(): React.ReactElement {
@@ -20,6 +20,8 @@ export function Game(): React.ReactElement {
   const [firing, setFiring] = useState(false);
   const [lastResult, setLastResult] = useState<ShotResult | null>(null);
   const [lastSunkShip, setLastSunkShip] = useState<ShipType | null>(null);
+  // Optimistic overlay for computer's shot on my board before next poll
+  const [computerShotOverlay, setComputerShotOverlay] = useState<{ row: number; col: number; state: CellState } | null>(null);
 
   const { gameState, isLoading } = useGamePolling(gameId, playerId, true);
 
@@ -33,6 +35,13 @@ export function Game(): React.ReactElement {
     }
   }, [gameState?.status, navigate]);
 
+  // Clear the optimistic computer-shot overlay once the poll updates my board
+  useEffect(() => {
+    if (gameState && computerShotOverlay) {
+      setComputerShotOverlay(null);
+    }
+  }, [gameState]);
+
   const isMyTurn = gameState?.currentTurnPlayerId === playerId;
 
   const handleFireShot = async (row: number, col: number) => {
@@ -43,6 +52,14 @@ export function Game(): React.ReactElement {
       const res = await fireShot(gameId, playerId, row, col);
       setLastResult(res.result);
       setLastSunkShip(res.sunkShipType);
+      if (res.computerShot) {
+        const cs = res.computerShot;
+        const cellState: CellState = cs.result === 'MISS' ? 'miss' : 'hit';
+        setComputerShotOverlay({ row: cs.row, col: cs.col, state: cellState });
+        if (cs.winnerId) {
+          navigate('/game-over');
+        }
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Shot failed');
     } finally {
@@ -50,7 +67,16 @@ export function Game(): React.ReactElement {
     }
   };
 
-  const myBoardCells = gameState ? computeOwnBoardCells(gameState.myBoard) : undefined;
+  const myBoardCellsBase = gameState ? computeOwnBoardCells(gameState.myBoard) : undefined;
+  const myBoardCells = myBoardCellsBase && computerShotOverlay
+    ? myBoardCellsBase.map((rowArr, r) =>
+        rowArr.map((cell, c) =>
+          r === computerShotOverlay.row && c === computerShotOverlay.col && cell !== 'hit' && cell !== 'miss' && cell !== 'sunk'
+            ? computerShotOverlay.state
+            : cell,
+        ),
+      )
+    : myBoardCellsBase;
   const opponentBoardCells = gameState ? computeOpponentBoardCells(gameState.opponentBoard) : undefined;
   const opponentSunkTypes = gameState ? getSunkShipTypes(gameState.opponentBoard) : [];
 

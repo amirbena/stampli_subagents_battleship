@@ -25,24 +25,48 @@ public class GameService {
 
     private final GameRepository gameRepository;
     private final PlacementValidationService placementValidationService;
+    private final ComputerPlayerService computerPlayerService;
 
-    public GameService(GameRepository gameRepository, PlacementValidationService placementValidationService) {
+    public GameService(GameRepository gameRepository,
+                       PlacementValidationService placementValidationService,
+                       ComputerPlayerService computerPlayerService) {
         this.gameRepository = gameRepository;
         this.placementValidationService = placementValidationService;
+        this.computerPlayerService = computerPlayerService;
     }
 
     /**
-     * Creates a new game room and registers the first player.
+     * Creates a new human-vs-human game room and registers the first player.
      *
      * @return response containing the new {@code gameId} and the creator's {@code playerId}
      */
     public CreateGameResponse createGame() {
+        return createGame(GameMode.HUMAN);
+    }
+
+    /**
+     * Creates a new game room with the given mode and registers the first (human) player.
+     * When mode is COMPUTER, the computer player is immediately set up and marked ready.
+     *
+     * @param mode HUMAN or COMPUTER
+     * @return response containing the new {@code gameId} and the creator's {@code playerId}
+     */
+    public CreateGameResponse createGame(GameMode mode) {
         String gameId = generateGameId();
         String playerId = UUID.randomUUID().toString();
         Player playerA = new Player(playerId, gameId);
-        Game game = new Game(gameId, playerA);
+        Game game = new Game(gameId, playerA, mode);
+
+        if (mode == GameMode.COMPUTER) {
+            String computerId = "COMPUTER-" + UUID.randomUUID().toString();
+            Player computerPlayer = new Player(computerId, gameId);
+            computerPlayerService.placeShipsRandomly(computerPlayer.getBoard());
+            computerPlayer.confirmReady();
+            game.addPlayerB(computerPlayer);
+        }
+
         gameRepository.save(game);
-        return new CreateGameResponse(gameId, playerId, game.getStatus().name());
+        return new CreateGameResponse(gameId, playerId, game.getStatus().name(), mode.name());
     }
 
     /**
@@ -151,7 +175,7 @@ public class GameService {
 
     /**
      * Marks a player as ready. If both players are ready, transitions the game to IN_PROGRESS
-     * and randomly assigns the first turn.
+     * and assigns the first turn to playerA (human always goes first in vs-computer mode).
      *
      * @param gameId   the target game
      * @param playerId the player confirming their fleet
@@ -196,11 +220,15 @@ public class GameService {
      * Enforces turn order and prevents duplicate shots. Returns {@code WIN} internally
      * when the last opponent ship is sunk; the API response maps this to {@code SUNK}
      * and populates {@code winnerId} so the external contract stays clean.
+     * <p>
+     * In COMPUTER mode, after a valid human shot (that doesn't win), the computer
+     * immediately fires back. The human always retains the next turn.
      *
      * @param gameId     the target game
      * @param playerId   the shooting player
      * @param coordinate the target cell (row and col must be 0–9)
-     * @return shot result, sunk ship type (if any), next turn player, and winner (if game ended)
+     * @return shot result, sunk ship type (if any), next turn player, winner (if game ended),
+     *         and computer shot details (if mode is COMPUTER)
      * @throws GameException 409 if game is not IN_PROGRESS or it is not this player's turn
      * @throws GameException 400 if coordinate is out of bounds or already targeted
      */
@@ -229,6 +257,7 @@ public class GameService {
                 throw new GameException("Already fired at this coordinate", "ALREADY_FIRED", HttpStatus.BAD_REQUEST);
             }
 
+            // --- Resolve human shot ---
             Optional<Ship> hitShip = opponentBoard.shipAt(coordinate);
             ShotResult result;
             String sunkShipType = null;
@@ -261,23 +290,86 @@ public class GameService {
                 game.finishGame(playerId);
                 winnerId = playerId;
             } else {
-                // Alternate turns after every valid shot
-                Player playerA = game.getPlayerA();
-                Player playerB = game.getPlayerB();
-                String nextPlayer = playerId.equals(playerA.getId()) ? playerB.getId() : playerA.getId();
-                game.setCurrentTurnPlayerId(nextPlayer);
-                nextTurnPlayerId = nextPlayer;
+                // In HUMAN mode: alternate turns. In COMPUTER mode: human always goes next.
+                if (game.getGameMode() == GameMode.COMPUTER) {
+                    // Computer will fire immediately below; human goes again after
+                    game.setCurrentTurnPlayerId(playerId);
+                    nextTurnPlayerId = playerId;
+                } else {
+                    Player playerA = game.getPlayerA();
+                    Player playerB = game.getPlayerB();
+                    String nextPlayer = playerId.equals(playerA.getId()) ? playerB.getId() : playerA.getId();
+                    game.setCurrentTurnPlayerId(nextPlayer);
+                    nextTurnPlayerId = nextPlayer;
+                }
             }
-
-            gameRepository.save(game);
 
             // Map WIN → SUNK in the external response; winnerId carries the win signal instead
             String externalResult = (result == ShotResult.WIN) ? ShotResult.SUNK.name() : result.name();
 
+            // --- Computer fires back (only if game still in progress and mode is COMPUTER) ---
+            ComputerShotDto computerShotDto = null;
+            if (game.getGameMode() == GameMode.COMPUTER && game.getStatus() == GameStatus.IN_PROGRESS) {
+                Player computer = game.getOpponent(playerId);
+                Coordinate compCoord = computerPlayerService.selectShot(game, computer.getId());
+
+                if (compCoord != null) {
+                    Board humanBoard = game.getPlayer(playerId).getBoard();
+                    Optional<Ship> compHitShip = humanBoard.shipAt(compCoord);
+                    ShotResult compResult;
+                    String compSunkShipType = null;
+
+                    if (compHitShip.isPresent()) {
+                        Ship compShip = compHitShip.get();
+                        compShip.recordHit(compCoord);
+                        if (compShip.isSunk()) {
+                            if (humanBoard.allShipsSunk()) {
+                                compResult = ShotResult.WIN;
+                            } else {
+                                compResult = ShotResult.SUNK;
+                            }
+                            compSunkShipType = compShip.getType().name();
+                        } else {
+                            compResult = ShotResult.HIT;
+                        }
+                    } else {
+                        humanBoard.recordMiss(compCoord);
+                        compResult = ShotResult.MISS;
+                    }
+
+                    Shot compShot = new Shot(computer.getId(), compCoord, compResult);
+                    game.addShot(compShot);
+
+                    String compWinnerId = null;
+                    if (compResult == ShotResult.WIN) {
+                        game.finishGame(computer.getId());
+                        compWinnerId = computer.getId();
+                        nextTurnPlayerId = null;
+                    }
+                    // Human always goes next (currentTurnPlayerId stays as playerId, already set above)
+
+                    String compExternalResult = (compResult == ShotResult.WIN) ? ShotResult.SUNK.name() : compResult.name();
+                    computerShotDto = new ComputerShotDto(
+                            compCoord.getRow(), compCoord.getCol(),
+                            compExternalResult, compSunkShipType,
+                            compWinnerId, game.getStatus().name()
+                    );
+
+                    // Update outer winnerId and nextTurnPlayerId if computer won
+                    if (compResult == ShotResult.WIN) {
+                        winnerId = compWinnerId;
+                        nextTurnPlayerId = null;
+                    }
+                }
+            }
+
+            gameRepository.save(game);
+
             return new FireShotResponse(
                     coordinate.getRow(), coordinate.getCol(),
                     externalResult, sunkShipType,
-                    nextTurnPlayerId, game.getStatus().name(), winnerId
+                    nextTurnPlayerId, game.getStatus().name(), winnerId,
+                    computerShotDto
             );
         }
     }
@@ -312,7 +404,8 @@ public class GameService {
                 myBoardDto,
                 opponentBoardDto,
                 myReady,
-                opponentReady
+                opponentReady,
+                game.getGameMode() != null ? game.getGameMode().name() : null
         );
     }
 
