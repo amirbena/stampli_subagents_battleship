@@ -147,12 +147,15 @@ All agents in a run share one git working tree and one `reports/` directory. If 
 
 This makes the pipeline **single-tenant by design**: one requirement in flight at a time per working tree.
 
-### Mandatory E2E
-E2E is **required** (not optional) when:
-- A new or changed REST endpoint is consumed by the frontend
-- New frontend pages or flows are added
-- A new game mode or state machine transition is introduced
-- Frontend logic depending on backend responses is added or changed
+### E2E Modes
+
+| Mode | When | What runs |
+|------|------|-----------|
+| **Full** | API contract changed (new/modified endpoints, DTOs, response shapes), or new backend-coordinated flow | All E2E specs against live backend on port 8081 |
+| **Smoke** | Frontend-only change — new pages/flows/components, no contract change | `smoke.spec.ts` only, no backend needed |
+| **None** | Backend-only change, zero frontend impact | E2E skipped |
+
+Full mode requires the E2E Infrastructure Pre-Gate to pass before the Playwright agent runs. Smoke mode bypasses the pre-gate entirely.
 
 ### Quality Gates (all must pass before PR)
 - `./mvnw test` — backend unit tests

@@ -52,6 +52,20 @@ Unknowns:
 
 Allowed to edit `e2e/**`, `playwright/**`, `tests/e2e/**`, and `playwright.config.*` when routed by Team Lead.
 
+### Invocation Modes
+
+Team Lead always specifies the mode when spawning this agent. Never infer the mode from the code.
+
+**Full mode** — API contract changed or new backend-coordinated flow:
+- Run all applicable E2E specs against the live backend on port 8081
+- Requires all 4 E2E Infrastructure Pre-Flight checks to pass before running
+- Backend webServer entry in `playwright.config.ts` must be present
+
+**Smoke mode** — frontend-only change, no contract change:
+- Run `smoke.spec.ts` only
+- No backend required; do NOT start or depend on the backend webServer entry
+- Add a smoke test for any new page or flow introduced
+
 ### Normal Mode
 When invoked after implementation, add or update E2E tests that prove the product acceptance criteria.
 

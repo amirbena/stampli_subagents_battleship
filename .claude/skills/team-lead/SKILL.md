@@ -277,19 +277,23 @@ If infra change appears required: route to infrastructure-agent only if explicit
 
 Yes/No and reason.
 
-## E2E Required
+## E2E Mode
 
-Yes/No and reason.
+None / Smoke / Full — and reason.
 
-**E2E is MANDATORY (must be Yes) when ANY of the following are true:**
-- A new or changed REST endpoint is consumed by the frontend (API contract changed)
-- New frontend pages, flows, or user interactions are added
-- A new game mode, state machine transition, or multiplayer flow is introduced
-- Frontend logic that depends on backend responses is added or changed
+**Decision rules (pick the first that matches):**
 
-E2E is optional (may be No) only for backend-only changes with zero frontend impact, or pure styling/copy changes with no logic.
+| Condition | E2E Mode |
+|-----------|----------|
+| API contract changed (new endpoint, changed request/response shape, new status codes) | **Full** — frontend + live backend on port 8081 |
+| New game mode, state machine transition, or multiplayer flow requiring backend coordination | **Full** |
+| New frontend pages/flows/components but NO contract change | **Smoke** — `smoke.spec.ts` only, no backend |
+| Pure styling, copy, or layout change | **Smoke** |
+| Backend-only change, zero frontend impact | **None** |
 
-When E2E is Yes, Team Lead must run the E2E Infrastructure Pre-Gate before spawning playwright-e2e-agent (see Step 6).
+When mode is **Full**, Team Lead must pass the E2E Infrastructure Pre-Gate before spawning playwright-e2e-agent (see Step 6).
+When mode is **Smoke**, Team Lead spawns playwright-e2e-agent with instruction to run `smoke.spec.ts` only — no backend webServer needed.
+When mode is **None**, playwright-e2e-agent is not spawned.
 
 ## Demo Config / Dotenv Plan
 
@@ -776,9 +780,11 @@ Team Lead MUST spawn all assigned developer agents automatically using the `Agen
 - `java-backend-only`: spawn only `java-backend-agent`.
 - `frontend-only`: spawn only `frontend-agent`.
 
-#### E2E Infrastructure Pre-Gate — Required Before Spawning playwright-e2e-agent
+#### E2E Infrastructure Pre-Gate — Required Only When E2E Mode Is Full
 
-Before spawning `playwright-e2e-agent`, verify the full E2E environment is in place. Run these checks in order:
+Skip this gate entirely when E2E mode is **Smoke** or **None**.
+
+When mode is **Full**, verify the complete E2E environment before spawning `playwright-e2e-agent`. Run these checks in order:
 
 ```bash
 # 1. Backend E2E Spring profile exists

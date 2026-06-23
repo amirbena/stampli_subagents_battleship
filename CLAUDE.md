@@ -38,21 +38,34 @@ To extend an agent, edit its `SKILL.md` — do not create parallel files.
 | Infrastructure Agent | `.claude/skills/infrastructure-agent` | claude-haiku-4-5-20251001 | `docker-compose.yml`, env documentation, run instructions |
 | Release PR Agent | `.claude/skills/release-pr-agent` | claude-haiku-4-5-20251001 | `reports/runs/<id>/release-summary.md`, PR creation |
 
-## Mandatory E2E Rule
+## E2E Decision Rule
 
-Playwright E2E is **required** (not optional) when ANY of the following are true:
-- A new or changed REST endpoint is consumed by the frontend (API contract changed)
-- New frontend pages, flows, or user interactions are added
-- A new game mode, state machine transition, or multiplayer flow is introduced
-- Frontend logic that depends on backend responses is added or changed
+There are two E2E modes. Team Lead picks the correct one based on what changed.
 
-Team Lead must run the **E2E Infrastructure Pre-Gate** before spawning the Playwright agent:
+### Full E2E (frontend + live backend on port 8081)
+Run ONLY when the **API contract changed**:
+- New REST endpoint added
+- Existing endpoint request/response shape changed (new fields, renamed fields, status codes)
+- New game mode, state machine transition, or multiplayer flow that requires backend coordination
+
+Before spawning the Playwright agent in Full E2E mode, Team Lead must pass the **E2E Infrastructure Pre-Gate**:
 1. `apps/backend/src/main/resources/application-e2e.yml` exists (port 8081, H2, correct CORS)
 2. Maven `e2e` profile with `useTestClasspath=true` exists in `pom.xml`
 3. `playwright.config.ts` has a dual `webServer` array (frontend + backend)
 4. Frontend `webServer` entry sets `env: { VITE_API_BASE_URL: 'http://localhost:8081' }`
 
 If any check fails, route to the owning agent to fix it before E2E runs.
+
+### Smoke E2E (frontend only — no backend)
+Run when frontend pages or flows are added/changed but **no contract change**:
+- New UI pages, components, or navigation flows
+- Copy, styling, or layout changes
+- Frontend validation, error states, or client-side logic
+
+Smoke E2E runs `smoke.spec.ts` only. No backend webServer entry required.
+
+### No E2E
+- Backend-only changes with zero frontend impact
 
 ## Git Branch Handling Policy
 The full policy lives in `.claude/skills/team-lead/SKILL.md` (Step 5). Key rules:
