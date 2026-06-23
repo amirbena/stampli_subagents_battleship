@@ -976,6 +976,39 @@ Prefer escalation over blocker when safe. Hard block only for unsafe Git state, 
 
 ---
 
+## Step 7d — Test Failure Routing
+
+When any agent in the parallel test phase reports a failure, Team Lead is the sole decision-maker on who owns the fix. Never route blindly — read the failure output and classify it first.
+
+### Classification and routing table
+
+| Failure symptom | Responsible agent | Action |
+|---|---|---|
+| JUnit test fails on domain or service logic | `java-backend-agent` | Fix the production code; re-run `./mvnw test` |
+| JUnit test itself is wrong (wrong assertion, wrong mock) | `backend-unit-tests-agent` | Fix the test; re-run `./mvnw test` |
+| `@SpringBootTest` / MockMvc fails — wrong status code or response body | `java-backend-agent` | Fix the controller or DTO; re-run `*IntegrationTest` |
+| `@SpringBootTest` / MockMvc fails — test setup or assertion wrong | `backend-integration-tests-agent` | Fix the test; re-run `*IntegrationTest` |
+| Vitest / RTL test fails on component rendering or logic | `frontend-agent` | Fix the component or hook; re-run `npm run test` |
+| Vitest / RTL test itself is wrong (wrong assertion, wrong mock) | `frontend-agent` | Fix the test; re-run `npm run test` |
+| TypeScript compile error in frontend | `frontend-agent` | Fix the type error; re-run `npm run build` |
+| Playwright test fails — backend returns unexpected response | `java-backend-agent` | Fix the backend; re-run `npm run test:e2e` |
+| Playwright test fails — UI behaves incorrectly | `frontend-agent` | Fix the component; re-run `npm run test:e2e` |
+| Playwright test fails — test is flaky or assertion is wrong | `playwright-e2e-agent` | Fix the test; re-run `npm run test:e2e` |
+
+### Routing rules
+
+1. **Read the failure output before routing.** Do not guess ownership from the file path alone — a backend bug can surface in a frontend test and vice versa.
+2. **Route to exactly one agent.** Do not spawn multiple fix agents for the same failure — diagnose the root cause first.
+3. **After the fix, re-run only the failing test suite** — not all tests. Only re-run the full parallel phase if the fix could plausibly have broken a different suite.
+4. **If the root cause is unclear**, route to `java-backend-agent` for backend failures and `frontend-agent` for frontend failures as the default, and ask them to report back with the root cause before fixing.
+5. **E2E does not start until the parallel test phase is fully green.** A fix cycle in the parallel phase must complete and be verified before Playwright is spawned.
+
+### Fix cycle limit
+
+Maximum 5 fix cycles per test suite per run. If a suite is still failing after 5 cycles, write `reports/runs/<workflow-run-id>/workflow-blocker.md` and stop.
+
+---
+
 ## Step 8 — Finding Registry
 
 Maintain `reports/runs/<workflow-run-id>/finding-registry.md`:
