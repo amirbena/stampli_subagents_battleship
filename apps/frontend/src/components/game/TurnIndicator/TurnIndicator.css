@@ -1,0 +1,10 @@
+.turn-indicator {
+  padding: 0.6rem 1.2rem;
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.turn-indicator--my-turn { background: rgba(6, 214, 160, 0.15); color: var(--color-success); border: 1px solid var(--color-success); }
+.turn-indicator--opponent-turn { background: rgba(138, 146, 164, 0.1); color: var(--color-text-muted); border: 1px solid var(--color-border); }
+.turn-indicator--waiting { background: rgba(255, 209, 102, 0.1); color: var(--color-warning); border: 1px solid var(--color-warning); }

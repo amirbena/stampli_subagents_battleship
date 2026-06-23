@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createGame, joinGame } from '../api/gameApi';
-import { ErrorMessage } from '../components/common/ErrorMessage';
+import { createGame, joinGame } from '../../api/gameApi';
+import { ErrorMessage } from '../../components/common/ErrorMessage/ErrorMessage';
+import './Home.css';
 
 export function Home(): React.ReactElement {
   const navigate = useNavigate();

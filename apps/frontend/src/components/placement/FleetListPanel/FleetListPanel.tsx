@@ -1,8 +1,9 @@
 import React from 'react';
-import type { ShipType, Orientation } from '../../types/game';
-import { ALL_SHIP_TYPES } from '../../types/game';
-import { FleetShipItem } from './FleetShipItem';
-import { RotateButton } from './RotateButton';
+import type { ShipType, Orientation } from '../../../types/game';
+import { ALL_SHIP_TYPES } from '../../../types/game';
+import { FleetShipItem } from '../FleetShipItem/FleetShipItem';
+import { RotateButton } from '../RotateButton/RotateButton';
+import './FleetListPanel.css';
 
 interface FleetListPanelProps {
   placedShipTypes: ShipType[];

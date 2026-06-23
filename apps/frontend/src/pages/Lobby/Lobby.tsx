@@ -1,28 +1,28 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { placeShip, removeShip, setReady } from '../api/gameApi';
-import { usePlacement } from '../hooks/usePlacement';
-import { useGamePolling } from '../hooks/useGamePolling';
-import { GameBoard } from '../components/board/GameBoard';
-import { FleetListPanel } from '../components/placement/FleetListPanel';
-import { RoomCodeDisplay } from '../components/common/RoomCodeDisplay';
-import { PlacementErrorToast } from '../components/common/PlacementErrorToast';
-import { ErrorMessage } from '../components/common/ErrorMessage';
-import { LoadingSpinner } from '../components/common/LoadingSpinner';
-import type { Coordinate, ShipType } from '../types/game';
-import { computeOwnBoardCells } from '../utils/boardHelpers';
+import { placeShip, removeShip, setReady } from '../../api/gameApi';
+import { usePlacement } from '../../hooks/usePlacement';
+import { useGamePolling } from '../../hooks/useGamePolling';
+import { GameBoard } from '../../components/board/GameBoard/GameBoard';
+import { FleetListPanel } from '../../components/placement/FleetListPanel/FleetListPanel';
+import { RoomCodeDisplay } from '../../components/common/RoomCodeDisplay/RoomCodeDisplay';
+import { PlacementErrorToast } from '../../components/common/PlacementErrorToast/PlacementErrorToast';
+import { ErrorMessage } from '../../components/common/ErrorMessage/ErrorMessage';
+import { LoadingSpinner } from '../../components/common/LoadingSpinner/LoadingSpinner';
+import type { Coordinate, ShipType } from '../../types/game';
+import { computeOwnBoardCells } from '../../utils/boardHelpers';
 
 function emptyGrid() {
-  return Array.from({ length: 10 }, () => Array<import('../types/game').CellState>(10).fill('empty'));
+  return Array.from({ length: 10 }, () => Array<import('../../types/game').CellState>(10).fill('empty'));
 }
 
 export function Lobby(): React.ReactElement {
   const navigate = useNavigate();
   const gameId = sessionStorage.getItem('gameId') ?? '';
   const playerId = sessionStorage.getItem('playerId') ?? '';
-  const [placementToastError, setPlacementToastError] = React.useState<string | null>(null);
-  const [generalError, setGeneralError] = React.useState<string | null>(null);
-  const [submitting, setSubmitting] = React.useState(false);
+  const [placementToastError, setPlacementToastError] = useState<string | null>(null);
+  const [generalError, setGeneralError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const placement = usePlacement();
   const { gameState, isLoading } = useGamePolling(gameId, playerId, true);
@@ -123,7 +123,7 @@ export function Lobby(): React.ReactElement {
   // freshly placed ship renders instantly, instead of waiting for the next 2s poll
   // to echo it back via gameState.myBoard. The server board is only used as a
   // fallback (e.g. reconnecting to a session that already has ships placed).
-  const boardCells = React.useMemo(() => {
+  const boardCells = useMemo(() => {
     if (placement.placedShips.length > 0) {
       const grid = emptyGrid();
       for (const ship of placement.placedShips) {

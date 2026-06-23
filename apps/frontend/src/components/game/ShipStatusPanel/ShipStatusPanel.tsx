@@ -1,6 +1,7 @@
 import React from 'react';
-import type { ShipDto, ShipType } from '../../types/game';
-import { SHIP_DISPLAY_NAMES, ALL_SHIP_TYPES } from '../../types/game';
+import type { ShipDto, ShipType } from '../../../types/game';
+import { SHIP_DISPLAY_NAMES, ALL_SHIP_TYPES } from '../../../types/game';
+import './ShipStatusPanel.css';
 
 interface ShipStatusPanelProps {
   myShips: ShipDto[];

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import type { ShotResult, ShipType } from '../../types/game';
-import { SHIP_DISPLAY_NAMES } from '../../types/game';
+import type { ShotResult, ShipType } from '../../../types/game';
+import { SHIP_DISPLAY_NAMES } from '../../../types/game';
+import './ShotResultToast.css';
 
 interface ShotResultToastProps {
   result: ShotResult | null;

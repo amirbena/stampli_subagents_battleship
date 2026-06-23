@@ -1,0 +1,39 @@
+.fleet-ship-item {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--color-surface-2);
+  border: 2px solid transparent;
+  border-radius: var(--radius);
+  padding: 0.6rem 0.75rem;
+  min-height: 44px;
+  text-align: left;
+  color: var(--color-text);
+  gap: 0.5rem;
+}
+
+.fleet-ship-item:hover:not(:disabled) { border-color: var(--color-primary); }
+.fleet-ship-item--selected { border-color: var(--color-primary); background: rgba(0, 180, 216, 0.15); }
+.fleet-ship-item--placed { opacity: 0.6; border-color: var(--color-success); }
+
+.fleet-ship-name { font-size: 0.9rem; font-weight: 500; white-space: nowrap; }
+
+.fleet-ship-size { display: flex; gap: 2px; }
+
+.fleet-ship-block {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  background: var(--color-primary);
+  border-radius: 2px;
+}
+
+.fleet-ship-badge {
+  font-size: 0.7rem;
+  background: var(--color-success);
+  color: #000;
+  padding: 0.15rem 0.4rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import './PlacementErrorToast.css';
 
 interface PlacementErrorToastProps {
   message: string | null;

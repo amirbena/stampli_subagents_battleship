@@ -1,0 +1,27 @@
+.game-board-wrapper { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.game-board-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.game-board { display: inline-flex; flex-direction: column; user-select: none; }
+
+.board-row { display: flex; }
+.board-row--header { }
+
+.board-corner,
+.board-header-cell,
+.board-row-label {
+  width: var(--cell-size);
+  height: var(--cell-size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  font-weight: 600;
+}

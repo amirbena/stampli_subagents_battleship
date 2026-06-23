@@ -1,0 +1,20 @@
+.board-cell {
+  width: var(--cell-size);
+  height: var(--cell-size);
+  border: 1px solid var(--color-border);
+  transition: background 0.1s;
+  min-width: 32px;
+  min-height: 32px;
+}
+
+.board-cell--empty { background: var(--color-surface); }
+.board-cell--ship { background: #2d5a8e; }
+.board-cell--hit { background: var(--color-danger); }
+.board-cell--miss { background: #2a3f5f; }
+.board-cell--miss::after { content: '●'; display:flex; align-items:center; justify-content:center; height:100%; font-size:0.6rem; color:#4a5f7f; }
+.board-cell--sunk { background: #7b1d3a; }
+.board-cell--preview { background: rgba(0, 180, 216, 0.4); border-color: var(--color-primary); }
+.board-cell--preview-invalid { background: rgba(239, 71, 111, 0.4); border-color: var(--color-danger); }
+
+.board-cell--interactive { cursor: crosshair; }
+.board-cell--interactive:hover { filter: brightness(1.3); }
