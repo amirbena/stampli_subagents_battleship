@@ -121,7 +121,7 @@ User Requirement
 Every workflow run writes to its own directory:
 ```
 reports/
-  .workflow.lock          ← prevents concurrent runs
+  .workflow.lock          ← see below
   current-run.json        ← pointer to active run
   runs/
     <YYYYMMDD-HHMMSS-sha>/
@@ -134,6 +134,18 @@ reports/
       code-review-report.md
       release-summary.md
 ```
+
+#### Why `.workflow.lock` exists
+
+All agents in a run share one git working tree and one `reports/` directory. If two requirements are triggered at the same time (or a second `/requirement` is fired before the first run finishes), two concurrent agent pipelines would:
+
+- Both try to create or rebase the same feature branch → git conflict or silent overwrite
+- Both write to `reports/current-run.json` → one run's agents read the other run's reports
+- Both commit and push simultaneously → history corruption or a PR that mixes two unrelated changes
+
+`.workflow.lock` is a simple JSON file written at the start of every run and deleted (or marked `"status": "completed"`) at the end. Before starting, Requirement Intake checks whether the lock exists with `"status": "running"`. If it does, the new run is rejected immediately with a clear message — no agents are spawned, no files are touched.
+
+This makes the pipeline **single-tenant by design**: one requirement in flight at a time per working tree.
 
 ### Mandatory E2E
 E2E is **required** (not optional) when:
