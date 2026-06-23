@@ -835,29 +835,34 @@ Integration tests validate the HTTP layer — things Mockito never catches becau
 
 Typical skip cases: service/domain logic change only, frontend-only change, refactor with identical API surface, test-only change, config/docs only.
 
-#### Test phase — Parallel first, E2E last
+#### Test phase — Sequential by cost, cheapest first
 
-**Step 1 — Run all cheap tests in parallel (one response, multiple Agent calls):**
+**Step 1 — Unit tests in parallel (cheapest, fastest):**
 
-Spawn every applicable test agent simultaneously:
+Spawn simultaneously:
 - `java-backend-agent` (unit test run: `./mvnw test`) — if backend was touched
 - `frontend-agent` (unit test run: `npm run test`) — if frontend was touched
-- `backend-integration-tests-agent` — if any of the five HTTP-layer triggers are true (see above)
 
-These three are fully independent. There is no reason to sequence them. All three run at the same time and report back to Team Lead.
+These two are fully independent and run at the same time.
 
-**Step 2 — Gate: all parallel tests must be green before E2E starts.**
+**Step 2 — Gate: unit tests must be green before integration tests start.**
 
-If any parallel test agent reports a failure, route the fix to the owning agent. Do not spawn `playwright-e2e-agent` until all parallel tests pass. This prevents wasting the cost of a full E2E run on code that is already broken at the unit or integration level.
+If either unit test run fails, route the fix to the owning agent. Do not spawn `backend-integration-tests-agent` until both unit test runs pass. Running integration tests on already-broken code wastes the cost of booting a full Spring context.
 
-**Step 3 — Spawn `playwright-e2e-agent` (if E2E mode is not None):**
+**Step 3 — Integration tests (after unit tests are green):**
 
-Only after Step 2 is fully green:
+Spawn `backend-integration-tests-agent` only if any of the five HTTP-layer triggers are true (see above). This runs after Step 2 is fully green.
+
+**Step 4 — Gate: integration tests must be green before E2E starts.**
+
+**Step 5 — Spawn `playwright-e2e-agent` (if E2E mode is not None):**
+
+Only after Steps 1–3 are all green:
 - E2E mode **Full** → spawn with backend webServer, run all specs
 - E2E mode **Smoke** → spawn with smoke-only instruction, no backend needed
 - E2E mode **None** → skip, do not spawn
 
-This order maximises parallelism where safe and minimises expensive E2E runs on broken code.
+This order minimises cost: unit tests catch obvious breaks cheaply, integration tests catch HTTP-layer issues before the expensive E2E run.
 
 All unit test _scenarios_ within a single agent run must also be parallelized — see java-backend-agent for JUnit 5 parallel config.
 

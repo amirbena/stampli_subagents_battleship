@@ -49,20 +49,28 @@ User Requirement
          │               (parallel)                              │
          └─────────────────────┬──────────────────────────────────┘
                                │
-                               │  ── PARALLEL TEST PHASE ──────────────────────────────┐
+                               │  ── STEP 1: UNIT TESTS (parallel, cheapest) ──────────┐
                                ▼                                                        │
-         ┌─────────────────────────────┐                                               │
-         │                             │  all three spawn simultaneously               │
-         ▼                             ▼                             ▼                  │
-┌──────────────────┐  ┌────────────────────────┐  ┌──────────────────────────┐        │
-│  Java Backend    │  │  Frontend Unit Tests   │  │  Backend Integration     │        │
-│  Agent           │  │  (via Frontend Agent)  │  │  Tests Agent             │        │
-│  JUnit5+Mockito  │  │  Vitest + RTL          │  │  @SpringBootTest+MockMvc │        │
-│  (./mvnw test)   │  │  (if frontend touched) │  │  (if HTTP layer changed) │        │
-└────────┬─────────┘  └───────────┬────────────┘  └────────────┬─────────────┘        │
-         │                        │                             │                      │
-         └────────────────────────┴─────────────────────────────┘                     │
-                               │  ── ALL MUST BE GREEN ────────────────────────────────┘
+                    ┌──────────┴──────────┐                                            │
+                    ▼                     ▼                                            │
+       ┌────────────────────┐  ┌───────────────────────┐                              │
+       │  Java Backend Agent│  │  Frontend Agent       │                              │
+       │  JUnit5 + Mockito  │  │  Vitest + RTL         │                              │
+       │  ./mvnw test       │  │  npm run test         │                              │
+       │  (if backend hit)  │  │  (if frontend hit)    │                              │
+       └────────┬───────────┘  └──────────┬────────────┘                              │
+                └──────────────┬───────────┘                                          │
+                               │  ── GATE: unit tests green ───────────────────────────┘
+                               │
+                               │  ── STEP 2: INTEGRATION TESTS (after unit gate) ──────┐
+                               ▼                                                        │
+                  ┌────────────────────────────┐                                       │
+                  │  Backend Integration Tests │                                       │
+                  │  @SpringBootTest + MockMvc │                                       │
+                  │  ./mvnw test *Integration  │                                       │
+                  │  (if HTTP layer changed)   │                                       │
+                  └────────────┬───────────────┘                                       │
+                               │  ── GATE: integration tests green ─────────────────────┘
                                │
                                │  E2E mode = Full?  ──► E2E Infrastructure Pre-Gate
                                │  (only when contract changed)  • application-e2e.yml

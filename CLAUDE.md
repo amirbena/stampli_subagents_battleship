@@ -89,12 +89,11 @@ Current decisions locked in:
 - **No separate Backend Unit Tests Agent.** Java unit tests (JUnit 5 + Mockito, domain + service layer) are owned by the Java Backend Agent — same rationale as frontend. When backend logic changes, the Java Backend Agent adds or updates the corresponding `*Test.java` files in the same pass.
 - **No DB Integration Tests Agent at this stage.** The backend uses in-memory storage by default. A dedicated DB integration tests agent should only be introduced if the codebase moves to PostgreSQL/JPA/Hibernate as the primary persistence layer, adds schema migrations, or requires repository-level tests with a real database or Testcontainers.
 
-## Quality Gates (all required before PR)
-- [ ] `./mvnw test` passes (backend unit tests)
-- [ ] `./mvnw test -Dtest="*IntegrationTest"` passes (backend integration tests — when contract changed)
-- [ ] `npm run build` passes (frontend)
-- [ ] `npm run test` passes (frontend unit tests — Vitest)
-- [ ] `npm run test:e2e` passes (Playwright — Full or Smoke mode depending on change)
+## Quality Gates (all required before PR, run in this order)
+- [ ] `./mvnw test` passes (backend unit tests — if backend touched)
+- [ ] `npm run test` passes (frontend unit tests — Vitest, if frontend touched) — parallel with above
+- [ ] `./mvnw test -Dtest="*IntegrationTest"` passes (backend integration tests — after unit tests green, when HTTP layer changed)
+- [ ] `npm run test:e2e` passes (Playwright — after all tests green, Full or Smoke mode depending on change)
 - [ ] `reports/runs/<id>/security-report.md` verdict: APPROVED
 - [ ] `reports/runs/<id>/code-review-report.md` verdict: APPROVED
 - [ ] `README.md` documents how to run the full app

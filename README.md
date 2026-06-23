@@ -213,10 +213,14 @@ Phase 2   architect-agent            → reports/runs/<id>/architecture.md  (onl
 Phase 3   java-backend-agent  ──┐    → apps/backend/src/main/java/
           frontend-agent      ──┘    → apps/frontend/src/               (parallel)
 
-Phase 4 — PARALLEL TESTS (all three at once, E2E only after all green)
+Phase 4a — UNIT TESTS (parallel, cheapest first)
           java-backend-agent         → ./mvnw test            (unit tests, if backend touched)
           frontend-agent             → npm run test           (Vitest, if frontend touched)
-          backend-integration-tests  → ./mvnw test *IntegrationTest  (if HTTP layer changed)
+          ── gate: both must be green before integration tests start ──
+
+Phase 4b — INTEGRATION TESTS (after unit gate, if HTTP layer changed)
+          backend-integration-tests  → ./mvnw test *IntegrationTest
+          ── gate: must be green before E2E starts ──
 
 Phase 5   playwright-e2e-agent       → apps/frontend/tests/e2e/
           • Full mode  — all specs + live backend (when API contract changed)
