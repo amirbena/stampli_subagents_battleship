@@ -11,10 +11,10 @@ argument-hint: <product-spec.md path>
 Validate the real multiplayer game experience from the browser against a running frontend and backend.
 
 ## Responsibilities
-- Assume frontend (localhost:5173) and backend (localhost:8080) are running.
 - Simulate full multiplayer flows using two browser contexts (Player A and Player B).
 - Validate that UI and backend work together correctly end-to-end.
 - Produce a Playwright HTML test report.
+- **Never assume ports or servers are already running.** Verify the E2E environment before writing any test.
 
 ## Team Lead Contract
 
@@ -65,6 +65,81 @@ When invoked with QA findings:
 - Do not delete, skip, or weaken tests to make a gate pass.
 - Run the provided `verification_command`, usually `npm run e2e:ci`.
 - Return files changed, coverage added, command output summary, and any remaining blocker.
+
+## E2E Environment Pre-Flight — Mandatory Before Writing Any Test
+
+Before writing or running any E2E test that calls the backend, verify the following four conditions. If any are missing, do NOT proceed — report the gap to Team Lead so the correct agent can fix it first.
+
+### 1. Backend E2E Spring Profile exists
+
+File: `apps/backend/src/main/resources/application-e2e.yml`
+
+Required contents:
+```yaml
+server:
+  port: 8081          # must differ from dev port 8080
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  autoconfigure:
+    exclude:          # exclude Redis if not used in tests
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+battleship:
+  cors:
+    allowed-origin: http://localhost:3001   # must match E2E frontend port
+```
+
+If missing: route to java-backend-agent to create it.
+
+### 2. Maven `e2e` profile exists in pom.xml
+
+The H2 dependency is `<scope>test</scope>` in pom.xml. `spring-boot:run` uses the compile classpath — H2 will not be found unless the profile adds `useTestClasspath=true`.
+
+Required in `apps/backend/pom.xml`:
+```xml
+<profiles>
+  <profile>
+    <id>e2e</id>
+    <build>
+      <plugins>
+        <plugin>
+          <groupId>org.springframework.boot</groupId>
+          <artifactId>spring-boot-maven-plugin</artifactId>
+          <configuration>
+            <useTestClasspath>true</useTestClasspath>
+          </configuration>
+        </plugin>
+      </plugins>
+    </build>
+  </profile>
+</profiles>
+```
+
+If missing: route to java-backend-agent to add it.
+
+### 3. `playwright.config.ts` has BOTH webServer entries
+
+The config must start both services automatically. Check that `webServer` is an array with:
+
+- **Entry 1 (frontend):** `command: 'npm run dev'`, `url: 'http://localhost:3001'`, and critically `env: { VITE_API_BASE_URL: 'http://localhost:8081' }` — without this env var, Vite bakes in port 8080 and all API calls go to the wrong backend.
+- **Entry 2 (backend):** points to the local Maven executable with `-Pe2e -Dspring-boot.run.profiles=e2e`, uses `port: 8081` (not `url:`) for TCP-level readiness.
+
+`port:` vs `url:` matters: `url:` requires an HTTP 2xx/3xx response before proceeding; `port:` only checks TCP connectivity and is more reliable for Spring Boot startup.
+
+`reuseExistingServer: !process.env.CI` means a stale server from a prior manual run will be reused. Kill processes on ports 3001 and 8081 before running `npx playwright test` if you suspect stale servers.
+
+If missing: edit `playwright.config.ts` directly (this file is in scope for playwright-e2e-agent).
+
+### 4. CORS matches E2E frontend port
+
+The backend CORS allowed origin in `application-e2e.yml` must be `http://localhost:3001`, not `http://localhost:5173` (the default Vite dev port). Playwright starts the frontend on 3001 via `npm run dev -- --port 3001` or by config.
+
+---
 
 ## E2E Startup And Teardown Protocol
 
@@ -146,7 +221,7 @@ apps/frontend/tests/e2e/
 ## Configuration
 ```typescript
 // playwright.config.ts
-baseURL: 'http://localhost:5173'
+baseURL: 'http://localhost:3001'   // Playwright starts frontend on 3001, not the default Vite 5173
 use: { headless: true }
 ```
 

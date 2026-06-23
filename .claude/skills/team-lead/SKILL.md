@@ -281,6 +281,16 @@ Yes/No and reason.
 
 Yes/No and reason.
 
+**E2E is MANDATORY (must be Yes) when ANY of the following are true:**
+- A new or changed REST endpoint is consumed by the frontend (API contract changed)
+- New frontend pages, flows, or user interactions are added
+- A new game mode, state machine transition, or multiplayer flow is introduced
+- Frontend logic that depends on backend responses is added or changed
+
+E2E is optional (may be No) only for backend-only changes with zero frontend impact, or pure styling/copy changes with no logic.
+
+When E2E is Yes, Team Lead must run the E2E Infrastructure Pre-Gate before spawning playwright-e2e-agent (see Step 6).
+
 ## Demo Config / Dotenv Plan
 
 Config changes required: Yes/No
@@ -765,6 +775,32 @@ Team Lead MUST spawn all assigned developer agents automatically using the `Agen
 - `backend-and-frontend` or `full-stack-complex`: spawn `java-backend-agent` and `frontend-agent` as **two parallel `Agent` calls in one response**.
 - `java-backend-only`: spawn only `java-backend-agent`.
 - `frontend-only`: spawn only `frontend-agent`.
+
+#### E2E Infrastructure Pre-Gate — Required Before Spawning playwright-e2e-agent
+
+Before spawning `playwright-e2e-agent`, verify the full E2E environment is in place. Run these checks in order:
+
+```bash
+# 1. Backend E2E Spring profile exists
+test -f apps/backend/src/main/resources/application-e2e.yml && echo "OK" || echo "MISSING"
+
+# 2. Maven e2e profile exists in pom.xml
+grep -q '<id>e2e</id>' apps/backend/pom.xml && echo "OK" || echo "MISSING"
+
+# 3. playwright.config.ts has a backend webServer entry
+grep -q 'spring-boot:run' apps/frontend/playwright.config.ts && echo "OK" || echo "MISSING"
+
+# 4. playwright.config.ts passes VITE_API_BASE_URL to frontend webServer
+grep -q 'VITE_API_BASE_URL' apps/frontend/playwright.config.ts && echo "OK" || echo "MISSING"
+```
+
+If any check fails, route to the owning agent before spawning playwright-e2e-agent:
+- `application-e2e.yml` missing → route to `java-backend-agent`
+- Maven `e2e` profile missing → route to `java-backend-agent`
+- `playwright.config.ts` missing backend webServer → route to `playwright-e2e-agent` with explicit instruction to add it
+- `VITE_API_BASE_URL` missing → route to `playwright-e2e-agent` with explicit instruction to add it
+
+Do not spawn `playwright-e2e-agent` until all four checks pass.
 
 #### Test phase (after implementation, run in parallel where safe)
 
