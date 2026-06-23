@@ -31,7 +31,8 @@ To extend an agent, edit its `SKILL.md` — do not create parallel files.
 | Architect Agent | `.claude/skills/architect-agent` | claude-opus-4-8 | `reports/runs/<id>/architecture.md`, API contract, domain model — structure only, not environment setup |
 | Java Backend Agent | `.claude/skills/java-backend-agent` | claude-sonnet-4-6 | `apps/backend/src/main/java/` — all production backend code |
 | Frontend Agent | `.claude/skills/frontend-agent` | claude-sonnet-4-6 | `apps/frontend/src/` — all React/TypeScript UI code |
-| Backend Unit Tests Agent | `.claude/skills/backend-unit-tests-agent` | claude-sonnet-4-6 | `apps/backend/src/test/` — all Java unit tests |
+| Backend Unit Tests Agent | `.claude/skills/backend-unit-tests-agent` | claude-sonnet-4-6 | `apps/backend/src/test/` — all Java unit tests (Mockito, domain + service layer) |
+| Backend Integration Tests Agent | `.claude/skills/backend-integration-tests-agent` | claude-sonnet-4-6 | `apps/backend/src/test/**/*IntegrationTest.java` — `@SpringBootTest` + MockMvc, HTTP layer |
 | Playwright E2E Agent | `.claude/skills/playwright-e2e-agent` | claude-sonnet-4-6 | `apps/frontend/tests/e2e/` — all browser tests; never assumes servers are running |
 | Security Agent | `.claude/skills/security-agent` | claude-opus-4-8 | `reports/runs/<id>/security-report.md` |
 | Code Review Agent | `.claude/skills/code-review-agent` | claude-opus-4-8 | `reports/runs/<id>/code-review-report.md` |
@@ -89,10 +90,11 @@ Current decisions locked in:
 - **No DB Integration Tests Agent at this stage.** The backend uses in-memory storage by default. A dedicated DB integration tests agent should only be introduced if the codebase moves to PostgreSQL/JPA/Hibernate as the primary persistence layer, adds schema migrations, or requires repository-level tests with a real database or Testcontainers.
 
 ## Quality Gates (all required before PR)
-- [ ] `./mvnw test` passes (backend)
+- [ ] `./mvnw test` passes (backend unit tests)
+- [ ] `./mvnw test -Dtest="*IntegrationTest"` passes (backend integration tests — when contract changed)
 - [ ] `npm run build` passes (frontend)
 - [ ] `npm run test` passes (frontend unit tests — Vitest)
-- [ ] `npm run test:e2e` passes (Playwright)
+- [ ] `npm run test:e2e` passes (Playwright — Full or Smoke mode depending on change)
 - [ ] `reports/runs/<id>/security-report.md` verdict: APPROVED
 - [ ] `reports/runs/<id>/code-review-report.md` verdict: APPROVED
 - [ ] `README.md` documents how to run the full app

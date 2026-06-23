@@ -71,6 +71,7 @@ Product Spec Read: Yes / No (stale → stop)
 | java-backend-agent | Yes / No | ... |
 | frontend-agent | Yes / No | ... |
 | backend-unit-tests-agent | Yes / No | ... |
+| backend-integration-tests-agent | Yes / No | ... |
 | playwright-e2e-agent | Yes / No | ... |
 | infrastructure-agent | Yes / No | ... |
 | security-agent | Yes / No | ... |
@@ -808,14 +809,29 @@ If any check fails, route to the owning agent before spawning playwright-e2e-age
 
 Do not spawn `playwright-e2e-agent` until all four checks pass.
 
+#### Backend Integration Tests Decision
+
+Run `backend-integration-tests-agent` when **ANY** of these are true:
+- A new controller or REST endpoint was added
+- An existing endpoint request/response shape changed (DTO fields, status codes)
+- A new `@Valid` / constraint annotation was added to a request body
+
+Skip when:
+- Frontend-only change (backend untouched)
+- Pure domain/service logic change with no API surface change — unit tests cover that
+- Config or docs only
+
 #### Test phase (after implementation, run in parallel where safe)
 
-**If the route touched only backend OR backend and frontend with no contract change:**
-- Spawn `backend-unit-tests-agent` and (if E2E required) `playwright-e2e-agent` in **parallel**.
+**Backend-only or backend+frontend — no contract change:**
+- Spawn `backend-unit-tests-agent` only.
+- E2E mode is Smoke or None — spawn `playwright-e2e-agent` in Smoke mode if frontend changed.
 
-**If the route changed the backend API contract (new/changed endpoints, DTOs, or status codes):**
-1. First: spawn `backend-unit-tests-agent` and wait for it to complete (backend contract must be stable and green before frontend integration tests run against it).
-2. Then: spawn frontend integration test validation and (if E2E required) `playwright-e2e-agent` in parallel.
+**Backend API contract changed (new/changed endpoints, DTOs, status codes):**
+1. Spawn `backend-unit-tests-agent` and wait for it to pass.
+2. Then spawn `backend-integration-tests-agent` and (if E2E mode is Full) `playwright-e2e-agent` in **parallel**.
+
+The contract must be stable and green before integration or E2E tests run against it.
 
 All unit test _scenarios_ within a single agent run must also be parallelized — see backend-unit-tests-agent for JUnit 5 parallel config.
 

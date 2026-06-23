@@ -52,20 +52,30 @@ User Requirement
                                 ▼
                     ┌───────────────────────┐
                     │  Backend Unit Tests   │  JUnit 5 + Mockito,
-                    │  Agent                │  service and domain layer
+                    │  Agent                │  domain + service layer
                     └───────────┬───────────┘
                                 │
-                                │  E2E Infrastructure Pre-Gate ──► if any check fails,
-                                │  (Team Lead verifies):              route to fix agent first
-                                │  • application-e2e.yml exists
-                                │  • Maven e2e profile in pom.xml
-                                │  • playwright.config.ts has dual webServer
-                                │  • VITE_API_BASE_URL set
+                                │  Contract changed?
+                                ├─── Yes ──────────────────────────────────────────┐
+                                │                                                  ▼
+                                │                              ┌───────────────────────────────┐
+                                │                              │  Backend Integration Tests    │  @SpringBootTest + MockMvc,
+                                │                              │  Agent                        │  controllers, DTOs, status codes,
+                                │                              │                               │  request validation (e2e profile)
+                                │                              └──────────────┬────────────────┘
+                                │                                             │
+                                │◄────────────────────────────────────────────┘
+                                │
+                                │  E2E mode = Full?  ──► E2E Infrastructure Pre-Gate
+                                │  (only when contract changed)  • application-e2e.yml
+                                │                                • Maven e2e profile
+                                │                                • dual webServer
+                                │                                • VITE_API_BASE_URL
                                 │
                                 ▼
                     ┌───────────────────────┐
-                    │  Playwright E2E       │  Full browser flows, two-player contexts,
-                    │  Agent                │  frontend + backend running together
+                    │  Playwright E2E       │  Full: all specs + live backend
+                    │  Agent                │  Smoke: smoke.spec.ts only, no backend
                     └───────────┬───────────┘
                                 │
                     ┌───────────┴───────────┐
@@ -100,7 +110,8 @@ User Requirement
 | **Architect Agent** | opus-4-8 | `reports/runs/<id>/architecture.md`, API contract, domain model | `.claude/skills/architect-agent` |
 | **Java Backend Agent** | sonnet-4-6 | `apps/backend/src/main/java/` — all production Java | `.claude/skills/java-backend-agent` |
 | **Frontend Agent** | sonnet-4-6 | `apps/frontend/src/` — React/TypeScript + Vitest unit tests | `.claude/skills/frontend-agent` |
-| **Backend Unit Tests Agent** | sonnet-4-6 | `apps/backend/src/test/` — JUnit 5 tests | `.claude/skills/backend-unit-tests-agent` |
+| **Backend Unit Tests Agent** | sonnet-4-6 | `apps/backend/src/test/` — JUnit 5 + Mockito (domain + service layer) | `.claude/skills/backend-unit-tests-agent` |
+| **Backend Integration Tests Agent** | sonnet-4-6 | `apps/backend/src/test/**/*IntegrationTest.java` — `@SpringBootTest` + MockMvc (HTTP layer) | `.claude/skills/backend-integration-tests-agent` |
 | **Playwright E2E Agent** | sonnet-4-6 | `apps/frontend/tests/e2e/` — browser E2E tests | `.claude/skills/playwright-e2e-agent` |
 | **Security Agent** | opus-4-8 | `reports/runs/<id>/security-report.md` | `.claude/skills/security-agent` |
 | **Code Review Agent** | opus-4-8 | `reports/runs/<id>/code-review-report.md` | `.claude/skills/code-review-agent` |
