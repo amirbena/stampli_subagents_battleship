@@ -201,6 +201,8 @@ Run Architecture for **any** of the following — one match is sufficient:
 - Hidden opponent data boundaries or new data visibility rules
 - Shared types or contracts consumed by both frontend and backend
 - Large cross-cutting behavior that spans more than two layers
+- Domain model structural changes (`Game`, `Board`, `Ship`) that introduce new invariants, new fields, or cross-class rules not yet surfaced in the API contract
+- Major game rule changes (ship placement rules, fleet composition, turn logic, win conditions) that affect more than one layer or require coordinated backend + frontend behavior
 
 When Architecture runs, it writes `reports/runs/<workflow-run-id>/architecture.md` and returns to Team Lead. Architecture must not activate developers.
 

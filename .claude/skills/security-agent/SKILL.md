@@ -87,7 +87,7 @@ Assign every finding to exactly one suspected owner:
 |-------|---------|
 | `java-backend-agent` | authorization, validation, game integrity, DTO sanitization, backend error handling |
 | `frontend-agent` | client handling that leaks hidden data or sends unsafe requests |
-| `backend-unit-tests-agent` | missing backend tests for security or integrity behavior |
+| `java-backend-agent` | missing backend unit tests for security or integrity behavior |
 | `playwright-e2e-agent` | missing browser-level abuse or hidden-information tests |
 | `infrastructure-agent` | secrets, env files, Docker exposure, README security instructions |
 
