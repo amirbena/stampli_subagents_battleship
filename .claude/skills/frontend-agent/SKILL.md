@@ -169,3 +169,74 @@ src/
 - `useGamePolling.ts` is the only place polling logic lives; switching to WebSocket later only touches this hook.
 - Components receive data as props; they do not call the API directly.
 - Avoid putting all game state in one giant component — use hooks to separate concerns.
+
+---
+
+## Frontend Tests — Required
+
+After implementing production code, always add frontend tests. Check `apps/frontend/src/__tests__/` and `apps/frontend/src/**/*.test.{ts,tsx}` for existing tests first.
+
+### Backend Contract Dependency — Required
+
+Before writing or running frontend integration tests, check the `backend-contract-changed` flag passed by Team Lead:
+
+- **`backend-contract-changed: yes`** — Do NOT run frontend integration tests until Team Lead confirms `backend-unit-tests-agent` has completed with a green result. Unit tests (component-level, no HTTP) may proceed in parallel with backend work. Only start integration tests after receiving the go-ahead from Team Lead.
+- **`backend-contract-changed: no`** — Frontend unit and integration tests may run fully in parallel with backend test work.
+
+### Parallel Test Execution — Required
+
+Configure Vitest for parallel test execution. Add or verify in `vite.config.ts` or `vitest.config.ts`:
+
+```typescript
+test: {
+  pool: 'threads',
+  poolOptions: { threads: { singleThread: false } }
+}
+```
+
+Each test file must be independently stateless — no shared module-level mutable state between test files.
+
+### Execution Order (mandatory)
+
+1. `ls apps/frontend/src/__tests__/` and find existing `*.test.*` files — catalog what exists.
+2. `npm run test` (or `npx vitest run`) — run existing tests; record pass/fail before any change.
+3. Add unit tests (always safe to run immediately).
+4. If `backend-contract-changed: yes`, wait for Team Lead signal before adding/running integration tests.
+5. Add integration tests once backend contract is confirmed stable.
+6. Rerun — all tests (pre-existing + new) must pass.
+7. Report: tests before count, tests added count, final pass/fail per file.
+
+### Unit Tests (Vitest + React Testing Library)
+
+Location: `apps/frontend/src/__tests__/`
+
+Required unit test scenarios:
+- [ ] `Board.test.tsx` — renders 10×10 grid; hit/miss/sunk cells render correct CSS classes
+- [ ] `Cell.test.tsx` — each cell state (empty, ship, hit, miss, sunk, preview) renders correct class
+- [ ] `TurnIndicator.test.tsx` — shows "Your turn" vs "Opponent's turn" based on prop
+- [ ] `GameOver.test.tsx` — renders win/lose message based on prop
+- [ ] `useShipPlacement.test.ts` — placement state updates correctly; rotation works
+
+Unit test rules:
+- Use Vitest (`import { describe, it, expect } from 'vitest'`) if available; fall back to Jest if that's what the project uses — check `package.json` first.
+- Use `@testing-library/react` for component tests.
+- Mock `gameApi.ts` entirely in unit tests — no real HTTP calls.
+- No snapshot tests — assert specific DOM elements and class names.
+
+### Integration Tests (React Testing Library + MSW or axios-mock-adapter)
+
+Location: `apps/frontend/src/__tests__/integration/`
+
+Required integration scenarios:
+- [ ] Home page: clicking "Create Game" calls `POST /api/games` and navigates to Lobby
+- [ ] Lobby page: room code is displayed after game creation
+- [ ] Ship placement: placing all 5 ships enables the "Ready" button
+- [ ] Game page: firing a shot calls `POST /api/games/{id}/shot` and updates board state
+- [ ] Polling: `useGamePolling` stops polling when game status is `FINISHED`
+
+Integration test rules:
+- Mock HTTP at the network level using MSW (`msw` mock service worker) if installed, or `axios-mock-adapter` if axios is used — check `package.json` first; do NOT add a new mocking library unless neither exists.
+- Integration tests render full pages/routes, not isolated components.
+- Each test must clean up mocks and router state between runs.
+
+### Never modify, skip, or delete existing passing tests to make the suite green.

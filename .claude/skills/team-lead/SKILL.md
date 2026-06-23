@@ -336,6 +336,46 @@ Developer agents must not be activated by Product Agent, Architect Agent, or QA 
 
 Each developer agent must produce a Proposed Change Plan before editing files.
 
+### Automatic Parallel Spawning — Required
+
+Team Lead MUST spawn all assigned developer agents automatically using the `Agent` tool — do NOT stop and wait for human input between agent launches.
+
+#### Implementation phase (parallel where independent)
+- `backend-and-frontend` or `full-stack-complex`: spawn `java-backend-agent` and `frontend-agent` as **two parallel `Agent` calls in one response**.
+- `java-backend-only`: spawn only `java-backend-agent`.
+- `frontend-only`: spawn only `frontend-agent`.
+
+#### Test phase (after implementation, run in parallel where safe)
+
+**If the route touched only backend OR backend and frontend with no contract change:**
+- Spawn `backend-unit-tests-agent` and (if E2E required) `playwright-e2e-agent` in **parallel**.
+
+**If the route changed the backend API contract (new/changed endpoints, DTOs, or status codes):**
+1. First: spawn `backend-unit-tests-agent` and wait for it to complete (backend contract must be stable and green before frontend integration tests run against it).
+2. Then: spawn frontend integration test validation and (if E2E required) `playwright-e2e-agent` in parallel.
+
+All unit test _scenarios_ within a single agent run must also be parallelized — see backend-unit-tests-agent for JUnit 5 parallel config.
+
+#### Review phase (after all tests pass)
+- Spawn `code-review-agent` automatically. If the route triggered security requirements, spawn `security-agent` in **parallel** with `code-review-agent`.
+- Never wait for human to prompt the review phase — it fires as soon as all tests are green.
+
+#### Release phase
+- After code review (and security if required) return APPROVED, spawn `release-pr-agent` automatically.
+
+Never pause the workflow and ask the human to "send a message to continue". The entire flow from requirement to PR is non-interactive.
+
+Each `Agent` call must pass a self-contained prompt that includes:
+```
+workflow-run-id: <id>
+assignment: <from team-lead-plan.md>
+allowed scope: <from team-lead-plan.md>
+required output: <from team-lead-plan.md>
+product-spec path: reports/runs/<id>/product-spec.md
+architecture path: reports/runs/<id>/architecture.md (if exists)
+backend-contract-changed: yes/no
+```
+
 ---
 
 ## Step 7 — Ownership And Scope Checks

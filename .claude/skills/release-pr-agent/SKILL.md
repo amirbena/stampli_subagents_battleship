@@ -90,15 +90,29 @@ For gates that were skipped by Team Lead (e.g. security not required for docs-on
 
 ## GitHub CLI Check
 
-Before running any PR command:
+On Windows, `gh` is available in CMD but may not be on the `PATH` for Bash or PowerShell. Try all three in order and stop at the first success:
 
 ```bash
 gh --version
+```
+If that fails:
+```powershell
+cmd /c "gh --version"
+```
+If that fails:
+```powershell
+& "C:\Program Files\GitHub CLI\gh.exe" --version
+```
+
+Use whichever invocation succeeded for all subsequent `gh` calls in this agent run. If all three fail, stop with the blocker below — do not use GitHub MCP.
+
+After confirming the binary:
+```bash
 gh auth status
 gh repo view
 ```
 
-If `gh` is missing, unauthenticated, or not associated with a repository, stop with a clear error. Do not use GitHub MCP.
+If `gh` is missing, unauthenticated, or not associated with a repository, stop with a clear error.
 
 ## Final Release Freshness Check
 
@@ -144,12 +158,34 @@ Install/authenticate gh and rerun release.
    git push -u origin HEAD
    ```
 
-3. Open the PR targeting `main`:
+3. Open the PR targeting `main`. Title must be ≤ 60 characters, imperative, human-readable:
+
    ```bash
    gh pr create \
      --base main \
-     --title "<short human-readable title derived from the branch name>" \
+     --title "<≤60-char imperative title, e.g. 'Add ship sunk detection and win condition'>" \
      --body-file reports/runs/<workflow-run-id>/release-summary.md
+   ```
+
+   **PR description must contain all three of these sections** (write them into `release-summary.md` before creating the PR):
+
+   ```md
+   ## What Changed
+   - <bullet per file/area changed, e.g. "GameService.java — added win detection logic">
+   - <frontend change if any>
+   - <config/infra change if any>
+
+   ## Tests Changed
+   - <unit tests added or modified, e.g. "GameServiceTest — 3 new scenarios for win condition">
+   - <integration tests added or modified>
+   - <E2E tests added or modified, or "none">
+
+   ## How This Was Verified
+   - `./mvnw test` — X tests passed, 0 failed
+   - `npm run test` — X tests passed, 0 failed (if frontend in scope)
+   - `npm run e2e:ci` — X scenarios passed (if E2E in scope, else "skipped — not required for this route")
+   - Code review: APPROVED (report: reports/runs/<id>/code-review-report.md)
+   - Security review: APPROVED / skipped (reason)
    ```
 
 4. Print the PR URL returned by `gh pr create`.

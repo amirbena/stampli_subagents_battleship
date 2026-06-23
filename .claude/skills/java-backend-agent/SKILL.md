@@ -247,6 +247,47 @@ spring:
     port: ${SPRING_REDIS_PORT:6379}
 ```
 
+## Observability Logging — Required
+
+Every service class must use `@Slf4j` (Lombok). Log at these levels so that any behavioral change is detectable in the log stream without a debugger:
+
+### INFO — one log per externally visible state change
+```java
+log.info("Game created gameId={} hostPlayerId={}", game.getGameId(), hostPlayerId);
+log.info("Player joined gameId={} playerId={} playerCount={}", gameId, playerId, game.getPlayerCount());
+log.info("Ships placed gameId={} playerId={} shipCount={}", gameId, playerId, ships.size());
+log.info("Both players ready — game started gameId={}", gameId);
+log.info("Shot fired gameId={} shooterId={} row={} col={} result={}", gameId, playerId, row, col, result);
+log.info("Game finished gameId={} winnerId={}", gameId, winnerId);
+```
+
+### DEBUG — internal state transitions (only emitted when DEBUG level is active)
+```java
+log.debug("Turn changed gameId={} nextPlayerId={}", gameId, nextPlayerId);
+log.debug("Ship sunk gameId={} playerId={} shipType={}", gameId, targetPlayerId, ship.getType());
+log.debug("Board state gameId={} playerId={} shotsReceived={}", gameId, targetPlayerId, board.getShotCount());
+```
+
+### WARN — illegal actions caught at the service boundary (before throwing)
+```java
+log.warn("Illegal shot rejected gameId={} playerId={} reason={} row={} col={}", gameId, playerId, reason, row, col);
+log.warn("Ship placement rejected gameId={} playerId={} reason={}", gameId, playerId, reason);
+log.warn("Join rejected gameId={} reason={}", gameId, reason);
+```
+
+### Logging rules
+- Use structured key=value pairs in every log line (never string concatenation like `"Game " + gameId`).
+- Never log ship coordinates for the opponent (information leak risk — treat the same as API sanitization).
+- Log the `gameId` in every log line that involves a game operation — this is the primary correlation key.
+- Do not log request bodies or full object graphs — log only the fields listed above.
+- `application.yml` must set `logging.level.com.stampli.battleship=INFO` by default; allow override via env var:
+
+```yaml
+logging:
+  level:
+    com.stampli.battleship: ${LOG_LEVEL:INFO}
+```
+
 ## Backend Rules
 - Never expose opponent ship coordinates in any API response before they are hit.
 - Validate all input at the controller boundary using Bean Validation (`@Valid`).
