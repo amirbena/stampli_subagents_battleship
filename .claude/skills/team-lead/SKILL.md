@@ -337,7 +337,9 @@ Before branch operations:
 git status --porcelain
 ```
 
-If dirty, create `reports/runs/<workflow-run-id>/workflow-blocker.md`:
+If dirty, check the branch classification first (see cases below):
+
+- **Case A or B** — dirty tree is a hard blocker. Write `reports/runs/<workflow-run-id>/workflow-blocker.md` and stop. Do not stash, discard, or overwrite:
 
 ```md
 ## Blocker: Dirty Working Tree
@@ -352,7 +354,7 @@ Required human action:
 Clean, commit, stash, or discard changes, then rerun.
 ```
 
-Stop. Do not stash, discard, or overwrite.
+- **Case C (related extension)** — dirty tree is expected (in-progress X.1 work). Proceed to stash as described under Case C below.
 
 If current branch is `main`:
 
@@ -362,9 +364,17 @@ git pull origin main
 git checkout -b feature/<safe-requirement-name>
 ```
 
-If current branch is a feature branch, first check whether it matches the incoming requirement:
+If current branch is a feature branch, first **classify the relationship** between the branch and the incoming requirement before touching any files:
 
-**Case A — branch scope matches requirement Y** (branch name or description clearly corresponds to Y):
+```bash
+git log --oneline -5        # what has this branch done so far?
+```
+
+Compare the branch name and commit history against the new requirement summary. Classify as one of three cases:
+
+---
+
+**Case A — exact match** (branch is already implementing this same requirement — e.g. a retry or continuation):
 
 ```bash
 git fetch origin
@@ -373,7 +383,9 @@ git rebase origin/main
 
 If rebase conflict: capture files, `git rebase --abort`, write workflow-blocker.md, stop.
 
-**Case B — branch scope does NOT match requirement Y** (currently on branch X, requirement Y is unrelated):
+---
+
+**Case B — unrelated** (branch X has no logical connection to requirement Y):
 
 Do NOT implement Y on top of branch X. Instead:
 
@@ -384,21 +396,65 @@ git pull origin main
 git checkout -b feature/<safe-requirement-Y-name>
 ```
 
-Then implement Y on the new branch. Branch X is left untouched.
+Branch X is left completely untouched.
 
-Write this decision into `reports/runs/<workflow-run-id>/team-lead-classification.md`:
+---
+
+**Case C — related extension** (branch is working on X.1, new requirement is X.2 — a sub-task, follow-up, or extension of the same feature area):
+
+Consolidate onto the existing branch:
+
+1. If working tree is dirty, stash first:
+```bash
+git stash
+```
+
+2. Pull latest main into the current branch:
+```bash
+git pull origin main
+```
+
+3. If merge conflict → write workflow-blocker.md, stop. Do NOT auto-resolve or abort in a way that loses work.
+
+4. If no conflict → restore stashed work:
+```bash
+git stash pop
+```
+
+5. If stash pop conflict → write workflow-blocker.md, stop.
+
+6. If clean → continue implementing X.2 on this branch as usual.
+
+This keeps X.1 and X.2 in one coherent PR instead of two fragmented branches.
+
+---
+
+**How to classify A / B / C:**
+
+| Signal | Case |
+|---|---|
+| Branch name contains the same feature keyword as the requirement | A or C |
+| Last 5 commits clearly implement the same domain area | A or C |
+| Requirement is explicitly a sub-task or extension of the branch's work | C |
+| No overlap in name, commits, or domain area | B |
+| Requirement is identical to what the branch is already doing | A |
+
+When unsure between C and B, prefer **C** if the feature area overlaps — consolidation is safer than polluting main with micro-branches. Prefer **B** only when the domains are clearly separate.
+
+Write the classification decision into `reports/runs/<workflow-run-id>/team-lead-classification.md`:
 
 ```md
 ## Branch Decision
 
-Was on branch: <branch-X>
-Requirement: <Y>
-Branch matched requirement: No
-Action: Created new branch feature/<safe-requirement-Y-name> from origin/main
-Branch X left untouched.
+Was on branch: <branch-name>
+Requirement: <incoming requirement summary>
+Classification: A / B / C
+Reason: <one sentence>
+Action taken: <exact git commands run>
+Stash used: Yes / No
+Merge conflicts: Yes / No
+Result: Clean / Blocker
 ```
-
-**How to determine if branch matches:** compare the requirement summary from product-spec with the branch name and the last few commits on the branch (`git log --oneline -5`). If there is no clear overlap, treat as Case B.
 
 ---
 
