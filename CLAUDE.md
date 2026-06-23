@@ -41,9 +41,20 @@ To extend an agent, edit its `SKILL.md` — do not create parallel files.
 ## File Ownership Rule
 Agents must not edit files outside their ownership domain without explicit Team Lead approval.
 
+## Agent Proliferation Rule
+
+Do not add a new agent unless **both** conditions are true:
+1. The responsibility is clearly separate from what existing agents already own.
+2. The test type or task requires a different execution context (e.g. different runtime, different Spring profile, different tool chain).
+
+Current decisions locked in:
+- **No separate Frontend Unit Tests Agent.** Frontend unit tests (Vitest + RTL) are owned by the Frontend Agent. When frontend logic, component state, validation, rendering conditions, hooks, or helpers are changed, the Frontend Agent adds or updates the relevant tests co-located with the affected code.
+- **No DB Integration Tests Agent at this stage.** The backend uses in-memory storage by default. A dedicated DB integration tests agent should only be introduced if the codebase moves to PostgreSQL/JPA/Hibernate as the primary persistence layer, adds schema migrations, or requires repository-level tests with a real database or Testcontainers.
+
 ## Quality Gates (all required before PR)
 - [ ] `./mvnw test` passes (backend)
 - [ ] `npm run build` passes (frontend)
+- [ ] `npm run test` passes (frontend unit tests — Vitest)
 - [ ] `npm run test:e2e` passes (Playwright)
 - [ ] `reports/security-report.md` verdict: APPROVED
 - [ ] `reports/code-review-report.md` verdict: APPROVED

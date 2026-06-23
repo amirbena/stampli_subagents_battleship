@@ -54,6 +54,54 @@ After Product Agent finishes, read `reports/runs/<workflow-run-id>/product-spec.
 
 ---
 
+## Step 1b — Scope Validation
+
+After reading `product-spec.md`, Team Lead must explicitly validate scope before any implementation or architecture work starts. Write this block into `reports/runs/<workflow-run-id>/team-lead-classification.md` as the first section:
+
+```md
+## Scope Validation
+
+Workflow Run ID:
+Product Spec Read: Yes / No (stale → stop)
+
+### Agent Requirement Decision
+
+| Agent | Required? | Reason |
+|-------|-----------|--------|
+| java-backend-agent | Yes / No | ... |
+| frontend-agent | Yes / No | ... |
+| backend-unit-tests-agent | Yes / No | ... |
+| playwright-e2e-agent | Yes / No | ... |
+| infrastructure-agent | Yes / No | ... |
+| security-agent | Yes / No | ... |
+| architect-agent | Yes / No | ... |
+
+### Scope Classification
+
+Change is: backend-only / frontend-only / full-stack / docs-only / config-only
+
+### Architecture Review Required: Yes / No
+Reason:
+
+### Security Review Required: Yes / No
+Reason:
+
+### Infrastructure Changes Required: Yes / No
+Reason:
+
+### Tests Required
+Backend unit tests: Yes / No — scope:
+Frontend unit tests: Yes / No — scope:
+Playwright E2E: Yes / No — scope:
+```
+
+Rules:
+- Do not activate any developer agent before this section is written.
+- If the product spec is ambiguous about scope (e.g. unclear whether a UI change needs a new API), default to the broader scope and document the assumption.
+- Scope validation is binding — agents not listed as Required must not be spawned for this run.
+
+---
+
 ## Step 2 — Decision Tree Classification
 
 Classify the requirement immediately after reading Product Spec. Write `reports/runs/<workflow-run-id>/team-lead-classification.md`:
@@ -141,17 +189,18 @@ Skip Architecture for:
 - Docs-only, test-only
 - Small isolated local behavior
 
-Run Architecture for:
-- API contracts
-- Java backend behavior
-- Database/persistence
-- Authentication / authorization / sessions
-- Multiplayer / game state model / cross-client synchronization
-- Hidden opponent data
-- External integrations
-- Security boundaries
-- Shared types / contracts
-- Large cross-cutting behavior
+Run Architecture for **any** of the following — one match is sufficient:
+- API contract changes (new endpoints, changed request/response shape, new status codes)
+- Database schema changes or migrations
+- Authentication, authorization, permissions, or session management
+- Multiplayer, realtime, or cross-client synchronization
+- Async jobs, queues, Kafka, or event-driven flows
+- State machine changes (e.g. new game status transitions)
+- External integrations (third-party APIs, webhooks, OAuth)
+- Changes that affect multiple services, controllers, or domain classes simultaneously
+- Hidden opponent data boundaries or new data visibility rules
+- Shared types or contracts consumed by both frontend and backend
+- Large cross-cutting behavior that spans more than two layers
 
 When Architecture runs, it writes `reports/runs/<workflow-run-id>/architecture.md` and returns to Team Lead. Architecture must not activate developers.
 
@@ -493,6 +542,30 @@ Do not reset attempts for semantic duplicates.
 
 ## Step 9 — QA Loop
 
+### Mandatory Triage Rule
+
+**All review failures — Code Review, Security, QA, Playwright — must return to Team Lead first. No review agent routes directly to a developer agent. Team Lead is always the triage point.**
+
+Required triage flow:
+```
+Code Review / Security / QA finding
+    ↓
+Team Lead reads the finding and classifies root cause
+    ↓
+Team Lead routes to the responsible agent with a specific fix assignment
+    ↓
+Responsible agent fixes and reruns its verification_command
+    ↓
+Team Lead confirms fix, then re-triggers the review agent that raised the finding
+    ↓
+Review again
+```
+
+Special cases:
+- If a finding involves a broken API contract: Team Lead → Architecture Agent → Team Lead → Backend Agent and/or Frontend Agent (in parallel if independent).
+- If a finding spans multiple agents (e.g. frontend renders data the backend sends incorrectly): Team Lead coordinates both agents, sequencing or parallelising based on dependency.
+- If two consecutive fix attempts repeat the same hypothesis without new evidence: Team Lead must reopen Product or Architecture before routing to the developer again.
+
 QA, security, and code review findings return to Team Lead. Team Lead classifies and routes. QA must not route directly to developers.
 
 ### QA Cycle Limits (per run)
@@ -719,9 +792,11 @@ If non-critical unresolved findings remain, document them in PR summary. Do not 
 
 ## Execution Modes
 
-- `cheap`: product-lite, one implementation agent, relevant unit/build tests, **code review required (lite)**, **validation gap check required**, release
+- `cheap`: product-lite, one implementation agent, build test only (`npm run build` or `./mvnw test`), **code review required (lite)**, **validation gap check required**, release
 - `normal`: product-lite, architect-lite when contracts change, relevant implementation agents, relevant tests, **code review required**, **validation gap check required**, release
 - `full`: product-full, architect-full, backend, frontend, infra, unit/integration/E2E, **security required + code review required + Playwright required**, release
+
+**Cheap mode token budget:** product-lite → team-lead-classification → frontend-agent (lightweight plan + build only) → code-review-lite → release. No unit tests, no E2E, no security, no architecture.
 
 **Code review is required in every mode, including cheap.** The depth scales with mode (lite vs full), but it never runs zero. Security review is optional in cheap/normal unless the route triggers it (auth, sessions, secrets, hidden data). All findings always return to Team Lead — never directly to developer agents.
 
@@ -775,6 +850,7 @@ For pure cosmetic/audio changes where all unvalidated criteria are Risk: Low —
 - Do not run architecture unless Architecture Required: Yes
 - **Code review always runs — at minimum review-lite for cheap mode.** Never skip code review entirely.
 - Do not run security-full unless auth, sessions, permissions, tokens, secrets, user data, external integrations, or persistence security are affected. Security review is optional in cheap/normal for non-security routes.
+- Do not run backend unit tests for CSS-only or copy-only changes. Run only `npm run build`.
 - Do not run infrastructure unless Docker, CI, env, deployment, ports, startup, or runtime config changes
 - Do not run Playwright by default
 - Do not run backend for frontend-only visual/audio changes

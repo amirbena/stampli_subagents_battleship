@@ -29,7 +29,12 @@ Do not ask the human for approval. If a required change is outside this agent's 
 
 ## Proposed Change Plan Required
 
-Before editing, produce:
+**Cheap/simple mode** (styling-only, copy, single-file color/layout tweak — no API or logic change): produce a one-liner plan:
+```
+Change: <file> — <what and why>
+```
+
+**Normal/full mode** (behavior, hooks, API wiring, new component): produce the full plan:
 
 ```md
 ## Proposed Change Plan
@@ -53,28 +58,24 @@ Continue only when the plan stays inside frontend ownership or Team Lead has rou
 
 Use the smallest safe frontend change. Do not invent APIs, routes, ports, scripts, dependencies, or backend behavior. Do not add dependencies unless the requirement cannot be completed otherwise; prefer existing dependencies and native browser/React behavior.
 
-Every output must include:
+Every output must include evidence. Scale it to the task:
 
+**Cheap/simple mode** (styling-only, single-file tweak):
+```
+Files changed: <list>
+Tests run: npm run build — PASS
+```
+
+**Normal/full mode**:
 ```md
 ## Evidence
 
-Files inspected:
-- ...
-
-Facts found:
-- ...
-
-Files changed:
-- ...
-
-Tests run:
-- ...
-
-Assumptions:
-- ...
-
-Unknowns:
-- ...
+Files inspected: ...
+Facts found: ...
+Files changed: ...
+Tests run: ...
+Assumptions: ...
+Unknowns: ...
 ```
 
 Allowed to read: frontend code, `package.json`, Vite/Playwright config, current workflow reports under `reports/runs/<workflow-run-id>/`.
@@ -129,29 +130,82 @@ export function useGamePolling(gameId: string, playerId: string): GameStateRespo
 
 ## Component Structure
 
+Every new component **must** live in its own folder:
+
+```
+ComponentName/
+  ComponentName.tsx
+  ComponentName.css
+```
+
+Full layout:
+
 ```
 src/
 ├── components/
-│   ├── Board.tsx              ← renders a 10x10 grid; accepts cells + click handler
-│   ├── Cell.tsx               ← single cell: empty | ship | hit | miss | sunk | preview
-│   ├── ShipPlacement.tsx      ← fleet list + placement board
-│   ├── TurnIndicator.tsx      ← "Your turn" / "Opponent's turn"
-│   ├── GameOver.tsx           ← win/lose screen
-│   └── RoomCode.tsx           ← displays/copies the join code
+│   ├── board/
+│   │   ├── GameBoard/
+│   │   │   ├── GameBoard.tsx
+│   │   │   └── GameBoard.css
+│   │   └── BoardCell/
+│   │       ├── BoardCell.tsx
+│   │       └── BoardCell.css
+│   ├── placement/
+│   │   ├── FleetListPanel/
+│   │   │   ├── FleetListPanel.tsx
+│   │   │   └── FleetListPanel.css
+│   │   ├── FleetShipItem/
+│   │   │   ├── FleetShipItem.tsx
+│   │   │   └── FleetShipItem.css
+│   │   └── RotateButton/
+│   │       ├── RotateButton.tsx
+│   │       └── RotateButton.css
+│   ├── game/
+│   │   ├── TurnIndicator/
+│   │   │   ├── TurnIndicator.tsx
+│   │   │   └── TurnIndicator.css
+│   │   ├── ShipStatusPanel/
+│   │   │   ├── ShipStatusPanel.tsx
+│   │   │   └── ShipStatusPanel.css
+│   │   └── ShotResultToast/
+│   │       ├── ShotResultToast.tsx
+│   │       └── ShotResultToast.css
+│   └── common/
+│       ├── ErrorMessage/
+│       │   ├── ErrorMessage.tsx
+│       │   └── ErrorMessage.css
+│       ├── LoadingSpinner/
+│       │   ├── LoadingSpinner.tsx
+│       │   └── LoadingSpinner.css
+│       ├── PlacementErrorToast/
+│       │   ├── PlacementErrorToast.tsx
+│       │   └── PlacementErrorToast.css
+│       └── RoomCodeDisplay/
+│           ├── RoomCodeDisplay.tsx
+│           └── RoomCodeDisplay.css
 ├── hooks/
 │   ├── useGamePolling.ts      ← polls GET /api/games/{id}/state every 2s
 │   └── useShipPlacement.ts    ← local placement state before submitting
 ├── pages/
-│   ├── Home.tsx               ← create game / join game
-│   ├── Lobby.tsx              ← waiting for second player + ship placement
-│   └── Game.tsx               ← main game screen (two boards)
+│   ├── Home/
+│   │   ├── Home.tsx
+│   │   └── Home.css
+│   ├── Lobby/
+│   │   ├── Lobby.tsx
+│   │   └── Lobby.css
+│   ├── Game/
+│   │   ├── Game.tsx
+│   │   └── Game.css
+│   └── GameOver/
+│       ├── GameOver.tsx
+│       └── GameOver.css
 ├── api/
 │   └── gameApi.ts             ← typed wrappers for all backend endpoints
-├── types/
-│   └── game.ts                ← TypeScript interfaces matching backend DTOs
-└── styles/
-    └── index.css
+└── types/
+    └── game.ts                ← TypeScript interfaces matching backend DTOs
 ```
+
+**Rule:** Never place a component `.tsx` or its `.css` directly in a folder that contains other components. Each component is isolated in its own folder. Imports must use the full path: `./ComponentName/ComponentName`.
 
 ## UI Requirements
 - Player sees their own board (ships visible) and the opponent's board (only hits/misses).
@@ -172,9 +226,13 @@ src/
 
 ---
 
-## Frontend Tests — Required
+## Frontend Tests — Owned By This Agent
 
-After implementing production code, always add frontend tests. Check `apps/frontend/src/__tests__/` and `apps/frontend/src/**/*.test.{ts,tsx}` for existing tests first.
+Frontend unit tests are owned by this agent. There is no separate frontend-unit-tests agent.
+
+When frontend logic, component state, validation, rendering conditions, hooks, or helpers are changed, this agent must add or update the relevant Vitest tests co-located with the affected code (`ComponentName/ComponentName.test.tsx` or `hooks/useFoo.test.ts`).
+
+After implementing production code, always add or update tests. Check `apps/frontend/src/**/*.test.{ts,tsx}` for existing tests first.
 
 ### Backend Contract Dependency — Required
 
