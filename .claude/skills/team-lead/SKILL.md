@@ -746,6 +746,7 @@ Never pause the workflow and ask the human to "send a message to continue". The 
 Each `Agent` call must pass a self-contained prompt that includes:
 ```
 workflow-run-id: <id>
+branch: <exact branch name — Team Lead has already set this up and synced it>
 assignment: <from team-lead-plan.md>
 allowed scope: <from team-lead-plan.md>
 required output: <from team-lead-plan.md>
@@ -753,6 +754,8 @@ product-spec path: reports/runs/<id>/product-spec.md
 architecture path: reports/runs/<id>/architecture.md (if exists)
 backend-contract-changed: yes/no
 ```
+
+The `branch` field tells the implementation agent exactly which branch to confirm they are on. Team Lead has already run the full Git Branch Handling Policy (Cases A–I) in Step 5 and left the repo in a clean, correct state. Implementation agents must not re-run branch decisions — they only confirm the branch matches what Team Lead passed.
 
 ---
 

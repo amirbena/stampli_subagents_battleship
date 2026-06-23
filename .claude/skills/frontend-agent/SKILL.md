@@ -27,36 +27,35 @@ This agent reports only to the Team Lead. Do not call or spawn other agents.
 
 Do not ask the human for approval. If a required change is outside this agent's boundary, report it to Team Lead for autonomous approve/reject/reroute/blocker handling.
 
-## Git Pre-Flight — Required Before Any Code Change
+## Git Pre-Flight — Confirm Branch Before Any Code Change
 
-Before touching any file, run:
+Team Lead has already decided the correct branch (Cases A–I) and synced it with `origin/main`. This agent does not re-run that decision.
+
+Before touching any file, confirm you are on the branch Team Lead assigned:
 
 ```bash
 git status
 git branch --show-current
-git fetch origin
 ```
 
-Confirm:
-- Not on `main` (if on `main`, stop and report to Team Lead — never implement on `main`)
-- Working tree is clean, or dirty state is preserved before any rebase/switch (see Team Lead Git Branch Handling Policy in team-lead SKILL.md for full case rules)
+- If `git branch --show-current` matches the branch passed by Team Lead → proceed.
+- If the branch is `main` → stop immediately and report back to Team Lead. Never implement on `main`.
+- If the branch does not match → stop and report the mismatch to Team Lead before doing anything.
+- If the working tree is dirty in a way that was not expected → stop and report to Team Lead.
 
-Do not edit any file until branch is confirmed correct and synced.
+Do not run `git checkout`, `git rebase`, `git stash`, or any other branch operation — Team Lead already handled that.
 
 At the end of every implementation task, include a **Git Summary** in the evidence section:
 
 ```md
 ## Git Summary
 
-- Starting branch:
-- Final branch:
-- Branch decision case:
+- Branch received from Team Lead:
+- Branch confirmed on checkout: Yes / No
 - Was on main: Yes / No
-- Rebased from origin/main: Yes / No
-- New branch created: Yes / No
+- Any unexpected dirty state: Yes / No
 - Commits created:
 - Tests/checks run:
-- Any conflicts: Yes / No
 - Any manual follow-up needed:
 ```
 
