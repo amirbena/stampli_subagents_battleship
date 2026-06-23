@@ -118,18 +118,25 @@ export function Lobby(): React.ReactElement {
     }
   };
 
-  // Build board from local placement state
+  // Build board from local placement state.
+  // Local optimistic placement is authoritative during the placement phase so a
+  // freshly placed ship renders instantly, instead of waiting for the next 2s poll
+  // to echo it back via gameState.myBoard. The server board is only used as a
+  // fallback (e.g. reconnecting to a session that already has ships placed).
   const boardCells = React.useMemo(() => {
+    if (placement.placedShips.length > 0) {
+      const grid = emptyGrid();
+      for (const ship of placement.placedShips) {
+        for (const cell of ship.cells) {
+          grid[cell.row][cell.col] = 'ship';
+        }
+      }
+      return grid;
+    }
     if (gameState?.myBoard) {
       return computeOwnBoardCells(gameState.myBoard);
     }
-    const grid = emptyGrid();
-    for (const ship of placement.placedShips) {
-      for (const cell of ship.cells) {
-        grid[cell.row][cell.col] = 'ship';
-      }
-    }
-    return grid;
+    return emptyGrid();
   }, [gameState?.myBoard, placement.placedShips]);
 
   const isWaiting = gameState?.status === 'WAITING_FOR_PLAYERS';
