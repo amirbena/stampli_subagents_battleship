@@ -29,9 +29,8 @@ To extend an agent, edit its `SKILL.md` — do not create parallel files.
 | Team Lead | `.claude/skills/team-lead` | claude-opus-4-8 | Planning, task assignment, quality gates, E2E infrastructure pre-gate, final release decision |
 | Product Agent | `.claude/skills/product-agent` | claude-sonnet-4-6 | `reports/runs/<id>/product-spec.md`, user stories, acceptance criteria |
 | Architect Agent | `.claude/skills/architect-agent` | claude-opus-4-8 | `reports/runs/<id>/architecture.md`, API contract, domain model — structure only, not environment setup |
-| Java Backend Agent | `.claude/skills/java-backend-agent` | claude-sonnet-4-6 | `apps/backend/src/main/java/` — all production backend code |
-| Frontend Agent | `.claude/skills/frontend-agent` | claude-sonnet-4-6 | `apps/frontend/src/` — all React/TypeScript UI code |
-| Backend Unit Tests Agent | `.claude/skills/backend-unit-tests-agent` | claude-sonnet-4-6 | `apps/backend/src/test/` — all Java unit tests (Mockito, domain + service layer) |
+| Java Backend Agent | `.claude/skills/java-backend-agent` | claude-sonnet-4-6 | `apps/backend/src/main/java/` — all production backend code; `src/test/**/*Test.java` — all JUnit 5 unit tests (domain + service layer) |
+| Frontend Agent | `.claude/skills/frontend-agent` | claude-sonnet-4-6 | `apps/frontend/src/` — all React/TypeScript UI code + Vitest unit tests |
 | Backend Integration Tests Agent | `.claude/skills/backend-integration-tests-agent` | claude-sonnet-4-6 | `apps/backend/src/test/**/*IntegrationTest.java` — `@SpringBootTest` + MockMvc, HTTP layer |
 | Playwright E2E Agent | `.claude/skills/playwright-e2e-agent` | claude-sonnet-4-6 | `apps/frontend/tests/e2e/` — all browser tests; never assumes servers are running |
 | Security Agent | `.claude/skills/security-agent` | claude-opus-4-8 | `reports/runs/<id>/security-report.md` |
@@ -87,6 +86,7 @@ Do not add a new agent unless **both** conditions are true:
 
 Current decisions locked in:
 - **No separate Frontend Unit Tests Agent.** Frontend unit tests (Vitest + RTL) are owned by the Frontend Agent. When frontend logic, component state, validation, rendering conditions, hooks, or helpers are changed, the Frontend Agent adds or updates the relevant tests co-located with the affected code.
+- **No separate Backend Unit Tests Agent.** Java unit tests (JUnit 5 + Mockito, domain + service layer) are owned by the Java Backend Agent — same rationale as frontend. When backend logic changes, the Java Backend Agent adds or updates the corresponding `*Test.java` files in the same pass.
 - **No DB Integration Tests Agent at this stage.** The backend uses in-memory storage by default. A dedicated DB integration tests agent should only be introduced if the codebase moves to PostgreSQL/JPA/Hibernate as the primary persistence layer, adds schema migrations, or requires repository-level tests with a real database or Testcontainers.
 
 ## Quality Gates (all required before PR)

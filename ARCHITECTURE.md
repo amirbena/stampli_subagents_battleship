@@ -55,10 +55,10 @@ User Requirement
          │                             │  all three spawn simultaneously               │
          ▼                             ▼                             ▼                  │
 ┌──────────────────┐  ┌────────────────────────┐  ┌──────────────────────────┐        │
-│  Backend Unit    │  │  Frontend Unit Tests   │  │  Backend Integration     │        │
-│  Tests Agent     │  │  (via Frontend Agent)  │  │  Tests Agent             │        │
+│  Java Backend    │  │  Frontend Unit Tests   │  │  Backend Integration     │        │
+│  Agent           │  │  (via Frontend Agent)  │  │  Tests Agent             │        │
 │  JUnit5+Mockito  │  │  Vitest + RTL          │  │  @SpringBootTest+MockMvc │        │
-│  domain+service  │  │  (if frontend touched) │  │  (if HTTP layer changed) │        │
+│  (./mvnw test)   │  │  (if frontend touched) │  │  (if HTTP layer changed) │        │
 └────────┬─────────┘  └───────────┬────────────┘  └────────────┬─────────────┘        │
          │                        │                             │                      │
          └────────────────────────┴─────────────────────────────┘                     │
@@ -107,9 +107,8 @@ User Requirement
 | **Product Agent** | sonnet-4-6 | `reports/runs/<id>/product-spec.md`, acceptance criteria | `.claude/skills/product-agent` |
 | **Team Lead** | opus-4-8 | Orchestration, plan, branch decisions, quality gates | `.claude/skills/team-lead` |
 | **Architect Agent** | opus-4-8 | `reports/runs/<id>/architecture.md`, API contract, domain model | `.claude/skills/architect-agent` |
-| **Java Backend Agent** | sonnet-4-6 | `apps/backend/src/main/java/` — all production Java | `.claude/skills/java-backend-agent` |
+| **Java Backend Agent** | sonnet-4-6 | `apps/backend/src/main/java/` — all production Java; `src/test/**/*Test.java` — JUnit 5 + Mockito unit tests | `.claude/skills/java-backend-agent` |
 | **Frontend Agent** | sonnet-4-6 | `apps/frontend/src/` — React/TypeScript + Vitest unit tests | `.claude/skills/frontend-agent` |
-| **Backend Unit Tests Agent** | sonnet-4-6 | `apps/backend/src/test/` — JUnit 5 + Mockito (domain + service layer) | `.claude/skills/backend-unit-tests-agent` |
 | **Backend Integration Tests Agent** | sonnet-4-6 | `apps/backend/src/test/**/*IntegrationTest.java` — `@SpringBootTest` + MockMvc (HTTP layer) | `.claude/skills/backend-integration-tests-agent` |
 | **Playwright E2E Agent** | sonnet-4-6 | `apps/frontend/tests/e2e/` — browser E2E tests | `.claude/skills/playwright-e2e-agent` |
 | **Security Agent** | opus-4-8 | `reports/runs/<id>/security-report.md` | `.claude/skills/security-agent` |
@@ -124,6 +123,7 @@ User Requirement
 ### Separation of Concerns
 - **Team Lead** owns all decisions — branch, scope, agent routing, quality gates. No other agent makes decisions.
 - **Architect** owns structure (domain model, API contract, folder layout) — never environment setup or implementation.
+- **Java Backend Agent** owns JUnit 5 unit tests for domain and service layer — no separate backend unit test agent (same rationale as frontend).
 - **Frontend Agent** owns Vitest unit tests for its own components — no separate frontend unit test agent.
 - **Playwright E2E Agent** owns browser tests — never touches production code.
 

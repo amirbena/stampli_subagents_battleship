@@ -70,7 +70,6 @@ Product Spec Read: Yes / No (stale → stop)
 |-------|-----------|--------|
 | java-backend-agent | Yes / No | ... |
 | frontend-agent | Yes / No | ... |
-| backend-unit-tests-agent | Yes / No | ... |
 | backend-integration-tests-agent | Yes / No | ... |
 | playwright-e2e-agent | Yes / No | ... |
 | infrastructure-agent | Yes / No | ... |
@@ -841,8 +840,8 @@ Typical skip cases: service/domain logic change only, frontend-only change, refa
 **Step 1 — Run all cheap tests in parallel (one response, multiple Agent calls):**
 
 Spawn every applicable test agent simultaneously:
-- `backend-unit-tests-agent` — if backend was touched
-- `frontend-agent` (unit test run) — if frontend was touched (Vitest, co-located tests)
+- `java-backend-agent` (unit test run: `./mvnw test`) — if backend was touched
+- `frontend-agent` (unit test run: `npm run test`) — if frontend was touched
 - `backend-integration-tests-agent` — if any of the five HTTP-layer triggers are true (see above)
 
 These three are fully independent. There is no reason to sequence them. All three run at the same time and report back to Team Lead.
@@ -860,7 +859,7 @@ Only after Step 2 is fully green:
 
 This order maximises parallelism where safe and minimises expensive E2E runs on broken code.
 
-All unit test _scenarios_ within a single agent run must also be parallelized — see backend-unit-tests-agent for JUnit 5 parallel config.
+All unit test _scenarios_ within a single agent run must also be parallelized — see java-backend-agent for JUnit 5 parallel config.
 
 #### Review phase (after all tests pass)
 - Spawn `code-review-agent` automatically. If the route triggered security requirements, spawn `security-agent` in **parallel** with `code-review-agent`.
@@ -985,7 +984,7 @@ When any agent in the parallel test phase reports a failure, Team Lead is the so
 | Failure symptom | Responsible agent | Action |
 |---|---|---|
 | JUnit test fails on domain or service logic | `java-backend-agent` | Fix the production code; re-run `./mvnw test` |
-| JUnit test itself is wrong (wrong assertion, wrong mock) | `backend-unit-tests-agent` | Fix the test; re-run `./mvnw test` |
+| JUnit unit test itself is wrong (wrong assertion, wrong mock) | `java-backend-agent` | Fix the test; re-run `./mvnw test` |
 | `@SpringBootTest` / MockMvc fails — wrong status code or response body | `java-backend-agent` | Fix the controller or DTO; re-run `*IntegrationTest` |
 | `@SpringBootTest` / MockMvc fails — test setup or assertion wrong | `backend-integration-tests-agent` | Fix the test; re-run `*IntegrationTest` |
 | Vitest / RTL test fails on component rendering or logic | `frontend-agent` | Fix the component or hook; re-run `npm run test` |
@@ -1373,10 +1372,9 @@ Team Lead owns routing, coordination, shared contracts, QA reassignment, retry l
 
 Product owns `reports/runs/<workflow-run-id>/product-spec.md`.
 Architect owns `reports/runs/<workflow-run-id>/architecture.md` and `reports/runs/<workflow-run-id>/technical-plan.md`.
-Backend owns backend source and backend tests only.
-Frontend owns frontend source and frontend tests only.
+Backend owns backend production source and backend unit tests (`*Test.java`, not `*IntegrationTest.java`).
+Frontend owns frontend source and frontend unit tests (Vitest, co-located).
 Infrastructure owns Docker, CI, env examples, deployment files, service startup scripts.
-Backend Unit Tests owns test files only.
 Playwright owns E2E files and `playwright.config.*`.
 Security owns `reports/runs/<workflow-run-id>/security-report.md`.
 Code Review owns `reports/runs/<workflow-run-id>/code-review-report.md`.
