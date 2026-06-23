@@ -26,17 +26,33 @@ To extend an agent, edit its `SKILL.md` — do not create parallel files.
 
 | Agent | Skill folder | Model | Owns |
 |-------|-------------|-------|------|
-| Team Lead | `.claude/skills/team-lead` | claude-opus-4-8 | Planning, task assignment, quality gates, final release decision |
-| Product Agent | `.claude/skills/product-agent` | claude-sonnet-4-6 | `reports/product-spec.md`, user stories, acceptance criteria |
-| Architect Agent | `.claude/skills/architect-agent` | claude-opus-4-8 | `reports/architecture.md`, API contract, domain model |
+| Team Lead | `.claude/skills/team-lead` | claude-opus-4-8 | Planning, task assignment, quality gates, E2E infrastructure pre-gate, final release decision |
+| Product Agent | `.claude/skills/product-agent` | claude-sonnet-4-6 | `reports/runs/<id>/product-spec.md`, user stories, acceptance criteria |
+| Architect Agent | `.claude/skills/architect-agent` | claude-opus-4-8 | `reports/runs/<id>/architecture.md`, API contract, domain model — structure only, not environment setup |
 | Java Backend Agent | `.claude/skills/java-backend-agent` | claude-sonnet-4-6 | `apps/backend/src/main/java/` — all production backend code |
 | Frontend Agent | `.claude/skills/frontend-agent` | claude-sonnet-4-6 | `apps/frontend/src/` — all React/TypeScript UI code |
 | Backend Unit Tests Agent | `.claude/skills/backend-unit-tests-agent` | claude-sonnet-4-6 | `apps/backend/src/test/` — all Java unit tests |
-| Playwright E2E Agent | `.claude/skills/playwright-e2e-agent` | claude-sonnet-4-6 | `apps/frontend/tests/e2e/` — all browser tests |
-| Security Agent | `.claude/skills/security-agent` | claude-opus-4-8 | `reports/security-report.md` |
-| Code Review Agent | `.claude/skills/code-review-agent` | claude-opus-4-8 | `reports/code-review-report.md` |
+| Playwright E2E Agent | `.claude/skills/playwright-e2e-agent` | claude-sonnet-4-6 | `apps/frontend/tests/e2e/` — all browser tests; never assumes servers are running |
+| Security Agent | `.claude/skills/security-agent` | claude-opus-4-8 | `reports/runs/<id>/security-report.md` |
+| Code Review Agent | `.claude/skills/code-review-agent` | claude-opus-4-8 | `reports/runs/<id>/code-review-report.md` |
 | Infrastructure Agent | `.claude/skills/infrastructure-agent` | claude-haiku-4-5-20251001 | `docker-compose.yml`, env documentation, run instructions |
-| Release PR Agent | `.claude/skills/release-pr-agent` | claude-haiku-4-5-20251001 | `reports/final-pr-summary.md`, PR creation |
+| Release PR Agent | `.claude/skills/release-pr-agent` | claude-haiku-4-5-20251001 | `reports/runs/<id>/release-summary.md`, PR creation |
+
+## Mandatory E2E Rule
+
+Playwright E2E is **required** (not optional) when ANY of the following are true:
+- A new or changed REST endpoint is consumed by the frontend (API contract changed)
+- New frontend pages, flows, or user interactions are added
+- A new game mode, state machine transition, or multiplayer flow is introduced
+- Frontend logic that depends on backend responses is added or changed
+
+Team Lead must run the **E2E Infrastructure Pre-Gate** before spawning the Playwright agent:
+1. `apps/backend/src/main/resources/application-e2e.yml` exists (port 8081, H2, correct CORS)
+2. Maven `e2e` profile with `useTestClasspath=true` exists in `pom.xml`
+3. `playwright.config.ts` has a dual `webServer` array (frontend + backend)
+4. Frontend `webServer` entry sets `env: { VITE_API_BASE_URL: 'http://localhost:8081' }`
+
+If any check fails, route to the owning agent to fix it before E2E runs.
 
 ## Git Branch Handling Policy
 The full policy lives in `.claude/skills/team-lead/SKILL.md` (Step 5). Key rules:
@@ -64,10 +80,10 @@ Current decisions locked in:
 - [ ] `npm run build` passes (frontend)
 - [ ] `npm run test` passes (frontend unit tests — Vitest)
 - [ ] `npm run test:e2e` passes (Playwright)
-- [ ] `reports/security-report.md` verdict: APPROVED
-- [ ] `reports/code-review-report.md` verdict: APPROVED
+- [ ] `reports/runs/<id>/security-report.md` verdict: APPROVED
+- [ ] `reports/runs/<id>/code-review-report.md` verdict: APPROVED
 - [ ] `README.md` documents how to run the full app
-- [ ] `reports/final-pr-summary.md` exists
+- [ ] `reports/runs/<id>/release-summary.md` exists
 
 ## Release Strategy
 All PRs are opened via **GitHub CLI (`gh`)** — not GitHub MCP.
