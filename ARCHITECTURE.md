@@ -1,0 +1,172 @@
+# Architecture — Battleship Multi-Agent Software Factory
+
+## Overview
+
+This project uses a **Gen4 multi-agent software factory** built on Claude Code.  
+A single user requirement triggers an autonomous pipeline of specialized agents that take the change from raw text to a merged PR — with no human involvement between intake and final review.
+
+Each agent is a Claude skill defined in `.claude/skills/<agent-name>/SKILL.md`.
+
+---
+
+## Agent Pipeline — Flow Diagram
+
+```
+User Requirement
+       │
+       ▼
+┌─────────────────┐
+│  Requirement    │  Captures raw request, creates isolated workflow run,
+│  Intake         │  guards branch safety, writes requirements.md
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Product Agent  │  Converts requirement into acceptance criteria,
+│                 │  writes run-scoped product-spec.md
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│   Team Lead     │  Classifies scope, decides which agents to run,
+│  (Orchestrator) │  writes execution plan, owns all branch decisions
+└────────┬────────┘
+         │
+         ├─── Architecture Required? ───►┌──────────────────┐
+         │                               │  Architect Agent │  API contract, domain model,
+         │                               │                  │  folder structure, test strategy
+         │                               └────────┬─────────┘
+         │                                        │ returns to Team Lead
+         │◄───────────────────────────────────────┘
+         │
+         ├─────────────────────────────────────────────────────────┐
+         ▼                                                         ▼
+┌─────────────────┐                                   ┌───────────────────┐
+│  Java Backend   │  Spring Boot game engine,         │  Frontend Agent   │  React/TypeScript UI,
+│  Agent          │  domain model, REST API,          │                   │  pages, components,
+│                 │  repository layer                 │                   │  frontend unit tests
+└────────┬────────┘                                   └─────────┬─────────┘
+         │  (parallel when independent)                         │
+         └──────────────────────┬───────────────────────────────┘
+                                │
+                                ▼
+                    ┌───────────────────────┐
+                    │  Backend Unit Tests   │  JUnit 5 + Mockito,
+                    │  Agent                │  service and domain layer
+                    └───────────┬───────────┘
+                                │
+                                │  E2E Infrastructure Pre-Gate ──► if any check fails,
+                                │  (Team Lead verifies):              route to fix agent first
+                                │  • application-e2e.yml exists
+                                │  • Maven e2e profile in pom.xml
+                                │  • playwright.config.ts has dual webServer
+                                │  • VITE_API_BASE_URL set
+                                │
+                                ▼
+                    ┌───────────────────────┐
+                    │  Playwright E2E       │  Full browser flows, two-player contexts,
+                    │  Agent                │  frontend + backend running together
+                    └───────────┬───────────┘
+                                │
+                    ┌───────────┴───────────┐
+                    ▼                       ▼
+         ┌──────────────────┐   ┌──────────────────────┐
+         │  Security Agent  │   │  Code Review Agent   │  (parallel)
+         │                  │   │                      │
+         └────────┬─────────┘   └──────────┬───────────┘
+                  └──────────┬─────────────┘
+                             │  both must return APPROVED
+                             ▼
+                  ┌──────────────────────┐
+                  │  Release PR Agent    │  Verifies all quality gates,
+                  │                      │  writes release-summary.md,
+                  │                      │  opens PR via gh CLI
+                  └──────────────────────┘
+                             │
+                             ▼
+                       Pull Request
+                    (human reviews only)
+```
+
+---
+
+## Agent Roster
+
+| Agent | Model | Owns | Skill |
+|-------|-------|------|-------|
+| **Requirement Intake** | sonnet-4-6 | `reports/runs/<id>/requirements.md`, branch setup | `.claude/skills/requirement` |
+| **Product Agent** | sonnet-4-6 | `reports/runs/<id>/product-spec.md`, acceptance criteria | `.claude/skills/product-agent` |
+| **Team Lead** | opus-4-8 | Orchestration, plan, branch decisions, quality gates | `.claude/skills/team-lead` |
+| **Architect Agent** | opus-4-8 | `reports/runs/<id>/architecture.md`, API contract, domain model | `.claude/skills/architect-agent` |
+| **Java Backend Agent** | sonnet-4-6 | `apps/backend/src/main/java/` — all production Java | `.claude/skills/java-backend-agent` |
+| **Frontend Agent** | sonnet-4-6 | `apps/frontend/src/` — React/TypeScript + Vitest unit tests | `.claude/skills/frontend-agent` |
+| **Backend Unit Tests Agent** | sonnet-4-6 | `apps/backend/src/test/` — JUnit 5 tests | `.claude/skills/backend-unit-tests-agent` |
+| **Playwright E2E Agent** | sonnet-4-6 | `apps/frontend/tests/e2e/` — browser E2E tests | `.claude/skills/playwright-e2e-agent` |
+| **Security Agent** | opus-4-8 | `reports/runs/<id>/security-report.md` | `.claude/skills/security-agent` |
+| **Code Review Agent** | opus-4-8 | `reports/runs/<id>/code-review-report.md` | `.claude/skills/code-review-agent` |
+| **Infrastructure Agent** | haiku-4-5 | `docker-compose.yml`, env docs, run instructions | `.claude/skills/infrastructure-agent` |
+| **Release PR Agent** | haiku-4-5 | `reports/runs/<id>/release-summary.md`, PR via `gh` | `.claude/skills/release-pr-agent` |
+
+---
+
+## Key Design Rules
+
+### Separation of Concerns
+- **Team Lead** owns all decisions — branch, scope, agent routing, quality gates. No other agent makes decisions.
+- **Architect** owns structure (domain model, API contract, folder layout) — never environment setup or implementation.
+- **Frontend Agent** owns Vitest unit tests for its own components — no separate frontend unit test agent.
+- **Playwright E2E Agent** owns browser tests — never touches production code.
+
+### Run Isolation
+Every workflow run writes to its own directory:
+```
+reports/
+  .workflow.lock          ← prevents concurrent runs
+  current-run.json        ← pointer to active run
+  runs/
+    <YYYYMMDD-HHMMSS-sha>/
+      requirements.md
+      product-spec.md
+      team-lead-classification.md
+      team-lead-plan.md
+      architecture.md     ← only if Architecture Required: Yes
+      security-report.md
+      code-review-report.md
+      release-summary.md
+```
+
+### Mandatory E2E
+E2E is **required** (not optional) when:
+- A new or changed REST endpoint is consumed by the frontend
+- New frontend pages or flows are added
+- A new game mode or state machine transition is introduced
+- Frontend logic depending on backend responses is added or changed
+
+### Quality Gates (all must pass before PR)
+- `./mvnw test` — backend unit tests
+- `npm run build` — frontend build
+- `npm run test` — frontend unit tests (Vitest)
+- `npm run test:e2e` — Playwright E2E
+- `reports/runs/<id>/security-report.md` verdict: **APPROVED**
+- `reports/runs/<id>/code-review-report.md` verdict: **APPROVED**
+
+---
+
+## Application Stack
+
+### Backend
+- Java 17, Spring Boot 3
+- REST API (`/api/v1/`)
+- In-memory `GameRepository` (interface-driven, swappable)
+- Domain: `Game`, `Board`, `Ship`, `Player`, `GameMode` — pure Java, no Spring annotations
+- Port 8080 (dev) / 8081 (E2E)
+
+### Frontend
+- React 18 + TypeScript, Vite
+- Axios for REST
+- Playwright for E2E, Vitest + RTL for unit tests
+- Port 5173 (dev) / 3001 (E2E)
+
+### Infrastructure
+- Docker Compose for local full-stack run
+- No Redis unless a concrete scalability requirement justifies it
