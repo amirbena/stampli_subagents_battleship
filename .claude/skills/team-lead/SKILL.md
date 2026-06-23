@@ -347,6 +347,7 @@ This policy defines how Team Lead decides whether to continue on the current bra
 8. Preserve existing local work before rebasing or switching branches.
 9. If a branch already has an open PR and the new requirement belongs to the same logical change set, continue on that branch.
 10. If the new requirement is unrelated, create a new feature branch from updated `main`.
+11. Before creating any new branch, verify the branch name does not already exist locally or remotely. If it exists, stop and report — never silently reuse or check out an existing branch for a new requirement.
 11. Never run `git pull origin main` directly on a feature branch — use `git fetch origin && git rebase origin/main`.
 12. If `main` is dirty, stop and report. Do not commit, stash, reset, clean, or continue automatically.
 
@@ -372,6 +373,37 @@ Determine:
 - whether the new requirement belongs to the same logical change set
 
 No implementation may start before the branch decision is made and written to `reports/runs/<workflow-run-id>/team-lead-classification.md`.
+
+---
+
+### New Branch Guard — Required Before Every `git checkout -b`
+
+Whenever a new branch is about to be created (Cases B, D, G, H), first verify the name does not already exist locally or remotely:
+
+```bash
+git branch --list feature/<requirement-name>          # local
+git branch -r --list origin/feature/<requirement-name> # remote
+```
+
+If the branch exists locally or remotely:
+- Do **not** check it out.
+- Do **not** assume it belongs to this requirement.
+- Write `workflow-blocker.md` and stop:
+
+```md
+## Blocker: Branch Already Exists
+
+Branch name: feature/<requirement-name>
+Found: local / remote / both
+
+This branch may belong to another team member or an unrelated change.
+I will not check out, reuse, or modify it automatically.
+
+Required human action:
+Choose a different branch name, or confirm this branch is safe to reuse, then rerun.
+```
+
+Only proceed with `git checkout -b` after confirming the name is free on both local and remote.
 
 ---
 
@@ -425,9 +457,12 @@ If rebase conflict: `git rebase --abort`, write workflow-blocker.md, stop.
 
 Leave it untouched. Move to updated `main`, create fresh branch.
 
+Before creating the new branch, run the **New Branch Guard** (see above).
+
 **If clean:**
 ```bash
 git fetch origin
+# verify branch name is free (New Branch Guard)
 git checkout main
 git pull --ff-only origin main
 git checkout -b feature/<requirement-name>
@@ -437,6 +472,7 @@ git checkout -b feature/<requirement-name>
 ```bash
 git add .
 git commit -m "wip: preserve unrelated branch work"
+# verify branch name is free (New Branch Guard)
 git checkout main
 git pull --ff-only origin main
 git checkout -b feature/<requirement-name>
@@ -445,6 +481,7 @@ git checkout -b feature/<requirement-name>
 **If dirty — temporary changes:**
 ```bash
 git stash push -u -m "wip-unrelated-branch"
+# verify branch name is free (New Branch Guard)
 git checkout main
 git pull --ff-only origin main
 git checkout -b feature/<requirement-name>
@@ -493,6 +530,7 @@ If stash pop conflict: write workflow-blocker.md, stop.
 git status
 git checkout main
 git pull --ff-only origin main
+# verify branch name is free (New Branch Guard)
 git checkout -b feature/<requirement-name>
 ```
 
@@ -532,6 +570,7 @@ Never use bare `git stash` when untracked files exist.
 ```bash
 git checkout main
 git pull --ff-only origin main
+# verify branch name is free (New Branch Guard)
 git checkout -b feature/<requirement-name>
 ```
 
@@ -543,10 +582,13 @@ Do not continue development on merged branches.
 
 Leave old branch untouched.
 
+Before creating the new branch, run the **New Branch Guard** (see above).
+
 **If clean:**
 ```bash
 git checkout main
 git pull --ff-only origin main
+# verify branch name is free (New Branch Guard)
 git checkout -b feature/<new-requirement-name>
 ```
 
@@ -556,6 +598,7 @@ git add .
 git commit -m "wip: preserve open PR work"
 git checkout main
 git pull --ff-only origin main
+# verify branch name is free (New Branch Guard)
 git checkout -b feature/<new-requirement-name>
 ```
 
