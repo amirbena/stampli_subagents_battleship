@@ -292,7 +292,12 @@ Phase 4a — UNIT + INTEGRATION TESTS (parallel, cheapest first)
           Split frontend path (both agents ran in parallel):
           frontend-ui-agent           → npx vitest run src/components …    (co-located slice)
           frontend-api-agent          → npx vitest run src/api src/hooks …  (co-located slice)
-          Team Lead runs once         → npm run test + npm run build        (full suite + typecheck)
+          Team Lead waits for BOTH    → npm run test + npm run build        (cross-agent contract check)
+                                        neither agent knows the other finished — Team Lead
+                                        is the synchronization point (fan-out / fan-in).
+                                        npm run build catches silent consumer breaks:
+                                        hook shape changed in api-agent, component broke
+                                        in ui-agent without either slice test failing.
 
           ── gate: all green → next relevant phase (scope routing below) ──
 
@@ -313,6 +318,8 @@ Phase 7   release-pr-agent            → finalizes release-summary.md + GitHub 
 ```
 
 Selected Phase 3 agents run in parallel when workstreams are independent — Team Lead decides. Phase 4 tests run in parallel and gate Phase 5 (frontend-only changes skip Phase 4b).
+On the split frontend path, Team Lead is the synchronization point: it waits for both agents to report done, then runs the full gate as the cross-agent contract check before advancing.
+If E2E fails, Team Lead routes by data flow (not visible symptom) and always runs npm run build after any frontend-api-agent fix before re-triggering E2E.
 Security and code review (Phase 6) run in parallel after all tests pass.
 Team Lead writes the release summary draft while Phase 6 runs — release agent only finalizes and creates the PR.
 The pipeline stops only when the PR URL is printed.
