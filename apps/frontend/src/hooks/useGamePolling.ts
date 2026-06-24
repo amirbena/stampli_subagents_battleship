@@ -8,7 +8,7 @@ interface UseGamePollingResult {
   gameState: GameStateResponse | null;
   error: string | null;
   isLoading: boolean;
-  refresh: () => void;
+  refresh: () => Promise<void>;
 }
 
 /**
@@ -47,10 +47,12 @@ export function useGamePolling(
     }
   }, [gameId, playerId]);
 
-  /** Manually trigger a fetch outside the polling interval (e.g. immediately after firing). */
-  const refresh = useCallback(() => {
-    void fetchState();
-  }, [fetchState]);
+  /**
+   * Manually trigger a fetch outside the polling interval (e.g. immediately
+   * after firing). Returns the in-flight promise so callers can await the
+   * authoritative state before clearing optimistic/pending UI.
+   */
+  const refresh = useCallback(() => fetchState(), [fetchState]);
 
   useEffect(() => {
     if (!enabled || !gameId || !playerId) return;
