@@ -47,28 +47,34 @@ User Requirement
          │
          ├───────────────────────────────────────────────────────────────────┐
          ▼                                                                 ▼
-┌─────────────────┐                                    ┌────────────────────────────────────┐
-│  Java Backend   │  Spring Boot game engine,          │  Frontend API Agent                │
-│  Agent          │  domain model, REST API,           │  api/, hooks/, types/, Vitest      │
-│                 │  repository layer + unit tests     ├────────────────────────────────────┤
-└────────┬────────┘                                    │  Frontend UI Agent                 │
-         │               (all three parallel)          │  components/, pages/, utils/, CSS  │
-         │                                             │  Vitest component tests            │
-         │                                             └─────────┬──────────────────────────┘
-         └──────────────────────────┬──────────────────────────────┘
+┌─────────────────┐                              ┌──────────────────────────────────────────┐
+│  Java Backend   │  Spring Boot game engine,    │  frontend-ui-agent (default)             │
+│  Agent          │  domain model, REST API,     │  components/, pages/, utils/, CSS        │
+│                 │  repository layer + unit tests│                                          │
+└────────┬────────┘                              │  + frontend-api-agent (when independent) │
+         │                                       │  api/, hooks/, types/                    │
+         │  (parallel; frontend split only when  │                                          │
+         │   API work AND UI work are clearly    │  Both only when workstreams don't overlap │
+         │   independent with low file overlap)  │  Team Lead pre-writes types/game.ts first│
+         │                                       └─────────┬────────────────────────────────┘
+         └──────────────────────────┬──────────────────────┘
                                │
-                               │  ── STEP 1: UNIT TESTS (parallel, cheapest) ──────────┐
+                               │  ── STEP 1: CO-LOCATED TESTS (parallel) ──────────────┐
                                ▼                                                        │
                     ┌──────────┴──────────┐                                            │
                     ▼                     ▼                                            │
        ┌────────────────────┐  ┌───────────────────────┐                              │
-       │  Java Backend Agent│  │  Frontend Agent       │                              │
-       │  JUnit5 + Mockito  │  │  Vitest + RTL         │                              │
-       │  ./mvnw test       │  │  npm run test         │                              │
+       │  Java Backend Agent│  │  Frontend Agent(s)    │                              │
+       │  JUnit5 + Mockito  │  │  vitest run own slice │                              │
+       │  ./mvnw test       │  │  api/ or components/  │                              │
        │  (if backend hit)  │  │  (if frontend hit)    │                              │
        └────────┬───────────┘  └──────────┬────────────┘                              │
                 └──────────────┬───────────┘                                          │
-                               │  ── GATE: unit tests green ───────────────────────────┘
+                               │  ── STEP 1b: TEAM LEAD FRONTEND GATE ─────────────────┤
+                               │    npm run test  (full suite, cross-boundary check)   │
+                               │    npm run build (TypeScript + Vite)                  │
+                               │    smoke.spec.ts (if user-visible behavior changed)   │
+                               │  ── GATE: all green ──────────────────────────────────┘
                                │
                                │  ── STEP 2: INTEGRATION TESTS (after unit gate) ──────┐
                                ▼                                                        │
@@ -147,7 +153,7 @@ User Requirement
 - **Java Backend Agent** owns JUnit 5 unit tests for domain and service layer — no separate backend unit test agent (same rationale as frontend).
 - **Frontend API Agent** owns Vitest unit tests for `api/`, `hooks/`, and `types/` — co-located in those directories.
 - **Frontend UI Agent** owns Vitest component tests for `components/`, `pages/`, and `utils/` — co-located. It is also the sole agent for cheap/styling-only changes.
-- Both frontend agents run in parallel. Team Lead pre-writes the `types/game.ts` contract change (always a small architecture-driven edit) before spawning them.
+- **Frontend split is conservative.** `frontend-ui-agent` is the default for any single-agent case (small, tightly-coupled, or UI-only). `frontend-api-agent` runs alone for hook/type-only changes. Both run in parallel only when the requirement has clearly independent API/data-layer work AND independent UI/render-layer work. Team Lead pre-writes `types/game.ts` before spawning both.
 - **Playwright E2E Agent** owns browser tests — never touches production code.
 
 ### Run Isolation
@@ -192,7 +198,7 @@ Team Lead picks the mode based on what changed. The mode controls whether `playw
 
 Full mode requires the E2E Infrastructure Pre-Gate to pass before the Playwright agent runs. Smoke mode bypasses the pre-gate entirely.
 
-#### Frontend Agent — Internal Smoke Gate (selective)
+#### Frontend UI Agent — Internal Smoke Gate (selective, pre-report only)
 
 The `frontend-ui-agent` runs `smoke.spec.ts` as its own pre-report verification step, but only when the change affects **user-visible behavior**: routing, page rendering, game interaction, placement flow, validation, navigation, or visible UI state.
 

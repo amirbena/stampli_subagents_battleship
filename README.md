@@ -271,15 +271,19 @@ Phase 1   product-agent (conditional) → reports/runs/<id>/product-spec.md
 
 Phase 2   architect-agent             → reports/runs/<id>/architecture.md  (only if contract changed)
 
-Phase 3   java-backend-agent   ──┐    → apps/backend/src/main/java/
-          frontend-api-agent  ──┤    → apps/frontend/src/api/, hooks/, types/  (parallel)
-          frontend-ui-agent   ──┘    → apps/frontend/src/components/, pages/, utils/, CSS  (parallel)
+Phase 3   java-backend-agent          → apps/backend/src/main/java/
+          frontend-ui-agent  ─┐       → apps/frontend/src/components/, pages/, utils/, CSS
+          frontend-api-agent ─┘       → apps/frontend/src/api/, hooks/, types/
+                                        (frontend split only when both workstreams are clearly
+                                         independent; ui-agent is the default single-agent path)
 
 Phase 4a — UNIT TESTS (parallel, cheapest first)
-          java-backend-agent          → ./mvnw test            (unit tests, if backend touched)
-          frontend-api-agent          → npm run test           (Vitest hooks/api, if touched)
-          frontend-ui-agent           → npm run test           (Vitest components, if touched)
-          ── gate: both must be green before integration tests start ──
+          java-backend-agent          → ./mvnw test                       (if backend touched)
+          frontend-ui-agent           → npx vitest run src/components …   (co-located slice only)
+          frontend-api-agent          → npx vitest run src/api src/hooks … (co-located slice only)
+          Team Lead frontend gate     → npm run test + npm run build       (full suite + typecheck)
+                                        + smoke.spec.ts when user-visible behavior changed
+          ── gate: all green before integration tests start ──
 
 Phase 4b — INTEGRATION TESTS (after unit gate, if HTTP layer changed)
           backend-integration-tests   → ./mvnw test *IntegrationTest
