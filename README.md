@@ -287,7 +287,8 @@ Phase 4a — UNIT + INTEGRATION TESTS (parallel, cheapest first)
           Single-agent frontend path (default):
           frontend-ui-agent           → npm run test + npm run build       (agent owns full gate)
                                         includes *.integration.test.tsx for cross-layer bugs
-                                        (store→React→DOM); written by the agent BEFORE the fix
+                                        (DOM symptom + per-layer tests pass = seam bug);
+                                        written by the agent BEFORE the fix
 
           Split frontend path (both agents ran in parallel):
           frontend-ui-agent           → npx vitest run src/components …    (co-located slice)
