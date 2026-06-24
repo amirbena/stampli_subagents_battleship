@@ -113,8 +113,9 @@ One command per OS brings up **only** Postgres + Redis as containers, then runs 
 1. **Preflight** — verifies Docker is installed *and the daemon is reachable*, Java 17+, and Node 18+ / npm. On any missing prerequisite it prints a clear message naming the tool and exits non-zero before starting anything.
 2. Starts **only** the `postgres` and `redis` containers (`docker compose --env-file apps/backend/.env up -d postgres redis`) and waits until both report **healthy**.
 3. Runs the backend natively via the Maven wrapper (`./mvnw spring-boot:run`) with the `postgres` Spring profile, its datasource pointed at `localhost:5432`, Redis at `localhost:6379`, and `CORS_ALLOWED_ORIGIN=http://localhost:3001`. DB creds are read from `apps/backend/.env` (falling back to the demo defaults `battleship` / `battleship` / `battleship_dev`). Game state is held in-memory (`InMemoryGameRepository` is the only repository implementation, active under every profile); the `postgres` profile simply provides the Postgres/Redis connections the backend requires at startup.
-4. Runs the frontend natively via `npm run dev` (Vite HMR) on port 3001 with `VITE_API_BASE_URL=http://localhost:8080`. Runs `npm install` first only if `node_modules` is missing.
-5. **Streams logs** from both processes to the terminal in real time (the bash script prefixes them `[backend]` / `[frontend]`).
+4. **Waits for the backend to be ready** — polls port 8080 every 3 s (up to 120 s) before starting the frontend. Spring Boot typically takes ~30 s on first run; polling avoids a hard-coded sleep and ensures the frontend never starts against an unresponsive API.
+5. Runs the frontend natively via `npm run dev` (Vite HMR) on port 3001 with `VITE_API_BASE_URL=http://localhost:8080`. Runs `npm install` first only if `node_modules` is missing.
+6. **Streams logs** from both processes to the terminal in real time (the bash script prefixes them `[backend]` / `[frontend]`).
 
 | Service | URL |
 |---------|-----|
