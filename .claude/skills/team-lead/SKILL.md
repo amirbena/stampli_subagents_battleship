@@ -832,23 +832,41 @@ Team Lead MUST spawn all assigned developer agents automatically using the `Agen
 
 #### Implementation phase (parallel where independent)
 
-The frontend is split into two parallel agents. Team Lead decides which to use based on scope:
+**Frontend split decision — required before spawning any frontend agent:**
+
+Split into `frontend-api-agent` + `frontend-ui-agent` **only when ALL of the following are true:**
+1. The requirement contains independent API/data-layer work: new or changed hook, axios logic, type contract, loading counter, polling, retry, error mapping, DTO mapping, or data-fetching behavior.
+2. The requirement also contains independent UI/render-layer work: new or changed component, page, CSS, visual state, toast/modal, board rendering, or UX behavior.
+3. The two bodies of work do not tightly couple — the UI agent's work does not depend on a runtime value or intermediate state the API agent produces (beyond the shared types Team Lead pre-writes).
+
+**Keep as a single agent when:**
+- The change is small or touches both layers tightly (e.g., a one-file component that also needs a small API tweak — splitting creates more coordination overhead than it saves).
+- Only one layer is touched — use `frontend-ui-agent` for render/CSS/copy/layout; `frontend-api-agent` for hooks/API/types.
+
+**Ownership boundaries (when split):**
+
+| Agent | Owns |
+|---|---|
+| `frontend-api-agent` | `api/`, `hooks/`, data fetching, DTO mapping, API error mapping, loading counters, retries, React async state, and types needed for API contracts |
+| `frontend-ui-agent` | `components/`, `pages/`, board rendering, visual states, CSS, UX behavior, modals/toasts, and Playwright smoke verification for visible behavior |
+
+**Routing table:**
 
 | Scope of change | Agents to spawn |
 |---|---|
-| `backend-and-frontend` or `full-stack-complex` | `java-backend-agent` + `frontend-api-agent` + `frontend-ui-agent` — all three in one parallel response |
+| Independent API work AND independent UI work | `java-backend-agent` + `frontend-api-agent` + `frontend-ui-agent` (all parallel; pre-write types first) |
+| Small or tightly-coupled across both layers | `frontend-ui-agent` only (default single-agent path) |
 | `java-backend-only` | `java-backend-agent` only |
-| `frontend-only` — data/hook/type change only | `frontend-api-agent` only |
-| `frontend-only` — rendering/CSS/copy/layout only | `frontend-ui-agent` only |
-| `frontend-only` — both data and render layers | `frontend-api-agent` + `frontend-ui-agent` in parallel |
+| `frontend-only` — data/hook/API only, no component/CSS impact | `frontend-api-agent` only |
+| `frontend-only` — render/CSS/copy/layout only, no data-layer impact | `frontend-ui-agent` only |
 
-**Coordination rule for full-stack or frontend changes that touch `types/game.ts`:**
-Before spawning either frontend agent, Team Lead writes the `types/game.ts` change directly (it is always a small, architecture-driven change). Both agents then start in parallel, with `frontend-api-agent` treating the type as already present and `frontend-ui-agent` reading it as the import source for props.
+**Shared boundary types (required when splitting):**
+`types/game.ts` is the contract boundary. Before spawning either frontend agent, Team Lead writes any required changes to `types/game.ts` directly (always a small, architecture-driven edit). Neither agent may independently modify shared boundary types unless Team Lead explicitly assigns the edit to one agent and tells the other to treat it as read-only.
 
 **Routing after fixes:**
 - Hook/API/type failure → `frontend-api-agent` self-heals.
 - Component/page/CSS failure → `frontend-ui-agent` self-heals.
-- TypeScript compile error in frontend: read the file path — route to the agent that owns it.
+- TypeScript compile error: read the failing file path — `api/hooks/types` → `frontend-api-agent`; `components/pages/utils/CSS` → `frontend-ui-agent`.
 
 #### E2E Infrastructure Pre-Gate — Required Only When E2E Mode Is Full
 

@@ -32,11 +32,13 @@ apps/frontend/src/main.tsx
 apps/frontend/src/**/*.css
 ```
 
+This covers: board rendering, visual states, CSS, UX behavior, modals/toasts, accessibility, responsive layout, and Playwright smoke verification for visible behavior.
+
 **Must NOT touch:**
 - `api/`, `hooks/`, `types/` (data layer — owned by `frontend-api-agent`)
 - Backend code, E2E specs, infra files, lockfiles
 
-**Coordination point:** `types/game.ts` is read-only for this agent — do not modify it. If a type is missing or wrong, report to Team Lead; Team Lead pre-writes type changes before this agent starts.
+**Shared boundary types:** `types/game.ts` is read-only for this agent. Do not modify it independently — Team Lead pre-writes type changes before this agent starts. If a type is missing or wrong, report it to Team Lead; do not make the change unilaterally.
 
 ## Team Lead Contract
 

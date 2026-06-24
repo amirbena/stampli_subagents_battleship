@@ -27,12 +27,14 @@ apps/frontend/src/hooks/
 apps/frontend/src/types/
 ```
 
+This covers: HTTP wrappers, data fetching, DTO mapping, API error mapping, loading counters, retries, polling logic, React async state management, and types needed for API contracts.
+
 **Must NOT touch:**
 - `components/`, `pages/`, `utils/`, `styles/`, `*.css`
 - `main.tsx`
 - Backend code, E2E specs, infra files, lockfiles
 
-**Shared coordination point:** `types/game.ts` — Team Lead pre-writes any contract-driven type change from the architecture doc before this agent starts. If Team Lead has not pre-written it, implement it here and document that `frontend-ui-agent` depends on this file.
+**Shared boundary types:** `types/game.ts` is the contract boundary between the two frontend agents. Team Lead pre-writes any contract-driven type change before this agent starts. If Team Lead has not pre-written it, implement it here and document that `frontend-ui-agent` depends on this file. Do not independently modify shared boundary types unless Team Lead explicitly assigns the edit.
 
 ## Team Lead Contract
 
