@@ -224,10 +224,10 @@ cd apps/backend
 ./mvnw test
 ```
 
-**Frontend unit tests** (Vitest + React Testing Library — no server needed)
+**Frontend unit + integration tests** (Vitest + React Testing Library — no server needed)
 ```bash
 cd apps/frontend
-npm test          # one-shot
+npm test          # one-shot — includes *.integration.test.tsx
 npm run test:watch  # interactive watch mode
 ```
 
@@ -281,11 +281,13 @@ Phase 3   ── selected agents may run in parallel when safe ─────�
           or alongside ui-agent only when workstreams are clearly independent.
           Team Lead pre-writes types/game.ts before spawning both frontend agents.
 
-Phase 4a — UNIT TESTS (parallel, cheapest first)
+Phase 4a — UNIT + INTEGRATION TESTS (parallel, cheapest first)
           java-backend-agent          → ./mvnw test                        (if backend touched)
 
           Single-agent frontend path (default):
           frontend-ui-agent           → npm run test + npm run build       (agent owns full gate)
+                                        includes *.integration.test.tsx for cross-layer bugs
+                                        (store→React→DOM); written by the agent BEFORE the fix
 
           Split frontend path (both agents ran in parallel):
           frontend-ui-agent           → npx vitest run src/components …    (co-located slice)

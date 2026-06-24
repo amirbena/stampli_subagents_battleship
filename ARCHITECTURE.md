@@ -151,7 +151,7 @@ User Requirement
 - **Architect** owns structure (domain model, API contract, folder layout) — never environment setup or implementation.
 - **Java Backend Agent** owns JUnit 5 unit tests for domain and service layer — no separate backend unit test agent (same rationale as frontend).
 - **Frontend API Agent** owns Vitest unit tests for `api/`, `hooks/`, and `types/` — co-located in those directories.
-- **Frontend UI Agent** owns Vitest component tests for `components/`, `pages/`, and `utils/` — co-located. It is also the sole agent for cheap/styling-only changes.
+- **Frontend UI Agent** owns Vitest component tests for `components/`, `pages/`, and `utils/` — co-located. It is also the sole agent for cheap/styling-only changes. When a bug crosses the store→React→DOM boundary, it must write a failing `*.integration.test.tsx` (real component + real store, no mocks) **before** touching any production code — see [TDD rule in SKILL.md](.claude/skills/frontend-ui-agent/SKILL.md).
 - **Frontend split is conservative.** `frontend-ui-agent` is the default for any single-agent case (small, tightly-coupled, or UI-only). `frontend-api-agent` runs alone for hook/type-only changes. Both run in parallel only when the requirement has clearly independent API/data-layer work AND independent UI/render-layer work. Team Lead pre-writes `types/game.ts` before spawning both.
 - **Playwright E2E Agent** owns browser tests — never touches production code.
 
@@ -208,7 +208,7 @@ This is separate from the Team Lead E2E mode decision above — it is a lightwei
 ### Quality Gates (all must pass before PR)
 - `./mvnw test` — backend unit tests
 - `npm run build` — frontend build
-- `npm run test` — frontend unit tests (Vitest)
+- `npm run test` — frontend unit tests + cross-layer integration tests (Vitest; `*.integration.test.tsx` files are included automatically)
 - `npm run test:e2e` — Playwright E2E
 - `reports/runs/<id>/security-report.md` verdict: **APPROVED**
 - `reports/runs/<id>/code-review-report.md` verdict: **APPROVED**
