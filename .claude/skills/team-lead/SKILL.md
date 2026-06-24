@@ -141,6 +141,7 @@ Reason:
 ### Tests Required
 Backend unit tests: Yes / No — scope:
 Frontend unit tests: Yes / No — scope:
+Frontend integration tests: Yes / No — scope:
 Playwright E2E: Yes / No — scope:
 ```
 
@@ -175,6 +176,7 @@ Generated At:
 | 6 | Multiplayer/sync/hidden data affected? | Yes/No | ... |
 | 7 | Demo config / dotenv affected? | Yes/No | ... |
 | 8 | Infra/CI/deployment affected beyond allowed config? | Yes/No | ... |
+| 9 | Bug crosses store→React rendering→DOM boundary? | Yes/No | If Yes, acceptance criteria must include a failing integration test before any fix attempt |
 
 ## Classification Route
 
@@ -222,6 +224,9 @@ Auth / session / user data             -> Architecture Required: Yes, Security l
 Multiplayer / sync / hidden data       -> Architecture Required: Yes
 Demo config / dotenv                   -> config-aware route
 Infra / CI / deployment beyond config  -> infra route, allowed only if explicit requirement
+Bug crosses store→React→DOM boundary   -> add acceptance criterion: failing integration test
+                                          (*.integration.test.tsx, real store, no mocks)
+                                          must exist BEFORE frontend-ui-agent touches production code
 Otherwise                              -> smallest safe route
 ```
 

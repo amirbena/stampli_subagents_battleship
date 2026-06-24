@@ -208,6 +208,23 @@ Self-heal up to 5 cycles before escalating to Team Lead. Team Lead runs `npm run
 - `GameBoard` renders 10×10 grid with correct interactive/non-interactive states.
 - `ShotResultToast` shows result text and clears.
 
+### Cross-layer bugs — TDD rule
+
+When the bug involves a chain that crosses more than one of these layers — external store, React rendering, DOM output — write a **failing integration test first**, before touching any production code.
+
+Signs you are in a cross-layer bug:
+- A component reads state via `useSyncExternalStore` (or a custom hook backed by a module-level variable)
+- The broken symptom is visible in the DOM (element missing, wrong class, wrong text) but the per-layer unit tests all pass
+- The suspected cause is a timing race between the store and React's render cycle
+
+**Required steps for cross-layer bugs:**
+1. Write a `*.integration.test.tsx` co-located with the component that renders the **real** component with the **real** store — no mocks on the store or hooks.
+2. Confirm the test fails with the current code.
+3. Only then change production code until the test passes.
+4. Keep per-layer unit tests — the integration test is additive, not a replacement.
+
+**Reference:** `GlobalLoader.integration.test.tsx` is the canonical example — it caught a timing race where `useEffect` and `useLayoutEffect` fixes both passed unit tests but the bar still never appeared in the browser, because no test combined the Axios interceptors, the store, and the rendered component in the same assertion.
+
 ### Smoke Test Gate (pre-report check — not the final gate)
 
 This is a lightweight self-check run before reporting done. It is separate from the final Playwright smoke run that Team Lead owns after the full test suite passes.
