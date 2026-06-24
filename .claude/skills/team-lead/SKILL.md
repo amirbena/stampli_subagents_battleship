@@ -822,7 +822,13 @@ Assign only agents listed in `team-lead-plan.md`. Each agent runs with:
 - Allowed scope
 - Required output
 
-Developer agents must not be activated by Product Agent, Architect Agent, or QA agents. Only Team Lead activates developer agents.
+**Only Team Lead can:**
+- Spawn any agent (developer, QA, review, or release).
+- Expand scope beyond what the current requirement specifies.
+- Advance a gate (move from unit tests → integration tests → E2E → review → PR).
+- Decide which frontend agent(s) to use.
+
+No other agent may spawn a sub-agent, unilaterally widen scope, or self-promote to the next phase.
 
 Each developer agent must produce a Proposed Change Plan before editing files.
 
@@ -831,6 +837,16 @@ Each developer agent must produce a Proposed Change Plan before editing files.
 Team Lead MUST spawn all assigned developer agents automatically using the `Agent` tool — do NOT stop and wait for human input between agent launches.
 
 #### Implementation phase (parallel where independent)
+
+**Conservative frontend defaults — read before spawning any frontend agent:**
+
+| Rule | Detail |
+|---|---|
+| `frontend-ui-agent` is the default | Use it for any small, tightly-coupled, UI-only, or cross-layer change. Never split by default. |
+| `frontend-api-agent` is optional | Use it alone for hook/API/type-only changes, or in parallel when data-layer work is clearly independent of UI work. |
+| No `frontend-unit-test-agent` | Unit tests belong to the implementing agent (co-located slice). |
+| Full frontend gate belongs to Team Lead | Team Lead runs `npm run test` + `npm run build` once after all frontend agents finish. Agents do not run the full suite. |
+| Only Team Lead spawns | No agent may spawn another agent or advance a gate without Team Lead instruction. |
 
 **Frontend split decision — required before spawning any frontend agent:**
 
@@ -946,24 +962,34 @@ cd apps/frontend && npx playwright test smoke.spec.ts
 
 This is the authoritative frontend green status. Neither frontend agent individually owns it.
 
-**Step 2 — Gate: all of Step 1 + Step 1b must be green before integration tests start.**
+**Step 2 — Gate: Step 1 + Step 1b must be green before advancing to the next relevant phase.**
 
-If any test fails, route the fix to the owning agent (by file path: `api/hooks/types` → `frontend-api-agent`; `components/pages/utils/CSS` → `frontend-ui-agent`). Do not spawn `backend-integration-tests-agent` until all unit tests and the frontend gate pass.
+The next phase depends on the scope of the change — use this table to determine what comes after the gate:
 
-**Step 3 — Integration tests (after unit tests are green):**
+| Scope | Next phase after gate |
+|---|---|
+| Backend only, HTTP layer changed | Step 3 — Integration tests |
+| Backend only, HTTP layer unchanged | Step 5 — E2E (if mode ≠ None), else Review |
+| Frontend only, E2E mode Full or Smoke | Step 5 — E2E (skip Steps 3–4) |
+| Frontend only, E2E mode None | Review / PR (skip Steps 3–5) |
+| Backend + frontend, HTTP layer changed | Step 3 — Integration tests |
+| Backend + frontend, HTTP layer unchanged | Step 5 — E2E (if mode ≠ None), else Review |
 
-Spawn `backend-integration-tests-agent` only if any of the five HTTP-layer triggers are true (see above). This runs after Step 2 is fully green.
+If any test fails, route the fix to the owning agent (by file path: `api/hooks/types` → `frontend-api-agent`; `components/pages/utils/CSS` → `frontend-ui-agent`). Do not advance the gate until all tests pass.
+
+**Step 3 — Integration tests (when HTTP layer changed):**
+
+Spawn `backend-integration-tests-agent` only if any of the five HTTP-layer triggers are true (see above). Skip entirely for frontend-only changes.
 
 **Step 4 — Gate: integration tests must be green before E2E starts.**
 
 **Step 5 — Spawn `playwright-e2e-agent` (if E2E mode is not None):**
 
-Only after Steps 1–3 are all green:
 - E2E mode **Full** → spawn with backend webServer, run all specs
 - E2E mode **Smoke** → spawn with smoke-only instruction, no backend needed
-- E2E mode **None** → skip, do not spawn
+- E2E mode **None** → skip entirely; proceed directly to Review
 
-This order minimises cost: unit tests catch obvious breaks cheaply, integration tests catch HTTP-layer issues before the expensive E2E run.
+This order minimises cost: unit tests catch obvious breaks cheaply, integration tests catch HTTP-layer issues before the expensive E2E run. Frontend-only changes skip Steps 3–4 entirely.
 
 All unit test _scenarios_ within a single agent run must also be parallelized — see java-backend-agent for JUnit 5 parallel config.
 
