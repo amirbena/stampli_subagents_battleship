@@ -13,6 +13,14 @@
   margin-bottom: 1rem;
 }
 
+/* Pending-shot and turn-transition feedback sit centered between the header and boards. */
+.game-page > .firing-indicator,
+.game-page > .your-turn-toast {
+  display: flex;
+  margin: 0 auto 0.75rem;
+  width: fit-content;
+}
+
 .game-layout {
   display: flex;
   flex-direction: column;

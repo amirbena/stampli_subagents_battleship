@@ -123,4 +123,4 @@ export const ALL_SHIP_TYPES: ShipType[] = [
   'DESTROYER',
 ];
 
-export type CellState = 'empty' | 'ship' | 'hit' | 'miss' | 'sunk' | 'preview' | 'preview-invalid';
+export type CellState = 'empty' | 'ship' | 'hit' | 'miss' | 'sunk' | 'preview' | 'preview-invalid' | 'pending';
