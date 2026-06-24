@@ -173,13 +173,28 @@ Never place a `.tsx` file directly in a folder that contains other component fol
 
 ## Tests — Owned By This Agent
 
-Co-located under `components/`, `pages/`, `utils/`. Run only the co-located tests for the files you changed — do NOT run the full suite:
+Co-located under `components/`, `pages/`, `utils/`.
+
+**Single-agent path** (Team Lead spawned only this agent — no `frontend-api-agent` running in parallel):
+
+Run the full frontend gate before reporting done:
+
+```bash
+cd apps/frontend && npm run test    # full Vitest suite
+cd apps/frontend && npm run build   # TypeScript + Vite
+```
+
+Self-heal up to 5 cycles before escalating to Team Lead. This agent owns the gate end-to-end.
+
+**Split path** (Team Lead spawned both frontend agents in parallel):
+
+Run only the co-located slice — do NOT run the full suite (race condition with the other agent):
 
 ```bash
 cd apps/frontend && npx vitest run src/components src/pages src/utils
 ```
 
-Self-heal up to 5 cycles before escalating to Team Lead. The full `npm run test` suite, typecheck, and build are Team Lead's gate after all frontend agents finish — not this agent's responsibility.
+Self-heal up to 5 cycles before escalating to Team Lead. Team Lead runs `npm run test` + `npm run build` once after both agents finish.
 
 ### Required scenarios (maintain or extend)
 

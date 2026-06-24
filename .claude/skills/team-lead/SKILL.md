@@ -844,8 +844,9 @@ Team Lead MUST spawn all assigned developer agents automatically using the `Agen
 |---|---|
 | `frontend-ui-agent` is the default | Use it for any small, tightly-coupled, UI-only, or cross-layer change. Never split by default. |
 | `frontend-api-agent` is optional | Use it alone for hook/API/type-only changes, or in parallel when data-layer work is clearly independent of UI work. |
-| No `frontend-unit-test-agent` | Unit tests belong to the implementing agent (co-located slice). |
-| Full frontend gate belongs to Team Lead | Team Lead runs `npm run test` + `npm run build` once after all frontend agents finish. Agents do not run the full suite. |
+| No `frontend-unit-test-agent` | Unit tests belong to the implementing agent. |
+| Single-agent: agent owns full gate | `npm run test` + `npm run build` run by the agent before reporting done. |
+| Split path: Team Lead owns full gate | Each agent runs its co-located slice; Team Lead runs `npm run test` + `npm run build` once after both finish to catch cross-boundary regressions. |
 | Only Team Lead spawns | No agent may spawn another agent or advance a gate without Team Lead instruction. |
 
 **Frontend split decision — required before spawning any frontend agent:**
@@ -937,32 +938,29 @@ Typical skip cases: service/domain logic change only, frontend-only change, refa
 
 #### Test phase — Sequential by cost, cheapest first
 
-**Step 1 — Co-located unit tests in parallel (cheapest, fastest):**
+**Step 1 — Unit tests (cheapest, fastest):**
 
-Spawn simultaneously:
-- `java-backend-agent` (unit test run: `./mvnw test`) — if backend was touched
-- `frontend-api-agent` (co-located test run: `npx vitest run src/api src/hooks src/types`) — if api/hooks/types were touched
-- `frontend-ui-agent` (co-located test run: `npx vitest run src/components src/pages src/utils`) — if components/pages/utils were touched
+**Single-agent frontend path:** The agent runs `npm run test` + `npm run build` as part of its own work and reports the result. No separate Team Lead gate needed — the agent owns the full frontend gate.
 
-Each frontend agent runs only the tests for the files it changed — not the full suite. If only one frontend agent was used in the implementation phase, only that agent runs tests here.
+**Split frontend path:** Spawn co-located test runs simultaneously:
+- `java-backend-agent` (`./mvnw test`) — if backend was touched
+- `frontend-api-agent` (`npx vitest run src/api src/hooks src/types`) — if api/hooks/types were touched
+- `frontend-ui-agent` (`npx vitest run src/components src/pages src/utils`) — if components/pages/utils were touched
 
-**Step 1b — Frontend Test Gate (Team Lead runs, after all frontend agents report done):**
+**Step 1b — Frontend Test Gate (Team Lead runs — split path only):**
 
-If any frontend code was touched, Team Lead runs the full frontend suite once before proceeding:
+Only when **both** `frontend-api-agent` and `frontend-ui-agent` were spawned in parallel. After both report their co-located slice green, Team Lead runs the full gate once to catch cross-boundary regressions:
 
 ```bash
-cd apps/frontend && npm run test          # full Vitest suite (catches cross-boundary regressions)
-cd apps/frontend && npm run build         # TypeScript compile + Vite build
+cd apps/frontend && npm run test    # full Vitest suite
+cd apps/frontend && npm run build   # TypeScript compile + Vite build
 ```
 
-If the change affects user-visible behavior and E2E mode is Smoke or Full, also run:
-```bash
-cd apps/frontend && npx playwright test smoke.spec.ts
-```
+**Skip Step 1b entirely** when only one frontend agent ran — the agent already owns the full gate.
 
-This is the authoritative frontend green status. Neither frontend agent individually owns it.
+Playwright smoke/full is separate and runs later under E2E routing rules (Step 5) — not here.
 
-**Step 2 — Gate: Step 1 + Step 1b must be green before advancing to the next relevant phase.**
+**Step 2 — Gate: Step 1 (and Step 1b if split path) must be green before advancing to the next relevant phase.**
 
 The next phase depends on the scope of the change — use this table to determine what comes after the gate:
 
@@ -1138,7 +1136,8 @@ When any agent in the parallel test phase reports a failure, Team Lead is the so
 | Vitest / RTL test fails (hook, API, type logic) | `frontend-api-agent` **self-heals** — no Team Lead hop | Fix hook/API; re-run `npx vitest run src/api src/hooks src/types` |
 | Vitest / RTL test fails (component, page, render) | `frontend-ui-agent` **self-heals** — no Team Lead hop | Fix component; re-run `npx vitest run src/components src/pages src/utils` |
 | Vitest test itself wrong (bad assertion/mock) | owning frontend agent **self-heals** — no Team Lead hop | Fix test; re-run co-located tests only |
-| Frontend Test Gate fails after agents finish | Team Lead diagnoses by file path, routes to owning agent | After fix, Team Lead re-runs full gate (`npm run test` + `npm run build`) |
+| Frontend full gate fails (single-agent path) | Owning frontend agent **self-heals** | Fix code; re-run `npm run test` + `npm run build` |
+| Frontend Test Gate fails (split path, TL-run) | Team Lead diagnoses by file path, routes to owning agent | After fix, Team Lead re-runs `npm run test` + `npm run build` |
 | TypeScript compile error in frontend | read file path → route to owner (`api/hooks/types` → `frontend-api-agent`; `components/pages/utils` → `frontend-ui-agent`) **self-heals** | Fix type error; re-run `npm run build` |
 | Playwright test fails — backend returns unexpected response | `java-backend-agent` | Fix the backend; re-run `npm run test:e2e` |
 | Playwright test fails — UI behaves incorrectly | `frontend-ui-agent` | Fix the component; re-run `npm run test:e2e` |
