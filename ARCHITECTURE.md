@@ -31,13 +31,20 @@ User Requirement
          │  (4) visual fix with screenshot evidence — Visual Analysis
          │  present with concrete defects + expected behavior + inferred
          │  criteria, UI-only, no UX ambiguity, no backend/API change →
-         │  writes 10-line inline checklist, skips Product Agent entirely.
-         │  Otherwise:
+         │  fast-path applies. Before skipping Product, Team Lead runs
+         │  UX Interaction Risk Check: does the requirement involve a
+         │  user action whose result must feel immediate (shot feedback,
+         │  placement, turn transition, loading, stale state, optimistic
+         │  UI)? If YES → Product Agent runs in Light Mode (UX
+         │  clarification only, no routing, returns control to Team Lead).
+         │  If NO → Product Agent skipped entirely.
+         │  Otherwise: full Product Agent run.
          │    ↓
 ┌─────────────────┐
-│  Product Agent  │  Converts requirement into acceptance criteria,
-│  (conditional)  │  writes run-scoped product-spec.md
-│                 │  SKIPPED on fast-path (~1.5 min saved)
+│  Product Agent  │  Full: acceptance criteria, user flows, edge cases.
+│  (conditional)  │  Light: UX-only clarification — what feels instant,
+│                 │  what shows loading, scope risks. Returns to Team Lead.
+│                 │  SKIPPED: fast-path + no UX interaction risk.
 └────────┬────────┘
          │
          ▼
@@ -140,7 +147,7 @@ User Requirement
 
 | Agent | Model | Owns | Skill |
 |-------|-------|------|-------|
-| **Requirement Intake** | sonnet-4-6 | `reports/runs/<id>/requirements.md`, branch setup | `.claude/skills/requirement` |
+| **Requirement Intake** | opus-4-8 | `reports/runs/<id>/requirements.md`, branch setup, workflow lock, image analysis | `.claude/skills/requirement` |
 | **Product Agent** | sonnet-4-6 | `reports/runs/<id>/product-spec.md`, acceptance criteria | `.claude/skills/product-agent` |
 | **Team Lead** | opus-4-8 | Orchestration, plan, branch decisions, quality gates | `.claude/skills/team-lead` |
 | **Architect Agent** | opus-4-8 | `reports/runs/<id>/architecture.md`, API contract, domain model | `.claude/skills/architect-agent` |
@@ -160,6 +167,7 @@ User Requirement
 
 ### Separation of Concerns
 - **Team Lead** owns all decisions — branch, scope, agent routing, quality gates. No other agent makes decisions.
+- **Product Agent** runs in three modes: Full (new feature, API change), Light (UX interaction risk on fast-path — clarifies what must feel instant, what shows loading, scope risks; returns control to Team Lead), or Skipped (fast-path + no UX risk). Team Lead selects the mode; Product Agent never selects its own mode or advances the pipeline.
 - **Architect** owns structure (domain model, API contract, folder layout) — never environment setup or implementation.
 - **Java Backend Agent** owns JUnit 5 unit tests for domain and service layer — no separate backend unit test agent (same rationale as frontend).
 - **Frontend API Agent** owns Vitest unit tests for `api/`, `hooks/`, and `types/` — co-located in those directories.
