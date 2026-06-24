@@ -1394,12 +1394,64 @@ Write `reports/runs/<workflow-run-id>/demo-config-check.md` when config changes 
 Choose the cheapest sufficient level. Do not run all tests by default. Run only commands that exist.
 
 ```
-Level 0: smoke test (frontend-only, no backend, always required for any frontend change)
-Level 1: typecheck, lint, relevant unit tests
-Level 2: integration tests
-Level 3: targeted E2E
-Level 4: full E2E/regression
+Level 0:   smoke test — real browser, mocked backend, sanity check for any UI-visible change
+Level 0.5: targeted UI validation — real browser, mocked backend, layout/alignment assertions
+Level 1:   unit tests — Vitest/jsdom, isolated component/hook/util, cheapest
+Level 2:   frontend integration tests — Vitest/jsdom, real frontend layers, mocked network boundary
+Level 3:   backend integration tests — SpringBootTest/MockMvc, HTTP layer
+Level 4:   full E2E — real browser + real backend, only when Team Lead explicitly routes it
 ```
+
+---
+
+### Frontend Test Type Definitions
+
+These definitions are binding for routing decisions. Use them to decide which test type to require.
+
+**Frontend unit tests** — Vitest/jsdom, one isolated frontend unit.
+- Component unit test: renders with controlled props or mocked dependencies, asserts DOM output/behavior. Use for: conditional rendering, button visibility, disabled/enabled state, empty/loading/error state, modal/toast visibility, text and labels, CSS class/state-class application, board cell rendering, layout DOM structure, responsive structural expectations jsdom can validate.
+- Hook unit test: uses `renderHook`, asserts returned data shape, loading/error/success transitions, API response mapping. Owned by `frontend-api-agent`.
+- Utility unit test: pure functions — board cell mapping, coordinate helpers, formatters.
+
+Unit tests **can and should** catch simple UI regressions: missing button, wrong text, wrong CSS class, missing section, wrong conditional state. For screenshot-like bugs caused by component structure, props, state, or CSS class logic — require unit tests first before escalating.
+
+**Frontend integration tests** — Vitest/jsdom, multiple real frontend layers together, network boundary mocked.
+- Includes: real rendered component, real hook, real store/context, real Axios interceptors, real frontend side effects.
+- Mocks only: HTTP/network/server boundary (Axios adapter, `fetch` mock).
+- Does not use: real browser, real backend, real auth provider.
+- Use when: per-layer unit tests pass but runtime behavior can still fail due to timing/ordering, provider wiring, shared state, or async side-effect interaction.
+- **Do not use** for simple CSS/layout fixes where a unit test plus Playwright smoke is sufficient.
+
+**Playwright UI smoke** — real browser, mocked backend/auth/session, no real backend.
+- Use for: CSS/layout changes, responsive/mobile fixes, page rendering at real viewport sizes, authenticated screen rendering with mocked session, visible element checks (board, fleet, button) at desktop and mobile viewports.
+- Catches what jsdom cannot: actual CSS rendering, flexbox/grid layout, overflow, responsive breakpoints.
+- Does **not** replace unit tests or integration tests. Catches a different class of risk.
+
+**Full E2E** — real browser + real backend on port 8081.
+- Only when Team Lead explicitly routes it: API contract change, new game mode, state machine transition, or multiplayer flow requiring backend coordination.
+- Never triggered by frontend agents themselves.
+
+---
+
+### Simple UI / CSS / Layout Change Routing
+
+When a requirement is purely visual — layout fix, alignment, responsive tweak, copy change, color change, CSS class fix, missing section in a page — route as follows:
+
+- Agent: `frontend-ui-agent` only. Do not spawn `frontend-api-agent`, backend agent, or architect.
+- Tests: component/unit tests for DOM structure and CSS class assertions where possible. Then `npm run test` + `npm run build`.
+- Smoke: Playwright UI smoke with mocked backend if visible browser behavior changed.
+- Integration tests: only if the root cause turns out to be a real frontend seam/timing/wiring issue — not by default for visual bugs.
+- Full E2E: only if Team Lead discovers an actual API or backend contract issue during the fix cycle.
+
+For screenshot-like layout bugs (placement screen misaligned, mobile layout broken, button/section missing):
+1. `frontend-ui-agent` fixes component/CSS.
+2. Adds/updates unit tests for structural DOM expectations (section present, CSS class applied, element visible).
+3. Runs `npm run test` + `npm run build`.
+4. Runs Playwright UI smoke with mocked data/auth at relevant desktop and mobile viewports.
+5. Does **not** write a frontend integration test unless the root cause is a seam/timing/wiring issue between component and hook/store/interceptors.
+6. Reports done to Team Lead. Does not advance to review or PR directly.
+
+---
 
 ### Smoke Test Gate (Level 0) — Sanity Check For Any UI-Visible Change
 
