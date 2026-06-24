@@ -213,11 +213,19 @@ Self-heal up to 5 cycles before escalating to Team Lead. Team Lead runs `npm run
 This agent decides when an integration test is needed — not Team Lead. Team Lead only sees a high-level requirement description; this agent reads the actual code and can recognize the pattern.
 
 **Self-diagnose a cross-layer bug when ALL of these are true:**
-- A component reads state from an external store (`useSyncExternalStore` or a module-level variable via a custom hook)
 - The broken symptom is visible in the DOM (element missing, wrong class, wrong text)
-- Per-layer unit tests all pass — the component test passes, the store test passes, but the feature is still broken
+- Per-layer unit tests all pass — each layer works in isolation, but the feature is still broken
 
 The general form: **Layer A works. Layer B works. A → B breaks.** That seam is what the integration test covers.
+
+Common cases in this frontend:
+
+| Layer A | Layer B | What breaks at the seam |
+|---|---|---|
+| External store (`useSyncExternalStore`, module-level variable) | React component | Component never shows/hides despite store being correct |
+| API hook | UI component | Component renders stale/wrong data even though hook returns correct value |
+| Router / navigation state | Page component | Page renders wrong content despite route being correct |
+| Form validation logic | Error display component | Validation state is correct, error never appears in DOM |
 
 **Required steps — in this order:**
 1. Write a `*.integration.test.tsx` co-located with the component that renders the **real** component with the **real** store — no mocks on the store or hooks.
