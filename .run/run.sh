@@ -145,6 +145,23 @@ echo "==> Starting backend natively (Spring Boot, postgres profile) on :8080/api
 ) > >(sed -u 's/^/[backend]  /') 2>&1 &
 BACKEND_PID=$!
 
+# Wait until backend is accepting connections before starting the frontend.
+# Spring Boot takes ~30s; polling port 8080 is more reliable than a fixed sleep.
+wait_for_backend() {
+  local timeout=120 elapsed=0
+  echo "==> Waiting for backend on :8080 (Spring Boot typically takes ~30s)..."
+  while [ "$elapsed" -lt "$timeout" ]; do
+    if curl -s --connect-timeout 1 -o /dev/null http://localhost:8080 2>/dev/null; then
+      echo "    backend is ready."
+      return 0
+    fi
+    sleep 3
+    elapsed=$((elapsed + 3))
+  done
+  echo "    WARN: backend did not respond within ${timeout}s — starting frontend anyway."
+}
+wait_for_backend
+
 # 4. Frontend — native Vite dev server, pointing at native backend
 echo "==> Starting frontend natively (Vite dev) on :3001"
 # Same pattern: process substitution keeps `sed` out of the job's group, and

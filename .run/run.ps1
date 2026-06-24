@@ -133,6 +133,25 @@ try {
         -WorkingDirectory (Join-Path $ScriptDir 'apps/backend') `
         -NoNewWindow -PassThru
 
+    # Wait until backend is accepting connections before starting the frontend.
+    # Spring Boot takes ~30s; polling port 8080 is more reliable than a fixed sleep.
+    Write-Host "==> Waiting for backend on :8080 (Spring Boot typically takes ~30s)..."
+    $backendReady = $false
+    for ($i = 0; $i -lt 40; $i++) {
+        try {
+            $sock = New-Object Net.Sockets.TcpClient
+            $sock.Connect('localhost', 8080)
+            $sock.Close()
+            Write-Host "    backend is ready."
+            $backendReady = $true
+            break
+        } catch {}
+        Start-Sleep -Seconds 3
+    }
+    if (-not $backendReady) {
+        Write-Host "    WARN: backend did not respond within 120s — starting frontend anyway."
+    }
+
     # 4. Frontend — native Vite dev server, pointing at native backend
     Write-Host "==> Starting frontend natively (Vite dev) on :3001"
     $frontendDir = Join-Path $ScriptDir 'apps/frontend'
