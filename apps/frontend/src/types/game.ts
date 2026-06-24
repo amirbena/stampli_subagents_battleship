@@ -23,6 +23,10 @@ export interface ShipDto {
 export interface BoardStateDto {
   ships: ShipDto[];
   missedShots: Coordinate[];
+  // Requester's own non-sunk HIT cells on the opponent board (green markers).
+  // Sourced from authoritative shot history — never from un-hit ship cells.
+  // Always present (empty array when none) so callers can iterate safely.
+  hits: Coordinate[];
 }
 
 export interface ComputerShotDto {

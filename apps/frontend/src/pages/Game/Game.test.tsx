@@ -32,8 +32,8 @@ function baseState(overrides: Partial<GameStateResponse> = {}): GameStateRespons
     status: 'IN_PROGRESS',
     currentTurnPlayerId: 'me',
     winnerId: null,
-    myBoard: { ships: [], missedShots: [] },
-    opponentBoard: { ships: [], missedShots: [] },
+    myBoard: { ships: [], missedShots: [], hits: [] },
+    opponentBoard: { ships: [], missedShots: [], hits: [] },
     myReady: true,
     opponentReady: true,
     gameMode: 'HUMAN',
@@ -121,7 +121,7 @@ describe('Game — shot responsiveness', () => {
   });
 
   it('does not fire or play sound on an already-missed cell (AC15)', async () => {
-    mockGameState = baseState({ opponentBoard: { ships: [], missedShots: [{ row: 0, col: 0 }] } });
+    mockGameState = baseState({ opponentBoard: { ships: [], missedShots: [{ row: 0, col: 0 }], hits: [] } });
     const user = userEvent.setup();
 
     renderGame();

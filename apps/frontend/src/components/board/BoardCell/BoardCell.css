@@ -9,10 +9,13 @@
 
 .board-cell--empty { background: var(--color-surface); }
 .board-cell--ship { background: #2d5a8e; }
-.board-cell--hit { background: var(--color-danger); }
-.board-cell--miss { background: #2a3f5f; }
-.board-cell--miss::after { content: '●'; display:flex; align-items:center; justify-content:center; height:100%; font-size:0.6rem; color:#4a5f7f; }
-.board-cell--sunk { background: #7b1d3a; }
+/* Intentional color scheme (product R1): HIT = GREEN, MISS = RED.
+   This deliberately inverts the usual Battleship convention — do not "correct" it. */
+.board-cell--hit { background: #1f9d55; }
+.board-cell--miss { background: #d64545; }
+.board-cell--miss::after { content: '●'; display:flex; align-items:center; justify-content:center; height:100%; font-size:0.6rem; color:#7a1f1f; }
+/* SUNK must stay visually distinct from a plain HIT — darker, desaturated green. */
+.board-cell--sunk { background: #0c4a2c; }
 .board-cell--preview { background: rgba(0, 180, 216, 0.4); border-color: var(--color-primary); }
 .board-cell--preview-invalid { background: rgba(239, 71, 111, 0.4); border-color: var(--color-danger); }
 

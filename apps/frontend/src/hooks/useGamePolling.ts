@@ -36,10 +36,13 @@ export function useGamePolling(
   // Use a ref so the cleanup function always cancels the correct interval
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchState = useCallback(async () => {
+  // `silent` excludes the call from the global HTTP loader. Background polls pass
+  // silent=true (no flicker every 2s); the initial load and manual refresh() pass
+  // silent=false so the user sees the loader for those user-relevant fetches (D1).
+  const fetchState = useCallback(async (silent: boolean) => {
     if (!gameId || !playerId) return;
     try {
-      const state = await getGameState(gameId, playerId);
+      const state = await getGameState(gameId, playerId, silent);
       setGameState(state);
       setError(null);
     } catch (e) {
@@ -52,17 +55,19 @@ export function useGamePolling(
    * after firing). Returns the in-flight promise so callers can await the
    * authoritative state before clearing optimistic/pending UI.
    */
-  const refresh = useCallback(() => fetchState(), [fetchState]);
+  const refresh = useCallback(() => fetchState(false), [fetchState]);
 
   useEffect(() => {
     if (!enabled || !gameId || !playerId) return;
 
-    // Fetch immediately on mount so the UI isn't blank for the first 2 seconds
+    // Fetch immediately on mount so the UI isn't blank for the first 2 seconds.
+    // Initial load is NOT silent — the user should see the global loader for it.
     setIsLoading(true);
-    fetchState().finally(() => setIsLoading(false));
+    fetchState(false).finally(() => setIsLoading(false));
 
+    // Background poll IS silent — excluded from the global loader to avoid 2s flicker.
     intervalRef.current = setInterval(() => {
-      void fetchState();
+      void fetchState(true);
     }, POLL_INTERVAL_MS);
 
     return () => {

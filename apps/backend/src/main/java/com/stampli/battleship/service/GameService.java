@@ -446,7 +446,8 @@ public class GameService {
                 .map(c -> new CellStateDto(c.getRow(), c.getCol()))
                 .collect(Collectors.toList());
 
-        return new BoardStateDto(shipDtos, missedShots);
+        // Own-board hits are already conveyed via ships[].hits; the flat hits array is unused here.
+        return new BoardStateDto(shipDtos, missedShots, new ArrayList<>());
     }
 
     /**
@@ -458,7 +459,7 @@ public class GameService {
      */
     private BoardStateDto buildOpponentBoardDto(Player opponent, Game game, String requestingPlayerId) {
         if (opponent == null) {
-            return new BoardStateDto(new ArrayList<>(), new ArrayList<>());
+            return new BoardStateDto(new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
         }
 
         Board opponentBoard = opponent.getBoard();
@@ -485,7 +486,17 @@ public class GameService {
                 .map(s -> new CellStateDto(s.getCoordinate().getRow(), s.getCoordinate().getCol()))
                 .collect(Collectors.toList());
 
-        return new BoardStateDto(sunkShips, myMissedShots);
+        // SECURITY: only the requesting player's own HIT shots, sourced from authoritative
+        // shot history — never from ship cell lists. A non-sunk ship's un-fired cells are not
+        // in shot history, so they can never leak. Sinking shots are stored as SUNK (not HIT),
+        // so those cells arrive via sunkShips instead and are excluded from this list.
+        List<CellStateDto> myHitShots = game.getShotHistory().stream()
+                .filter(s -> s.getPlayerId().equals(requestingPlayerId))
+                .filter(s -> s.getResult() == ShotResult.HIT)
+                .map(s -> new CellStateDto(s.getCoordinate().getRow(), s.getCoordinate().getCol()))
+                .collect(Collectors.toList());
+
+        return new BoardStateDto(sunkShips, myMissedShots, myHitShots);
     }
 
     /** Generates a 6-character alphanumeric room code (e.g. "A3K9XZ"). */

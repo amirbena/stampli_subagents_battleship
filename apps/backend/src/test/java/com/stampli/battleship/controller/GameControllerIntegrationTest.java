@@ -62,6 +62,43 @@ class GameControllerIntegrationTest {
     }
 
     // ─────────────────────────────────────────────
+    // Helper — set up a started HUMAN-vs-HUMAN game with both fleets placed.
+    // Both players use identical, deterministic placement (ships in rows 0–4),
+    // so opponent ship cells are known and HIT/MISS targets are predictable.
+    // playerA always takes the first turn once the game starts.
+    // ─────────────────────────────────────────────
+    private record HumanGame(String gameId, String playerA, String playerB) {}
+
+    private HumanGame startHumanGame() throws Exception {
+        MvcResult create = mockMvc.perform(post("/games").param("mode", "HUMAN"))
+            .andExpect(status().isCreated()).andReturn();
+        String gameId = field(create, "gameId");
+        String playerA = field(create, "playerId");
+
+        MvcResult join = mockMvc.perform(post("/games/{gameId}/join", gameId))
+            .andExpect(status().isOk()).andReturn();
+        String playerB = field(join, "playerId");
+
+        placeAllShips(gameId, playerA);
+        placeAllShips(gameId, playerB);
+
+        mockMvc.perform(post("/games/{gameId}/players/{playerId}/ready", gameId, playerA))
+            .andExpect(status().isOk());
+        mockMvc.perform(post("/games/{gameId}/players/{playerId}/ready", gameId, playerB))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("IN_PROGRESS"));
+
+        return new HumanGame(gameId, playerA, playerB);
+    }
+
+    private void fire(String gameId, String playerId, int row, int col) throws Exception {
+        mockMvc.perform(post("/games/{gameId}/players/{playerId}/fire", gameId, playerId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"row\":%d,\"col\":%d}".formatted(row, col)))
+            .andExpect(status().isOk());
+    }
+
+    // ─────────────────────────────────────────────
     // POST /games — Create Game
     // ─────────────────────────────────────────────
     @Nested
@@ -270,6 +307,100 @@ class GameControllerIntegrationTest {
             mockMvc.perform(get("/games/NOPE00/state").param("playerId", "pid"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error").isNotEmpty());
+        }
+    }
+
+    // ─────────────────────────────────────────────
+    // GET /state — opponentBoard.hits contract (non-sunk hit reveal)
+    //
+    // Fleet layout (both players, deterministic): all ships rows 0–4, horizontal.
+    //   CARRIER (size 5) occupies (0,0),(0,1),(0,2),(0,3),(0,4)
+    // A single hit on (0,0) damages but does NOT sink the CARRIER.
+    // ─────────────────────────────────────────────
+    @Nested
+    @DisplayName("GET /state — opponentBoard.hits")
+    class OpponentBoardHits {
+
+        @Test
+        @DisplayName("AC-7: a non-sinking HIT appears in opponentBoard.hits with exactly that coordinate")
+        void nonSunkHitAppearsInHits() throws Exception {
+            HumanGame g = startHumanGame();
+
+            // playerA fires (0,0) — hits CARRIER but does not sink it
+            fire(g.gameId(), g.playerA(), 0, 0);
+
+            mockMvc.perform(get("/games/{gameId}/state", g.gameId())
+                    .param("playerId", g.playerA()))
+                .andExpect(status().isOk())
+                // exactly one hit, and it is (0,0)
+                .andExpect(jsonPath("$.opponentBoard.hits", org.hamcrest.Matchers.hasSize(1)))
+                .andExpect(jsonPath("$.opponentBoard.hits[0].row").value(0))
+                .andExpect(jsonPath("$.opponentBoard.hits[0].col").value(0));
+        }
+
+        @Test
+        @DisplayName("AC-11 SECURITY: un-hit cells of the not-yet-sunk ship are absent from hits AND ships")
+        void unHitShipCellsNotLeaked() throws Exception {
+            HumanGame g = startHumanGame();
+
+            // hit only (0,0) of the 5-cell CARRIER → cells (0,1)..(0,4) remain un-hit & hidden
+            fire(g.gameId(), g.playerA(), 0, 0);
+
+            MvcResult state = mockMvc.perform(get("/games/{gameId}/state", g.gameId())
+                    .param("playerId", g.playerA()))
+                .andExpect(status().isOk())
+                // ship is not sunk, so no ships are exposed on the opponent board at all
+                .andExpect(jsonPath("$.opponentBoard.ships", org.hamcrest.Matchers.hasSize(0)))
+                .andReturn();
+
+            // No un-hit CARRIER cell (0,1)..(0,4) may appear anywhere in opponentBoard JSON.
+            // hits holds exactly [(0,0)]; the only "0" coordinate present must be col 0.
+            String opponentJson =
+                objectMapper.readTree(state.getResponse().getContentAsString())
+                    .get("opponentBoard").toString();
+            for (int col = 1; col <= 4; col++) {
+                String leaked = "{\"row\":0,\"col\":" + col + "}";
+                org.junit.jupiter.api.Assertions.assertFalse(
+                    opponentJson.contains(leaked),
+                    "un-hit ship cell " + leaked + " leaked in opponentBoard: " + opponentJson);
+            }
+        }
+
+        @Test
+        @DisplayName("AC-7: a MISS appears in missedShots and NOT in hits")
+        void missGoesToMissedShotsNotHits() throws Exception {
+            HumanGame g = startHumanGame();
+
+            // A hits (0,0) → turn to B; B misses to return turn to A; A misses (9,9)
+            fire(g.gameId(), g.playerA(), 0, 0);
+            fire(g.gameId(), g.playerB(), 9, 0); // empty cell → MISS, turn returns to A
+            fire(g.gameId(), g.playerA(), 9, 9); // empty cell → MISS
+
+            mockMvc.perform(get("/games/{gameId}/state", g.gameId())
+                    .param("playerId", g.playerA()))
+                .andExpect(status().isOk())
+                // the miss is recorded in missedShots
+                .andExpect(jsonPath("$.opponentBoard.missedShots", org.hamcrest.Matchers.hasSize(1)))
+                .andExpect(jsonPath("$.opponentBoard.missedShots[0].row").value(9))
+                .andExpect(jsonPath("$.opponentBoard.missedShots[0].col").value(9))
+                // hits still holds only the earlier (0,0) HIT — the miss is NOT here
+                .andExpect(jsonPath("$.opponentBoard.hits", org.hamcrest.Matchers.hasSize(1)))
+                .andExpect(jsonPath("$.opponentBoard.hits[0].row").value(0))
+                .andExpect(jsonPath("$.opponentBoard.hits[0].col").value(0));
+        }
+
+        @Test
+        @DisplayName("myBoard.hits is an empty array (own-board hits flow via ships[].hits)")
+        void myBoardHitsIsEmpty() throws Exception {
+            HumanGame g = startHumanGame();
+
+            fire(g.gameId(), g.playerA(), 0, 0);
+
+            mockMvc.perform(get("/games/{gameId}/state", g.gameId())
+                    .param("playerId", g.playerA()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.myBoard.hits").isArray())
+                .andExpect(jsonPath("$.myBoard.hits", org.hamcrest.Matchers.hasSize(0)));
         }
     }
 }
