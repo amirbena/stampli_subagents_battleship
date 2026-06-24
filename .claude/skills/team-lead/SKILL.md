@@ -141,6 +141,7 @@ Reason:
 ### Tests Required
 Backend unit tests: Yes / No — scope:
 Frontend unit tests: Yes / No — scope:
+Frontend integration tests: Yes / No — scope:
 Playwright E2E: Yes / No — scope:
 ```
 
@@ -846,7 +847,7 @@ Team Lead MUST spawn all assigned developer agents automatically using the `Agen
 | `frontend-api-agent` is optional | Use it alone for hook/API/type-only changes, or in parallel when data-layer work is clearly independent of UI work. |
 | No `frontend-unit-test-agent` | Unit tests belong to the implementing agent. |
 | Single-agent: agent owns full gate | `npm run test` + `npm run build` run by the agent before reporting done. |
-| Split path: Team Lead owns full gate | Each agent runs its co-located slice; Team Lead runs `npm run test` + `npm run build` once after both finish to catch cross-boundary regressions. |
+| Split path: Team Lead owns full gate | Each agent runs its co-located slice; Team Lead waits for BOTH to report done, then runs `npm run test` + `npm run build` once. This is the cross-agent contract check — neither agent knows the other is done; Team Lead is the synchronization point. |
 | Only Team Lead spawns | No agent may spawn another agent or advance a gate without Team Lead instruction. |
 
 **Frontend split decision — required before spawning any frontend agent:**
@@ -949,12 +950,20 @@ Typical skip cases: service/domain logic change only, frontend-only change, refa
 
 **Step 1b — Frontend Test Gate (Team Lead runs — split path only):**
 
-Only when **both** `frontend-api-agent` and `frontend-ui-agent` were spawned in parallel. After both report their co-located slice green, Team Lead runs the full gate once to catch cross-boundary regressions:
+Only when **both** `frontend-api-agent` and `frontend-ui-agent` were spawned in parallel. Because the agents ran in parallel, neither knows the other is done or green — Team Lead is the only synchronization point. After **both** report their co-located slice green, Team Lead runs:
 
 ```bash
-cd apps/frontend && npm run test    # full Vitest suite
-cd apps/frontend && npm run build   # TypeScript compile + Vite build
+cd apps/frontend && npm run test    # full Vitest suite — catches cross-boundary test failures
+cd apps/frontend && npm run build   # TypeScript compile — catches silent consumer breaks
+                                    # (hook shape changed in api-agent; component breaks in ui-agent)
 ```
+
+This gate is not a formality — it is the **cross-agent contract verification step**. `npm run build` is what catches the case where `frontend-api-agent` changed a hook's return shape and `frontend-ui-agent`'s component broke silently as a consumer, without either agent's co-located tests failing.
+
+If this gate fails:
+- TypeScript error → read the file path → route to owner → re-run `npm run build`
+- Test failure → read the file path → route to owner → re-run `npm run test`
+- Both fixed → re-run full gate once more before advancing
 
 **Skip Step 1b entirely** when only one frontend agent ran — the agent already owns the full gate.
 
@@ -1140,7 +1149,9 @@ When any agent in the parallel test phase reports a failure, Team Lead is the so
 | Frontend Test Gate fails (split path, TL-run) | Team Lead diagnoses by file path, routes to owning agent | After fix, Team Lead re-runs `npm run test` + `npm run build` |
 | TypeScript compile error in frontend | read file path → route to owner (`api/hooks/types` → `frontend-api-agent`; `components/pages/utils` → `frontend-ui-agent`) **self-heals** | Fix type error; re-run `npm run build` |
 | Playwright test fails — backend returns unexpected response | `java-backend-agent` | Fix the backend; re-run `npm run test:e2e` |
-| Playwright test fails — UI behaves incorrectly | `frontend-ui-agent` | Fix the component; re-run `npm run test:e2e` |
+| Playwright test fails — UI behaves incorrectly | Before routing: check the data flow. If the component's hook returns the correct value → `frontend-ui-agent`. If the hook returns wrong/stale data → `frontend-api-agent`. Symptom is in the UI but root cause may be in the API layer — follow the data, not the visible layer. | Fix the real owner; re-run `npm run test:e2e` |
+| Playwright test fails — API/hook layer wrong | `frontend-api-agent` | Fix the hook/API; if `frontend-ui-agent` also changed files in this fix cycle, it must re-run its tests (unit + integration + smoke) and be green before E2E re-triggers |
+| Playwright test fails — both frontend agents changed files | `frontend-api-agent` + `frontend-ui-agent` | Both must re-run their tests and be green; only then re-trigger E2E. If only one agent changed files, the other does not re-verify. |
 | Playwright test fails — test is flaky or assertion is wrong | `playwright-e2e-agent` | Fix the test; re-run `npm run test:e2e` |
 
 ### Routing rules
@@ -1151,6 +1162,8 @@ When any agent in the parallel test phase reports a failure, Team Lead is the so
 4. **Route to exactly one agent.** Do not spawn multiple fix agents for the same failure.
 5. **After the fix, re-run only the failing suite** — not all tests.
 6. **E2E does not start until all test gates are green.**
+7. **Before re-triggering E2E after a frontend fix** — check which agents changed files in this fix cycle. If both `frontend-api-agent` and `frontend-ui-agent` changed files, both must re-run their tests and be green. If only one changed files, only that agent re-verifies. Never re-trigger E2E when the sibling agent's tests are unknown.
+8. **After any `frontend-api-agent` fix** — always run `npm run build` before re-triggering E2E, even if `frontend-ui-agent` changed no files. TypeScript will catch shape mismatches where the hook's return type changed and the component silently broke as a consumer. Build failure → route to `frontend-ui-agent` to align the component. Build passes → safe to re-trigger E2E.
 
 ### Fix cycle limit
 

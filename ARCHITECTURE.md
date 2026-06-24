@@ -70,8 +70,12 @@ User Requirement
        └────────┬───────────┘  └──────────┬────────────┘                              │
                 └──────────────┬───────────┘                                          │
                                │  ── STEP 1b: TEAM LEAD FRONTEND GATE (split path only) ┤
-                               │    npm run test  (full suite, cross-boundary check)   │
-                               │    npm run build (TypeScript + Vite)                  │
+                               │    Team Lead waits for BOTH agents to report done     │
+                               │    (neither agent knows the other finished)            │
+                               │    npm run test  (full suite — cross-agent contract)  │
+                               │    npm run build (TypeScript — catches silent consumer │
+                               │                  breaks: hook shape changed in api-   │
+                               │                  agent, component broke in ui-agent)  │
                                │    skipped when single agent ran (agent owns gate)    │
                                │  ── GATE: all green ──────────────────────────────────┘
                                │
@@ -151,8 +155,9 @@ User Requirement
 - **Architect** owns structure (domain model, API contract, folder layout) — never environment setup or implementation.
 - **Java Backend Agent** owns JUnit 5 unit tests for domain and service layer — no separate backend unit test agent (same rationale as frontend).
 - **Frontend API Agent** owns Vitest unit tests for `api/`, `hooks/`, and `types/` — co-located in those directories.
-- **Frontend UI Agent** owns Vitest component tests for `components/`, `pages/`, and `utils/` — co-located. It is also the sole agent for cheap/styling-only changes.
-- **Frontend split is conservative.** `frontend-ui-agent` is the default for any single-agent case (small, tightly-coupled, or UI-only). `frontend-api-agent` runs alone for hook/type-only changes. Both run in parallel only when the requirement has clearly independent API/data-layer work AND independent UI/render-layer work. Team Lead pre-writes `types/game.ts` before spawning both.
+- **Frontend UI Agent** owns Vitest component tests for `components/`, `pages/`, and `utils/` — co-located. It is also the sole agent for cheap/styling-only changes. It self-diagnoses cross-layer bugs: when the DOM symptom exists but per-layer unit tests all pass (Layer A works, Layer B works, A→B breaks), it writes a failing `*.integration.test.tsx` (real component + real dependencies, no mocks) **before** touching any production code. Covers: store→component, hook→component, router→page, validation→error display — see [TDD rule in SKILL.md](.claude/skills/frontend-ui-agent/SKILL.md).
+- **Frontend split is conservative.** `frontend-ui-agent` is the default for any single-agent case (small, tightly-coupled, or UI-only). `frontend-api-agent` runs alone for hook/type-only changes. Both run in parallel only when the requirement has clearly independent API/data-layer work AND independent UI/render-layer work. Team Lead pre-writes `types/game.ts` before spawning both. When both run in parallel, Team Lead is the synchronization point — it waits for both to finish, then runs the full gate as a cross-agent contract check before advancing.
+- **E2E failure routing follows data, not symptom.** A visible UI symptom does not mean the bug is in the UI layer. Team Lead checks the data flow first — if the hook returns wrong data, route to `frontend-api-agent`; if the hook is correct but the component renders wrong, route to `frontend-ui-agent`. After any `frontend-api-agent` fix, always run `npm run build` before re-triggering E2E to catch silent consumer breaks.
 - **Playwright E2E Agent** owns browser tests — never touches production code.
 
 ### Run Isolation
@@ -208,7 +213,7 @@ This is separate from the Team Lead E2E mode decision above — it is a lightwei
 ### Quality Gates (all must pass before PR)
 - `./mvnw test` — backend unit tests
 - `npm run build` — frontend build
-- `npm run test` — frontend unit tests (Vitest)
+- `npm run test` — frontend unit tests + cross-layer integration tests (Vitest; `*.integration.test.tsx` files are included automatically)
 - `npm run test:e2e` — Playwright E2E
 - `reports/runs/<id>/security-report.md` verdict: **APPROVED**
 - `reports/runs/<id>/code-review-report.md` verdict: **APPROVED**
