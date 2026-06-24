@@ -173,7 +173,13 @@ Never place a `.tsx` file directly in a folder that contains other component fol
 
 ## Tests — Owned By This Agent
 
-Co-located under `components/`, `pages/`, `utils/`. Run `npm run test` (Vitest + RTL) before reporting done. Self-heal up to 5 cycles before escalating to Team Lead.
+Co-located under `components/`, `pages/`, `utils/`. Run only the co-located tests for the files you changed — do NOT run the full suite:
+
+```bash
+cd apps/frontend && npx vitest run src/components src/pages src/utils
+```
+
+Self-heal up to 5 cycles before escalating to Team Lead. The full `npm run test` suite, typecheck, and build are Team Lead's gate after all frontend agents finish — not this agent's responsibility.
 
 ### Required scenarios (maintain or extend)
 
@@ -187,7 +193,9 @@ Co-located under `components/`, `pages/`, `utils/`. Run `npm run test` (Vitest +
 - `GameBoard` renders 10×10 grid with correct interactive/non-interactive states.
 - `ShotResultToast` shows result text and clears.
 
-### Smoke Test Gate
+### Smoke Test Gate (pre-report check — not the final gate)
+
+This is a lightweight self-check run before reporting done. It is separate from the final Playwright smoke run that Team Lead owns after the full test suite passes.
 
 Run when the change affects user-visible behavior (routing, rendering, game interaction, placement, validation, navigation, visible UI state):
 
@@ -197,7 +205,7 @@ cd apps/frontend && npx playwright test smoke.spec.ts
 
 Skip for: pure refactors, type-only changes, test-only changes, copy-only changes, isolated CSS tweaks covered by build/unit tests. Record skip reason in Evidence.
 
-If smoke fails, self-heal (fix the component) up to 3 cycles before escalating.
+If smoke fails, self-heal (fix the component) up to 3 cycles before escalating to Team Lead.
 
 ---
 

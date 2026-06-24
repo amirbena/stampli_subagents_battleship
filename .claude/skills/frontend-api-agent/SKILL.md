@@ -138,7 +138,13 @@ export function useGamePolling(gameId: string, playerId: string, autoStart?: boo
 
 Co-located under `src/api/`, `src/hooks/`, `src/types/`. No separate test directory.
 
-Run `npm run test` (Vitest) and ensure green before reporting done. Self-heal up to 5 cycles before escalating to Team Lead.
+Run only the co-located tests for the files you changed — do NOT run the full suite:
+
+```bash
+cd apps/frontend && npx vitest run src/api src/hooks src/types
+```
+
+Self-heal up to 5 cycles before escalating to Team Lead. The full `npm run test` suite and typecheck are Team Lead's gate after all frontend agents finish — not this agent's responsibility.
 
 ### Backend Contract Dependency
 

@@ -921,17 +921,34 @@ Typical skip cases: service/domain logic change only, frontend-only change, refa
 
 #### Test phase — Sequential by cost, cheapest first
 
-**Step 1 — Unit tests in parallel (cheapest, fastest):**
+**Step 1 — Co-located unit tests in parallel (cheapest, fastest):**
 
 Spawn simultaneously:
 - `java-backend-agent` (unit test run: `./mvnw test`) — if backend was touched
-- `frontend-api-agent` and/or `frontend-ui-agent` (unit test run: `npm run test`) — if frontend was touched; spawn both if both ran in implementation phase
+- `frontend-api-agent` (co-located test run: `npx vitest run src/api src/hooks src/types`) — if api/hooks/types were touched
+- `frontend-ui-agent` (co-located test run: `npx vitest run src/components src/pages src/utils`) — if components/pages/utils were touched
 
-These two are fully independent and run at the same time.
+Each frontend agent runs only the tests for the files it changed — not the full suite. If only one frontend agent was used in the implementation phase, only that agent runs tests here.
 
-**Step 2 — Gate: unit tests must be green before integration tests start.**
+**Step 1b — Frontend Test Gate (Team Lead runs, after all frontend agents report done):**
 
-If either unit test run fails, route the fix to the owning agent. Do not spawn `backend-integration-tests-agent` until both unit test runs pass. Running integration tests on already-broken code wastes the cost of booting a full Spring context.
+If any frontend code was touched, Team Lead runs the full frontend suite once before proceeding:
+
+```bash
+cd apps/frontend && npm run test          # full Vitest suite (catches cross-boundary regressions)
+cd apps/frontend && npm run build         # TypeScript compile + Vite build
+```
+
+If the change affects user-visible behavior and E2E mode is Smoke or Full, also run:
+```bash
+cd apps/frontend && npx playwright test smoke.spec.ts
+```
+
+This is the authoritative frontend green status. Neither frontend agent individually owns it.
+
+**Step 2 — Gate: all of Step 1 + Step 1b must be green before integration tests start.**
+
+If any test fails, route the fix to the owning agent (by file path: `api/hooks/types` → `frontend-api-agent`; `components/pages/utils/CSS` → `frontend-ui-agent`). Do not spawn `backend-integration-tests-agent` until all unit tests and the frontend gate pass.
 
 **Step 3 — Integration tests (after unit tests are green):**
 
@@ -1092,9 +1109,10 @@ When any agent in the parallel test phase reports a failure, Team Lead is the so
 | JUnit unit test itself wrong (bad assertion/mock) | `java-backend-agent` **self-heals** — no Team Lead hop | Fix test; re-run `./mvnw test` |
 | `@SpringBootTest` / MockMvc fails (80% case) | `java-backend-agent` directly | Fix controller/DTO/exception handler; re-run `*IntegrationTest` |
 | `@SpringBootTest` / MockMvc fails after 2 java-backend cycles | Team Lead reads output → `backend-integration-tests-agent` | Fix the test setup/assertion; re-run `*IntegrationTest` |
-| Vitest / RTL test fails (hook, API, type logic) | `frontend-api-agent` **self-heals** — no Team Lead hop | Fix hook/API; re-run `npm run test` |
-| Vitest / RTL test fails (component, page, render) | `frontend-ui-agent` **self-heals** — no Team Lead hop | Fix component; re-run `npm run test` |
-| Vitest test itself wrong (bad assertion/mock) | owning frontend agent **self-heals** — no Team Lead hop | Fix test; re-run `npm run test` |
+| Vitest / RTL test fails (hook, API, type logic) | `frontend-api-agent` **self-heals** — no Team Lead hop | Fix hook/API; re-run `npx vitest run src/api src/hooks src/types` |
+| Vitest / RTL test fails (component, page, render) | `frontend-ui-agent` **self-heals** — no Team Lead hop | Fix component; re-run `npx vitest run src/components src/pages src/utils` |
+| Vitest test itself wrong (bad assertion/mock) | owning frontend agent **self-heals** — no Team Lead hop | Fix test; re-run co-located tests only |
+| Frontend Test Gate fails after agents finish | Team Lead diagnoses by file path, routes to owning agent | After fix, Team Lead re-runs full gate (`npm run test` + `npm run build`) |
 | TypeScript compile error in frontend | read file path → route to owner (`api/hooks/types` → `frontend-api-agent`; `components/pages/utils` → `frontend-ui-agent`) **self-heals** | Fix type error; re-run `npm run build` |
 | Playwright test fails — backend returns unexpected response | `java-backend-agent` | Fix the backend; re-run `npm run test:e2e` |
 | Playwright test fails — UI behaves incorrectly | `frontend-ui-agent` | Fix the component; re-run `npm run test:e2e` |
