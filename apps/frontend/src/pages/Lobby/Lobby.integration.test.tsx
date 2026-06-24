@@ -1,16 +1,26 @@
 /**
- * Integration tests for Lobby one-time placement hydration.
+ * Integration tests for Lobby one-time placement hydration AND sessionStorage fast-path init.
  *
  * These render the REAL Lobby page wired to the REAL usePlacement hook — no mocks on the
  * internal frontend layers. Only the network/server boundary is mocked: useGamePolling
  * (the 2s poll) and gameApi (HTTP calls). This is the seam unit tests cannot exercise:
- * the once-only hydration guard lives in Lobby, the placement state lives in the hook, and
- * the trigger is the polling result arriving across re-renders. A bug here (re-hydrating on
- * a later poll and clobbering an optimistic placement, or never hydrating on first ships)
- * only surfaces when hook + page + polling run together.
+ *
+ * 1. Hydration seam: the once-only hydration guard lives in Lobby, the placement state
+ *    lives in the hook, and the trigger is the polling result arriving across re-renders.
+ *    A bug here (re-hydrating on a later poll and clobbering an optimistic placement, or
+ *    never hydrating on first ships) only surfaces when hook + page + polling run together.
+ *
+ * 2. sessionStorage fast-path seam: usePlacement(gameId) reads from sessionStorage lazily
+ *    on mount. If the key is pre-populated (after a page refresh), the fleet panel must be
+ *    populated on the FIRST render — before any poll tick. A unit test cannot catch this
+ *    because it mocks usePlacement entirely and never exercises the lazy initializer.
+ *
+ * 3. IN_PROGRESS cleanup seam: Lobby removes placement_ships_<gameId> from sessionStorage
+ *    before navigating to /game. Verified here with the real hook so we confirm the key
+ *    the hook wrote is the same key the cleanup removes.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { Lobby } from './Lobby';
 import type { GameStateResponse, ShipDto, ShipType, Coordinate } from '../../types/game';
@@ -118,5 +128,69 @@ describe('Lobby hydration integration — real usePlacement + polling seam', () 
 
     // Still exactly one placed ship — NOT clobbered/overwritten by the echoed full fleet.
     expect(screen.getAllByText('Placed')).toHaveLength(1);
+  });
+});
+
+describe('Lobby sessionStorage fast-path — real usePlacement lazy init seam', () => {
+  it('populates fleet panel on FIRST render when sessionStorage is pre-populated (no poll needed)', () => {
+    // Simulate a page refresh: the hook's lazy initializer reads from sessionStorage on mount.
+    // No poll has fired yet — currentGameState is null.
+    sessionStorage.setItem('placement_ships_GAME01', JSON.stringify(PERSISTED_FLEET));
+    currentGameState = null;
+
+    render(<MemoryRouter><Lobby /></MemoryRouter>);
+
+    // Fleet panel: all 5 ship types must be marked Placed immediately on first render —
+    // no poll tick needed. This validates the lazy-init seam between usePlacement(gameId)
+    // reading sessionStorage and Lobby rendering the result.
+    expect(screen.getAllByText('Placed')).toHaveLength(5);
+
+    // Confirm Ready must be enabled immediately (all ships placed, not ready yet).
+    expect(screen.getByRole('button', { name: /confirm ready/i })).toBeEnabled();
+
+    // No ship selected on init → board is non-interactive (no rotate hint, no button cells).
+    expect(screen.queryByText(/press/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^row \d+ col \d+/i })).not.toBeInTheDocument();
+  });
+
+  it('does not flash empty fleet panel when sessionStorage has ships but first poll is delayed', () => {
+    // Pre-populate before render — no poll state.
+    sessionStorage.setItem('placement_ships_GAME01', JSON.stringify(PERSISTED_FLEET));
+    currentGameState = null;
+
+    render(<MemoryRouter><Lobby /></MemoryRouter>);
+
+    // Board must show 17 ship cells immediately (lazy init populated placedShips).
+    const shipCells = screen
+      .getAllByRole('gridcell')
+      .filter((el) => el.className.includes('board-cell--ship'));
+    expect(shipCells).toHaveLength(17);
+  });
+});
+
+describe('Lobby IN_PROGRESS sessionStorage cleanup — real hook + page seam', () => {
+  it('removes placement_ships_<gameId> before navigating to /game', () => {
+    // Write a key as the real hook would during placement.
+    sessionStorage.setItem('placement_ships_GAME01', JSON.stringify(PERSISTED_FLEET));
+
+    // Simulate status becoming IN_PROGRESS on the first poll.
+    currentGameState = {
+      gameId: 'GAME01',
+      status: 'IN_PROGRESS',
+      currentTurnPlayerId: 'player1',
+      winnerId: null,
+      myBoard: { ships: PERSISTED_FLEET, missedShots: [], hits: [] },
+      opponentBoard: { ships: [], missedShots: [], hits: [] },
+      myReady: true,
+      opponentReady: true,
+    };
+
+    act(() => {
+      render(<MemoryRouter><Lobby /></MemoryRouter>);
+    });
+
+    // The placement key must be removed before navigate('/game') fires.
+    // This prevents stale ship data from appearing in a future game on the same tab.
+    expect(sessionStorage.getItem('placement_ships_GAME01')).toBeNull();
   });
 });

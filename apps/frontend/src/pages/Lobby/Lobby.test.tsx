@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react'; // act from RTL, not vitest
 import { MemoryRouter } from 'react-router-dom';
 import { Lobby } from './Lobby';
 import type { ShipDto, ShipType } from '../../types/game';
@@ -19,7 +19,9 @@ vi.mock('../../hooks/useGamePolling', () => ({
 }));
 
 // Controllable placement mock — tests override placedShips/selectedShipType/allPlaced.
+// The mock also captures the gameId argument so tests can assert it was passed correctly.
 let placementReturn: Record<string, unknown>;
+let lastUsePlacementArg: string | undefined;
 function makePlacement(overrides: Record<string, unknown> = {}) {
   return {
     placedShips: [],
@@ -38,7 +40,10 @@ function makePlacement(overrides: Record<string, unknown> = {}) {
   };
 }
 vi.mock('../../hooks/usePlacement', () => ({
-  usePlacement: () => placementReturn,
+  usePlacement: (gameId: string) => {
+    lastUsePlacementArg = gameId;
+    return placementReturn;
+  },
 }));
 
 vi.mock('../../api/gameApi', () => ({
@@ -65,6 +70,7 @@ beforeEach(() => {
   sessionStorage.setItem('playerId', 'player1');
   pollingReturn = { gameState: null, isLoading: false };
   placementReturn = makePlacement();
+  lastUsePlacementArg = undefined;
 });
 
 describe('Lobby — vs Computer mode', () => {
@@ -94,6 +100,52 @@ describe('Lobby — vs Human mode', () => {
     render(<MemoryRouter><Lobby /></MemoryRouter>);
     // RoomCodeDisplay renders the gameId text somewhere
     expect(screen.getByText('GAME01')).toBeInTheDocument();
+  });
+});
+
+describe('Lobby — usePlacement gameId wiring', () => {
+  it('passes the gameId from sessionStorage to usePlacement', () => {
+    render(<MemoryRouter><Lobby /></MemoryRouter>);
+    expect(lastUsePlacementArg).toBe('GAME01');
+  });
+
+  it('passes an empty string to usePlacement when gameId is absent from sessionStorage', () => {
+    sessionStorage.removeItem('gameId');
+    // Redirect effect fires when gameId is missing, but the hook is still called first.
+    render(<MemoryRouter><Lobby /></MemoryRouter>);
+    expect(lastUsePlacementArg).toBe('');
+  });
+});
+
+describe('Lobby — IN_PROGRESS sessionStorage cleanup', () => {
+  it('removes the placement_ships_<gameId> key before navigating to /game', () => {
+    // Pre-populate the key to confirm it gets cleared.
+    sessionStorage.setItem('placement_ships_GAME01', JSON.stringify([{ shipType: 'DESTROYER', cells: [], hits: [], sunk: false }]));
+
+    pollingReturn = {
+      gameState: { status: 'IN_PROGRESS', myBoard: null, myReady: false },
+      isLoading: false,
+    };
+
+    act(() => {
+      render(<MemoryRouter><Lobby /></MemoryRouter>);
+    });
+
+    expect(sessionStorage.getItem('placement_ships_GAME01')).toBeNull();
+  });
+
+  it('does not remove placement key when game is still PLACING_SHIPS', () => {
+    sessionStorage.setItem('placement_ships_GAME01', JSON.stringify([]));
+
+    pollingReturn = {
+      gameState: { status: 'PLACING_SHIPS', myBoard: { ships: [], missedShots: [], hits: [] }, myReady: false },
+      isLoading: false,
+    };
+
+    render(<MemoryRouter><Lobby /></MemoryRouter>);
+
+    // Key must still be present — cleanup only fires on IN_PROGRESS.
+    expect(sessionStorage.getItem('placement_ships_GAME01')).not.toBeNull();
   });
 });
 

@@ -27,7 +27,7 @@ export function Lobby(): React.ReactElement {
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const placement = usePlacement();
+  const placement = usePlacement(gameId);
   const { gameState, isLoading } = useGamePolling(gameId, playerId, true);
 
   // One-time guard so hydration runs exactly once per Lobby mount.
@@ -55,12 +55,15 @@ export function Lobby(): React.ReactElement {
     }
   }, [gameState?.myBoard?.ships, placement]);
 
-  // Navigate to game once IN_PROGRESS
+  // Navigate to game once IN_PROGRESS.
+  // Clear the placement sessionStorage key before navigating so stale ship positions
+  // from this game do not bleed into a future game started in the same tab.
   useEffect(() => {
     if (gameState?.status === 'IN_PROGRESS') {
+      try { window.sessionStorage.removeItem(`placement_ships_${gameId}`); } catch {}
       navigate('/game');
     }
-  }, [gameState?.status, navigate]);
+  }, [gameState?.status, navigate, gameId]);
 
   // Redirect home if no session
   useEffect(() => {
