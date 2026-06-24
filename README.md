@@ -262,11 +262,12 @@ You can also pass your idea inline:
 
 ```
 Phase 0.5 fast-path check            Team Lead reads requirements.md first.
-                                      If change is infra/docs-only → writes inline
-                                      acceptance checklist, skips Phase 1 entirely.
+                                      If change is pure infra, pure internal refactor,
+                                      or bug fix restoring documented behavior →
+                                      writes inline acceptance checklist, skips Phase 1.
 
 Phase 1   product-agent (conditional) → reports/runs/<id>/product-spec.md
-                                        SKIPPED on infra/docs fast-path (~1.5 min saved)
+                                        SKIPPED on fast-path (~1.5 min saved)
 
 Phase 2   architect-agent             → reports/runs/<id>/architecture.md  (only if contract changed)
 

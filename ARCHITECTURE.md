@@ -22,14 +22,14 @@ User Requirement
          │
          ▼  Step 0.5 — Fast-Path Pre-Classification
          │  Team Lead reads requirements.md FIRST.
-         │  If change is infra/docs-only (no API, domain, UI, or test change):
-         │    → writes 10-line inline checklist, skips Product Agent entirely
-         │  Otherwise:
+         │  If change is pure infra, pure internal refactor, or bug fix
+         │  restoring documented behavior → writes 10-line inline checklist,
+         │  skips Product Agent entirely. Otherwise:
          │    ↓
 ┌─────────────────┐
 │  Product Agent  │  Converts requirement into acceptance criteria,
 │  (conditional)  │  writes run-scoped product-spec.md
-│                 │  SKIPPED on infra/docs fast-path (~1.5 min saved)
+│                 │  SKIPPED on fast-path (~1.5 min saved)
 └────────┬────────┘
          │
          ▼
