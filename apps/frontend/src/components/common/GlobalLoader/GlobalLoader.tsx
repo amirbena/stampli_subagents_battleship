@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useLayoutEffect } from 'react';
 import { useActiveRequests } from '../../../hooks/useActiveRequests';
 import './GlobalLoader.css';
 
@@ -25,7 +25,7 @@ export function GlobalLoader(): React.ReactElement | null {
   // bar never flashes too briefly for the user to perceive.
   const [visible, setVisible] = useState(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (activeRequests > 0) {
       // Show immediately when any request is in flight.
       setVisible(true);
