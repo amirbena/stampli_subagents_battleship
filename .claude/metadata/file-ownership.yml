@@ -1,0 +1,91 @@
+# File Ownership Map
+# Team Lead loads this during Step 7 ownership checks.
+# Authority over routing, shared-file decisions, and release readiness stays with Team Lead.
+
+agents:
+  team-lead:
+    owns:
+      - .claude/**
+      - reports/**
+      - workflow files
+    responsibilities: routing, coordination, shared contracts, QA reassignment, retry limits, report freshness, release readiness
+
+  product-agent:
+    owns:
+      - reports/runs/<id>/product-spec.md
+
+  architect-agent:
+    owns:
+      - reports/runs/<id>/architecture.md
+      - reports/runs/<id>/technical-plan.md
+
+  java-backend-agent:
+    owns:
+      - apps/backend/src/main/java/
+      - apps/backend/src/test/**/*Test.java  # unit tests only — NOT *IntegrationTest.java
+
+  backend-integration-tests-agent:
+    owns:
+      - apps/backend/src/test/**/*IntegrationTest.java
+
+  frontend-api-agent:
+    owns:
+      - apps/frontend/src/api/
+      - apps/frontend/src/hooks/
+      - apps/frontend/src/types/
+
+  frontend-ui-agent:
+    owns:
+      - apps/frontend/src/components/
+      - apps/frontend/src/pages/
+      - apps/frontend/src/utils/
+      - apps/frontend/src/styles/
+      - apps/frontend/src/main.tsx
+      - apps/frontend/src/**/*.css
+
+  infrastructure-agent:
+    owns:
+      - Dockerfile
+      - docker-compose.yml
+      - docker-compose.*
+      - .env.example
+      - .env.template
+      - service startup scripts
+      - CI/CD files
+
+  playwright-e2e-agent:
+    owns:
+      - apps/frontend/tests/e2e/
+      - apps/frontend/playwright.config.*
+
+  security-agent:
+    owns:
+      - reports/runs/<id>/security-report.md
+
+  code-review-agent:
+    owns:
+      - reports/runs/<id>/code-review-report.md
+
+  release-pr-agent:
+    owns:
+      - reports/runs/<id>/release-summary.md
+      - final git/gh checks, push, PR
+
+shared_files:
+  - README.md
+  - package.json
+  - package-lock.json
+  - pnpm-lock.yaml
+  - yarn.lock
+  - docker-compose.yml
+  - Dockerfile
+  - .env.example
+  - playwright.config.*
+  - openapi.*
+  - shared/**
+  - types/**
+  - .claude/**
+  - reports/**
+
+# Team Lead decides shared file edits autonomously.
+# Every shared file change must be recorded in the PR summary.

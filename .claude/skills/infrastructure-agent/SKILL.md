@@ -225,9 +225,4 @@ if ($errs.Count -eq 0) { "PARSE OK" } else { $errs }
 
 ## Demo Config Policy
 
-This repository is a demo/home-assignment repository. Do not block for placeholder or demo config values. Classify config values as:
-- `PLACEHOLDER_CONFIG` — explicit placeholder, safe
-- `DEMO_CONFIG_ACCEPTED` — demo/local value acceptable for task completion
-- `OBVIOUS_REAL_LEAKED_CREDENTIAL` — block (real AWS key, real GH token, real SSH private key, real prod DB URL)
-
-Do not add real secrets to any file. `.env.example` is for documentation and placeholders only.
+Load `.claude/policies/demo-config-policy.md` for the full classification table and rules. Do not add real secrets to any file. `.env.example` is for documentation and placeholders only.

@@ -130,19 +130,7 @@ APPROVED | REQUIRES CHANGES
 
 ## Findings
 
-### Finding CR-001
-- Finding ID:
-- Observed failure:
-- Evidence:
-- Suspected root cause:
-- Suspected owner:
-- Files involved:
-- Recommended next agent:
-- Attempt count:
-- Severity: Critical / High / Medium / Low
-- Blocks PR: Yes / No
-- required_fix:
-- verification_command:
+<load .claude/templates/finding-report-template.md for the Finding CR-001 field structure>
 
 ## Notes
 <optional non-blocking observations>

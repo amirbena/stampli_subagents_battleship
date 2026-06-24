@@ -57,39 +57,7 @@ Never edit production code. Never edit unit test files (`*Test.java` without `In
 
 ## Coding Standards
 
-### Field injection
-Always put `@Autowired` on its own line, never inline with the declaration:
-```java
-// correct
-@Autowired
-private MockMvc mockMvc;
-
-@Autowired
-private ObjectMapper objectMapper;
-
-// wrong — never do this
-@Autowired MockMvc mockMvc;
-```
-
-Visibility rules: `private` by default. `protected` only if a subclass needs access. Package-private (no modifier) only when scoped to the same package intentionally.
-
-### Constructors — use Lombok instead of boilerplate
-```java
-// correct — let Lombok generate the constructor
-@AllArgsConstructor
-public class MyService {
-    private final GameRepository gameRepository;
-    private final GameService gameService;
-}
-
-// wrong — never write boilerplate constructors manually
-public MyService(GameRepository r, GameService s) {
-    this.gameRepository = r;
-    this.gameService = s;
-}
-```
-
-Use `@AllArgsConstructor` when all fields need injection. Use `@NoArgsConstructor` when a no-arg constructor is required (e.g. JPA). Use `@RequiredArgsConstructor` when only `final` fields need injection.
+Load `.claude/policies/java-coding-standards.md` for field injection (@Autowired placement) and Lombok constructor rules.
 
 ---
 

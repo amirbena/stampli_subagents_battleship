@@ -26,6 +26,7 @@ To extend an agent, edit its `SKILL.md` — do not create parallel files.
 
 | Agent | Skill folder | Model | Owns |
 |-------|-------------|-------|------|
+| Requirement Intake | `.claude/skills/requirement` | claude-opus-4-8 | `reports/runs/<id>/requirements.md`, workflow lock, branch setup, image analysis, hand-off to Team Lead |
 | Team Lead | `.claude/skills/team-lead` | claude-opus-4-8 | Planning, task assignment, quality gates, E2E infrastructure pre-gate, final release decision |
 | Product Agent | `.claude/skills/product-agent` | claude-sonnet-4-6 | `reports/runs/<id>/product-spec.md`, user stories, acceptance criteria |
 | Architect Agent | `.claude/skills/architect-agent` | claude-opus-4-8 | `reports/runs/<id>/architecture.md`, API contract, domain model — structure only, not environment setup |
@@ -75,7 +76,7 @@ When `frontend-ui-agent` implements a change, it runs `smoke.spec.ts` as its own
 - Backend-only changes with zero frontend impact
 
 ## Git Branch Handling Policy
-The full policy lives in `.claude/skills/team-lead/SKILL.md` (Step 5). Key rules:
+Team Lead's branch decisions (Cases A–I) live in `.claude/skills/team-lead/SKILL.md` (Step 5). Operational bash sequences live in `.claude/policies/git-branch-policy.md` (lazy-loaded by Team Lead when a branch operation is needed). Key rules:
 - Team Lead owns all branch decisions (Cases A–I) before any implementation agent is spawned.
 - Implementation agents (frontend, backend) only confirm they are on the branch Team Lead assigned — they never run branch operations themselves.
 - Never implement directly on `main`. Dirty `main` is always a hard stop.

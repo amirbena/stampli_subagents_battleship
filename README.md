@@ -270,14 +270,25 @@ Phase 0.5 fast-path check            Team Lead reads requirements.md first.
                                       Skips Product Agent when change is:
                                       (1) pure infra, (2) pure internal refactor,
                                       (3) bug fix restoring documented behavior, OR
-                                      (4) visual fix — Visual Analysis present in
-                                      requirements.md with concrete defects + expected
-                                      behavior + inferred criteria, UI-only, no UX
-                                      ambiguity, no backend/API/schema change.
+                                      (4) visual fix — Visual Analysis present with
+                                      concrete defects + inferred criteria, UI-only,
+                                      no UX ambiguity, no backend/API change.
                                       Writes inline acceptance checklist and continues.
 
+                                      UX Interaction Risk Check (runs when fast-path
+                                      would otherwise skip Product entirely):
+                                      If the requirement involves user actions whose
+                                      result must feel immediate — shot feedback,
+                                      placement, turn transition, loading/stale state,
+                                      optimistic UI — Product Agent runs in Light Mode
+                                      instead of being skipped. Light Mode writes only
+                                      UX acceptance criteria and returns control to
+                                      Team Lead; no routing or scope decisions.
+
 Phase 1   product-agent (conditional) → reports/runs/<id>/product-spec.md
-                                        SKIPPED on fast-path (~1.5 min saved)
+                                        Full:  new feature, API change, multiplayer flow
+                                        Light: UX interaction clarification only
+                                        Skip:  fast-path with no UX interaction risk
 
 Phase 2   architect-agent             → reports/runs/<id>/architecture.md  (only if contract changed)
 
@@ -344,6 +355,7 @@ Each agent is a skill in [`.claude/skills/`](.claude/skills/) with a `model:` fi
 
 | Agent | Model | Role |
 |-------|-------|------|
+| requirement | claude-opus-4-8 | Captures requirement, creates workflow run, branch setup, image analysis |
 | team-lead | claude-opus-4-8 | Orchestrates all phases |
 | product-agent | claude-sonnet-4-6 | User stories + acceptance criteria |
 | architect-agent | claude-opus-4-8 | API contract + domain model |

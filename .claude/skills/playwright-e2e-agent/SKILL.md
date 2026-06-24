@@ -10,10 +10,48 @@ argument-hint: <product-spec.md path>
 ## Mission
 Validate the real multiplayer game experience from the browser against a running frontend and backend.
 
+## Infrastructure Pre-Gate
+
+When Team Lead routes a Full E2E run, this agent verifies environment readiness before writing or running tests. Run these checks in order:
+
+```bash
+# 1. Backend E2E Spring profile exists
+test -f apps/backend/src/main/resources/application-e2e.yml && echo "OK" || echo "MISSING"
+
+# 2. Maven e2e profile exists in pom.xml
+grep -q '<id>e2e</id>' apps/backend/pom.xml && echo "OK" || echo "MISSING"
+
+# 3. playwright.config.ts has a backend webServer entry
+grep -q 'spring-boot:run' apps/frontend/playwright.config.ts && echo "OK" || echo "MISSING"
+
+# 4. playwright.config.ts passes VITE_API_BASE_URL to frontend webServer
+grep -q 'VITE_API_BASE_URL' apps/frontend/playwright.config.ts && echo "OK" || echo "MISSING"
+```
+
+If any check fails, report the result to Team Lead with the exact item that failed. Do not begin writing E2E tests until Team Lead confirms all four checks pass. Team Lead routes failed items to the owning agent.
+
+## Targeted UI Validation Test — Implementation (Level 0.5)
+
+When Team Lead routes a targeted layout/render test, use this pattern:
+
+- Mock all backend API calls with `page.route()` — no real backend needed.
+- Set `sessionStorage` to bypass redirect guards if the page requires auth.
+- Assert layout with `boundingBox()` and overflow with `document.documentElement.scrollWidth`.
+- Location: `apps/frontend/tests/e2e/<page-name>-layout.spec.ts`
+- Run command (frontend dev server must be running on port 3001):
+
+```powershell
+$env:E2E_BASE_URL='http://localhost:3001'
+cd apps/frontend && npx playwright test tests/e2e/<page-name>-layout.spec.ts --project=chromium
+```
+
+If the targeted test fails: capture the full failure output + screenshot path from `playwright-report/` or `test-results/`, and report to Team Lead with the exact failing assertion, screenshot path, and expected vs measured values.
+
 ## Responsibilities
 - Simulate full multiplayer flows using two browser contexts (Player A and Player B).
 - Validate that UI and backend work together correctly end-to-end.
 - Produce a Playwright HTML test report.
+- Write targeted layout/render tests when routed by Team Lead (see above).
 - **Never assume ports or servers are already running.** Verify the E2E environment before writing any test.
 
 ## Team Lead Contract

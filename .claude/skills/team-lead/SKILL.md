@@ -79,10 +79,31 @@ Read `reports/runs/<workflow-run-id>/requirements.md`. Evaluate whether the requ
 
 If the change does not clearly and completely fit one of the four categories → standard path. Spawn product-agent.
 
-### If ALL triggers are met → fast-path applies
+### If ALL triggers are met → run UX Interaction Risk Check before applying fast-path
+
+Before skipping Product, answer this single binary question:
+
+> Does this requirement involve a user action whose result must be perceived immediately, or a state change that could feel slow, delayed, stale, or out of sync even if the implementation is technically correct?
+
+Keyword signals (not a sequential checklist — one match is sufficient):
+`shot`, `shooting feedback`, `ship placement`, `board update`, `opponent turn`, `computer thinking`, `turn transition`, `loading`, `delay`, `sync`, `stale state`, `flicker`, `feels slow`, `refresh`, `feedback after action`, `disabled/enabled timing`, `optimistic UI`, `sound/animation feedback after an action`
+
+**If YES (UX interaction risk found):**
+
+Run Product Agent in Light Mode instead of skipping Product.
+
+- Spawn `product-agent` with invocation header: `mode: LIGHT — UX Interaction Clarification only. See Light Mode section in your SKILL.md.`
+- Product writes `reports/runs/<workflow-run-id>/product-spec.md`
+- Team Lead reads `product-spec.md` (do not skip Step 1)
+- Mark `product-agent` as `Yes — light mode / UX clarification only` in Step 1b
+- Continue to Step 1 then Step 1b then Step 2
+
+**If NO (no UX interaction risk):**
+
+Full fast-path applies.
 
 1. Write a 10-line inline acceptance checklist directly into `reports/runs/<workflow-run-id>/team-lead-classification.md` (see format below).
-2. Mark `product-agent` as `Skipped — fast-path` in the agent table.
+2. Mark `product-agent` as `No — skipped (fast-path)` in the agent table.
 3. Skip Step 1 entirely and proceed to Step 2 (classification) then Step 4 (plan).
 
 **Inline acceptance checklist format (fast-path only):**
@@ -98,7 +119,7 @@ Keep it to 5–10 criteria. Focus on observable outcomes (file exists, command r
 
 ### If any trigger is absent → standard path
 
-Proceed to Step 1 normally. Spawn the product-agent.
+Proceed to Step 1 normally. Spawn the product-agent in full mode.
 
 ---
 
@@ -106,7 +127,7 @@ Proceed to Step 1 normally. Spawn the product-agent.
 
 After Product Agent finishes, read `reports/runs/<workflow-run-id>/product-spec.md`. Verify the Workflow Run ID matches the current run. If stale, trigger Product Agent to regenerate before continuing.
 
-Skip this step entirely when the fast-path applied in Step 0.5.
+Skip this step only when **full fast-path applied and Product was fully skipped** (no UX interaction risk was found in Step 0.5). Do not skip when Product Light Mode ran — Product Light still writes `product-spec.md` and Team Lead must read it.
 
 ---
 
@@ -126,7 +147,7 @@ Fast-Path Reason: <all triggers met / trigger X absent>
 
 | Agent | Required? | Reason |
 |-------|-----------|--------|
-| product-agent | Yes / No — skipped (fast-path) | ... |
+| product-agent | Yes — full / Yes — light mode (UX clarification only) / No — skipped (fast-path) | ... |
 | java-backend-agent | Yes / No | ... |
 | frontend-api-agent | Yes / No | owns api/, hooks/, types/ |
 | frontend-ui-agent | Yes / No | owns components/, pages/, utils/, CSS |
@@ -271,150 +292,17 @@ When Architecture runs, it writes `reports/runs/<workflow-run-id>/architecture.m
 
 ## Step 4 — Execution Plan
 
-After Product (and optional Architecture), write `reports/runs/<workflow-run-id>/team-lead-plan.md`:
+After Product (and optional Architecture), write `reports/runs/<workflow-run-id>/team-lead-plan.md`.
 
-```md
-# Team Lead Execution Plan
+Load `.claude/templates/team-lead-execution-plan-template.md` and fill in every section. Required sections: Requirement Summary, Product Summary, Architecture Status, Execution Route, Execution Mode, Agents To Run/Skipped, Developer Assignments, Work Order, File Ownership, Shared File Handling, Required Tests, Runtime/Build/Test Failure Routing, QA Plan, Security Review Required, Backend Integration Tests Required, E2E Mode, Demo Config Plan, Done Criteria, Loop Prevention Plan, Risk Handling Policy.
 
-Workflow Run ID:
-Generated From Branch:
-Generated From Commit:
-Generated At:
-
-## Requirement Summary
-
-## Product Summary
-
-## Architecture Status
-
-Architecture Required:
-Architecture Run:
-Architecture Summary:
-Architecture Skipped Reason:
-
-## Execution Route
-
-docs-only / frontend-only / java-backend-only / backend-and-frontend / config-aware / infra / auth-security / multiplayer-session / full-stack-complex
-
-## Execution Mode
-
-cheap / normal / full
-
-## Agents To Run
-
-## Agents Skipped And Why
-
-## Developer Assignments
-
-For each developer agent:
-
-Agent:
-Assignment:
-Allowed Scope:
-Expected Files/Areas:
-Out of Scope:
-Required Output:
-
-## Work Order
-
-## File Ownership
-
-## Shared File Handling
-
-## Required Tests
-
-## Runtime / Build / Test Failure Routing
-
-If Java backend build fails: route to java-backend-agent
-If Spring/runtime startup fails: route to java-backend-agent
-If frontend build fails: read the failing file path — route to `frontend-api-agent` (api/hooks/types) or `frontend-ui-agent` (components/pages/utils/CSS)
-If frontend runtime fails: same routing by file path
-If QA rejects: Team Lead classifies and routes to suspected owner
-If security concern appears: route to security-agent
-If demo config issue appears: route to relevant agent (allowed demo config is not a blocker)
-If infra change appears required: route to infrastructure-agent only if explicitly allowed; otherwise document as recommendation
-
-## QA Plan
-
-## Security Review Required
-
-Yes/No and reason.
-
-## Backend Integration Tests Required
-
-Yes / No — and exact trigger (which of the five conditions matched, or why all were absent).
-
-## E2E Mode
-
-None / Smoke / Full — and reason.
-
-**Decision rules (pick the first that matches):**
-
-| Condition | E2E Mode |
-|-----------|----------|
-| API contract changed (new endpoint, changed request/response shape, new status codes) | **Full** — frontend + live backend on port 8081 |
-| New game mode, state machine transition, or multiplayer flow requiring backend coordination | **Full** |
-| New frontend pages/flows/components but NO contract change | **Smoke** — `smoke.spec.ts` only, no backend |
-| Pure styling, copy, or layout change | **Smoke** |
-| Backend-only change, zero frontend impact | **None** |
-
-When mode is **Full**, Team Lead must pass the E2E Infrastructure Pre-Gate before spawning playwright-e2e-agent (see Step 6).
-When mode is **Smoke**, Team Lead spawns playwright-e2e-agent with instruction to run `smoke.spec.ts` only — no backend webServer needed.
-When mode is **None**, playwright-e2e-agent is not spawned.
-
-## Demo Config / Dotenv Plan
-
-Config changes required: Yes/No
-Allowed files: ...
-Values are: PUBLIC_CONFIG / DEMO_CONFIG_ACCEPTED / PLACEHOLDER_CONFIG / UNKNOWN_SENSITIVE_VALUE
-Human setup required: Yes/No
-
-## Done Criteria
-
-## Loop Prevention Plan
-
-Frontend technical attempt limit: 10
-Java Backend technical attempt limit: 10
-QA cycle limit: 5
-Product reopen limit: 3
-Architecture reopen limit: 3
-Route escalation limit: 3
-Total fix cycle limit: 15
-
-## Technical Agent Rule Preservation
-
-- Java Backend technical rules remain active.
-- Frontend technical rules remain active.
-- QA technical rules remain active.
-- Security technical rules remain active.
-- Infrastructure technical rules remain active.
-
-## Infrastructure Non-Modification Confirmation
-
-- Dockerfile must not be touched by this workflow update.
-- Docker Compose files must not be touched by this workflow update.
-- CI/deployment files must not be touched by this workflow update.
-- Dependencies and lockfiles must not be touched by this workflow update.
-
-## Risk Handling Policy
-
-Which risks can be documented in PR:
-Which risks require hard blocker:
-
-## Workflow Metadata
-
-Workflow Run ID:
-```
+Do not produce a plan without filling in every applicable section. The template contains the E2E mode decision table and loop prevention limits — use them when filling in those sections.
 
 ---
 
-## Step 5 — Git Branch Handling Policy
+## Step 5 — Git Branch Handling
 
-This policy defines how Team Lead decides whether to continue on the current branch, create a new branch, rebase, stash, or commit work before implementation begins.
-
-**Goal:** never work on unrelated branches, never implement on `main`, never pollute existing PRs, avoid merge commits, preserve existing work, keep PRs clean.
-
----
+**Goal:** never work on unrelated branches, never implement on `main`, never pollute existing PRs, preserve existing work, keep PRs clean.
 
 ### Core Principles
 
@@ -422,21 +310,18 @@ This policy defines how Team Lead decides whether to continue on the current bra
 2. Never modify an unrelated branch.
 3. Never implement, edit, or commit directly on `main`.
 4. `main` is only a clean base branch.
-5. Prefer clean, linear history.
-6. Prefer `rebase` over merge commits on feature branches.
-7. Prefer `git pull --ff-only` when updating `main`.
-8. Preserve existing local work before rebasing or switching branches.
-9. If a branch already has an open PR and the new requirement belongs to the same logical change set, continue on that branch.
-10. If the new requirement is unrelated, create a new feature branch from updated `main`.
-11. Before creating any new branch, verify the branch name does not already exist locally or remotely. If it exists, stop and report — never silently reuse or check out an existing branch for a new requirement.
-11. Never run `git pull origin main` directly on a feature branch — use `git fetch origin && git rebase origin/main`.
-12. If `main` is dirty, stop and report. Do not commit, stash, reset, clean, or continue automatically.
-
----
+5. Prefer `rebase` over merge commits on feature branches.
+6. Prefer `git pull --ff-only` when updating `main`.
+7. Preserve existing local work before rebasing or switching branches.
+8. Continue on an existing branch when the new requirement belongs to the same logical change set.
+9. Create a new branch from updated `main` when the requirement is unrelated.
+10. Before creating any new branch, verify the name does not already exist locally or remotely. If it exists, stop and report.
+11. Never run `git pull origin main` on a feature branch — use `git fetch origin && git rebase origin/main`.
+12. If `main` is dirty, stop and report immediately.
 
 ### Mandatory Pre-Flight Checks
 
-Before doing any work:
+Run before any work:
 
 ```bash
 git status
@@ -445,48 +330,9 @@ git fetch origin
 git log --oneline -5
 ```
 
-Determine:
-- current branch name
-- whether working tree is clean or dirty
-- whether current branch is `main`
-- whether current branch relates to the new requirement
-- whether there is an existing open or merged PR for this branch
-- whether the new requirement belongs to the same logical change set
+Determine: current branch name, clean or dirty, on `main` or feature branch, related or unrelated to requirement, existing open or merged PR.
 
-No implementation may start before the branch decision is made and written to `reports/runs/<workflow-run-id>/team-lead-classification.md`.
-
----
-
-### New Branch Guard — Required Before Every `git checkout -b`
-
-Whenever a new branch is about to be created (Cases B, D, G, H), first verify the name does not already exist locally or remotely:
-
-```bash
-git branch --list feature/<requirement-name>          # local
-git branch -r --list origin/feature/<requirement-name> # remote
-```
-
-If the branch exists locally or remotely:
-- Do **not** check it out.
-- Do **not** assume it belongs to this requirement.
-- Write `workflow-blocker.md` and stop:
-
-```md
-## Blocker: Branch Already Exists
-
-Branch name: feature/<requirement-name>
-Found: local / remote / both
-
-This branch may belong to another team member or an unrelated change.
-I will not check out, reuse, or modify it automatically.
-
-Required human action:
-Choose a different branch name, or confirm this branch is safe to reuse, then rerun.
-```
-
-Only proceed with `git checkout -b` after confirming the name is free on both local and remote.
-
----
+No implementation may start before the branch decision is written to `reports/runs/<workflow-run-id>/team-lead-classification.md`.
 
 ### Branch Decision Matrix
 
@@ -494,293 +340,17 @@ Only proceed with `git checkout -b` after confirming the name is free on both lo
 |---|---|---|
 | A | Current branch already doing this exact requirement | Rebase onto `origin/main`, continue |
 | B | Current branch completely unrelated | Leave untouched, checkout updated `main`, create fresh branch |
-| C | Current branch is related continuation (X.1 → X.2) | Continue same branch after rebase, same PR/change set |
+| C | Current branch is related continuation (X.1 → X.2) | Continue same branch after rebase |
 | D | Current branch is `main` and clean | Update `main`, create new branch, implement only on new branch |
-| E | Current branch is `main` and dirty | Stop and report — no automatic action |
+| E | Current branch is `main` and dirty | **Hard stop** — do not commit, stash, reset, or continue automatically |
 | F | Working tree dirty on feature branch | Preserve via WIP commit or stash before rebase/switch |
 | G | Branch already merged | Create fresh branch from updated `main` |
 | H | Branch has open PR but new requirement is unrelated | Leave old branch untouched, create new branch |
 | I | Branch has open PR and new requirement is related | Continue same branch after rebase |
 
----
+For all case-specific bash command sequences, stash/rebase procedures, conflict handling, branch naming rules, commit message format, New Branch Guard commands, and forbidden actions list — load `.claude/policies/git-branch-policy.md`.
 
-### Case A — Branch Already Matches This Exact Requirement
-
-Stay on the current branch and update it.
-
-**If clean:**
-```bash
-git fetch origin
-git rebase origin/main
-```
-
-**If dirty with meaningful changes:**
-```bash
-git add .
-git commit -m "wip: checkpoint before rebase"
-git fetch origin
-git rebase origin/main
-```
-
-**If dirty with temporary changes:**
-```bash
-git stash push -u -m "wip-before-rebase"
-git fetch origin
-git rebase origin/main
-git stash pop
-```
-
-If rebase conflict: `git rebase --abort`, write workflow-blocker.md, stop.
-
----
-
-### Case B — Current Branch Is Completely Unrelated
-
-Leave it untouched. Move to updated `main`, create fresh branch.
-
-Before creating the new branch, run the **New Branch Guard** (see above).
-
-**If clean:**
-```bash
-git fetch origin
-# verify branch name is free (New Branch Guard)
-git checkout main
-git pull --ff-only origin main
-git checkout -b feature/<requirement-name>
-```
-
-**If dirty — preserve work on the current branch:**
-```bash
-git add .
-git commit -m "wip: preserve unrelated branch work"
-# verify branch name is free (New Branch Guard)
-git checkout main
-git pull --ff-only origin main
-git checkout -b feature/<requirement-name>
-```
-
-**If dirty — temporary changes:**
-```bash
-git stash push -u -m "wip-unrelated-branch"
-# verify branch name is free (New Branch Guard)
-git checkout main
-git pull --ff-only origin main
-git checkout -b feature/<requirement-name>
-```
-
-Do not `stash pop` unrelated changes onto the new branch.
-
----
-
-### Case C — Related Continuation (X.1 → X.2)
-
-Continue on same branch only if: not merged, PR still open or no PR yet, and new requirement belongs to the same logical change set.
-
-**If clean:**
-```bash
-git fetch origin
-git rebase origin/main
-```
-
-**If dirty with meaningful changes:**
-```bash
-git add .
-git commit -m "wip: checkpoint before related continuation"
-git fetch origin
-git rebase origin/main
-```
-
-**If dirty with temporary changes:**
-```bash
-git stash push -u -m "wip-before-related-continuation"
-git fetch origin
-git rebase origin/main
-git stash pop
-```
-
-Never use `git pull origin main` on a feature branch — always rebase.
-
-If rebase conflict: `git rebase --abort`, write workflow-blocker.md, stop.
-If stash pop conflict: write workflow-blocker.md, stop.
-
----
-
-### Case D — Current Branch Is Main And Clean
-
-```bash
-git status
-git checkout main
-git pull --ff-only origin main
-# verify branch name is free (New Branch Guard)
-git checkout -b feature/<requirement-name>
-```
-
-Implement only on the new branch. Forbidden on `main`: `git add .`, `git commit`.
-
----
-
-### Case E — Current Branch Is Main And Dirty
-
-Run `git status`. Then stop and write:
-
-```md
-Current branch is main and the working tree is dirty.
-I will not modify, commit, stash, reset, or clean directly on main.
-Please decide whether to preserve, discard, or move these changes to a branch.
-```
-
-Forbidden on dirty `main` unless explicitly human-approved: `git add`, `git commit`, `git stash`, `git reset --hard`, `git clean -fd`, `git checkout -b`.
-
----
-
-### Case F — Dirty Feature Branch (Before Rebase Or Switch)
-
-**Use commit when** changes are meaningful, branch is correct, changes are part of current task.
-**Use stash when** changes are temporary or experimental.
-
-Always include untracked files in stash:
-```bash
-git stash push -u -m "wip-before-branch-operation"
-```
-Never use bare `git stash` when untracked files exist.
-
----
-
-### Case G — Branch Already Merged
-
-```bash
-git checkout main
-git pull --ff-only origin main
-# verify branch name is free (New Branch Guard)
-git checkout -b feature/<requirement-name>
-```
-
-Do not continue development on merged branches.
-
----
-
-### Case H — Open PR But Requirement Is Unrelated
-
-Leave old branch untouched.
-
-Before creating the new branch, run the **New Branch Guard** (see above).
-
-**If clean:**
-```bash
-git checkout main
-git pull --ff-only origin main
-# verify branch name is free (New Branch Guard)
-git checkout -b feature/<new-requirement-name>
-```
-
-**If dirty:**
-```bash
-git add .
-git commit -m "wip: preserve open PR work"
-git checkout main
-git pull --ff-only origin main
-# verify branch name is free (New Branch Guard)
-git checkout -b feature/<new-requirement-name>
-```
-
----
-
-### Case I — Open PR And Requirement Is Related
-
-Continue on same branch.
-
-**If clean:**
-```bash
-git fetch origin
-git rebase origin/main
-```
-
-**If dirty:**
-```bash
-git add .
-git commit -m "wip: checkpoint before updating open PR"
-git fetch origin
-git rebase origin/main
-```
-
----
-
-### Pull / Fetch / Rebase Rules
-
-**On `main`:** `git pull --ff-only origin main` only.
-
-**On feature branches:** `git fetch origin && git rebase origin/main` — never `git pull origin main`.
-
-**Recommended config:**
-```bash
-git config pull.ff only
-git config rebase.autoStash false
-```
-
----
-
-### Branch Naming Policy
-
-```
-feature/<short-requirement-name>
-fix/<short-bug-name>
-chore/<short-maintenance-name>
-test/<short-test-name>
-```
-
-Lowercase, hyphens, short but meaningful. Avoid generic names like `feature/fix`, `feature/update`.
-
----
-
-### Commit Message Policy
-
-```bash
-fix: allow ship placement during manual setup
-feat: add toast for invalid ship placement
-wip: checkpoint before rebase          # WIP only when preserving state
-```
-
-Avoid: `fix`, `changes`, `update`, `stuff`.
-
----
-
-### Conflict Handling
-
-**Rebase conflict:**
-```bash
-git status
-# resolve file by file
-git add <resolved-files>
-git rebase --continue
-# or if unsafe:
-git rebase --abort
-```
-
-**Stash pop conflict:**
-```bash
-git status
-# resolve
-git add <resolved-files>
-git stash list
-git stash drop   # if stash was not auto-dropped
-```
-
-Never continue implementation while Git is in a conflicted state.
-
----
-
-### Forbidden Actions
-
-```bash
-git pull origin main          # on feature branch — creates merge commit
-git add . && git commit       # on main
-git reset --hard              # unless explicitly approved
-git clean -fd                 # unless explicitly approved
-git branch -D                 # unless explicitly approved
-git push --force              # always forbidden; use --force-with-lease if needed
-```
-
----
+**Lazy-load rule:** Load the policy file whenever any of the following apply: dirty working tree, current branch is `main`, branch switch needed, new branch creation needed, rebase needed, stash needed, conflict present, PR status affects the decision, New Branch Guard needed. Skip loading only on the simplest path: clean feature branch already matching the requirement, no switch, no dirty state, no new branch.
 
 ### Branch Decision Log (Required)
 
@@ -803,25 +373,6 @@ Stash used: Yes / No
 Conflicts encountered: Yes / No
 Result: Clean / Blocker
 Reason: <one sentence>
-```
-
----
-
-### Safe Execution Order
-
-```
-1. git status + git branch --show-current + git fetch origin + git log --oneline -5
-2. Determine: main or feature branch? clean or dirty? related or unrelated?
-3. Check for existing open/merged PR
-4. Classify case (A–I)
-5. Preserve local changes if needed (commit or stash)
-6. Sync from origin/main correctly (ff-only on main, rebase on feature)
-7. Create or stay on branch
-8. Write Branch Decision Log
-9. Assign developer agents and implement
-10. Run tests
-11. Commit with clear message
-12. Update or create PR
 ```
 
 ---
@@ -902,27 +453,13 @@ Split into `frontend-api-agent` + `frontend-ui-agent` **only when ALL of the fol
 
 Skip this gate entirely when E2E mode is **Smoke** or **None**.
 
-When mode is **Full**, verify the complete E2E environment before spawning `playwright-e2e-agent`. Run these checks in order:
+When mode is **Full**, verify E2E infrastructure readiness before spawning `playwright-e2e-agent`. The exact shell checks are in `playwright-e2e-agent/SKILL.md` under "Infrastructure Pre-Gate."
 
-```bash
-# 1. Backend E2E Spring profile exists
-test -f apps/backend/src/main/resources/application-e2e.yml && echo "OK" || echo "MISSING"
-
-# 2. Maven e2e profile exists in pom.xml
-grep -q '<id>e2e</id>' apps/backend/pom.xml && echo "OK" || echo "MISSING"
-
-# 3. playwright.config.ts has a backend webServer entry
-grep -q 'spring-boot:run' apps/frontend/playwright.config.ts && echo "OK" || echo "MISSING"
-
-# 4. playwright.config.ts passes VITE_API_BASE_URL to frontend webServer
-grep -q 'VITE_API_BASE_URL' apps/frontend/playwright.config.ts && echo "OK" || echo "MISSING"
-```
-
-If any check fails, route to the owning agent before spawning playwright-e2e-agent:
-- `application-e2e.yml` missing → route to `java-backend-agent`
-- Maven `e2e` profile missing → route to `java-backend-agent`
-- `playwright.config.ts` missing backend webServer → route to `playwright-e2e-agent` with explicit instruction to add it
-- `VITE_API_BASE_URL` missing → route to `playwright-e2e-agent` with explicit instruction to add it
+If any check fails, route to the owning agent:
+- `application-e2e.yml` missing → `java-backend-agent`
+- Maven `e2e` profile missing → `java-backend-agent`
+- `playwright.config.ts` missing backend webServer → `playwright-e2e-agent` with explicit instruction to add it
+- `VITE_API_BASE_URL` missing → `playwright-e2e-agent` with explicit instruction to add it
 
 Do not spawn `playwright-e2e-agent` until all four checks pass.
 
@@ -1420,28 +957,13 @@ Level 4:   full E2E — real browser + real backend, only when Team Lead explici
 
 These definitions are binding for routing decisions. Use them to decide which test type to require.
 
-**Frontend unit tests** — Vitest/jsdom, one isolated frontend unit.
-- Component unit test: renders with controlled props or mocked dependencies, asserts DOM output/behavior. Use for: conditional rendering, button visibility, disabled/enabled state, empty/loading/error state, modal/toast visibility, text and labels, CSS class/state-class application, board cell rendering, layout DOM structure, responsive structural expectations jsdom can validate.
-- Hook unit test: uses `renderHook`, asserts returned data shape, loading/error/success transitions, API response mapping. Owned by `frontend-api-agent`.
-- Utility unit test: pure functions — board cell mapping, coordinate helpers, formatters.
+**Frontend unit tests** — Vitest/jsdom, one isolated unit. Catches: conditional rendering, wrong text/class, missing section, button visibility, disabled/enabled state. Owned by: component/util → `frontend-ui-agent`; hook → `frontend-api-agent`.
 
-Unit tests **can and should** catch simple UI regressions: missing button, wrong text, wrong CSS class, missing section, wrong conditional state. For screenshot-like bugs caused by component structure, props, state, or CSS class logic — require unit tests first before escalating.
+**Frontend integration tests** — Vitest/jsdom, multiple real frontend layers, network boundary mocked. Use when: per-layer unit tests pass but runtime behavior fails due to timing/ordering, provider wiring, shared state, or async side-effect interaction. Do not use for simple CSS/layout fixes.
 
-**Frontend integration tests** — Vitest/jsdom, multiple real frontend layers together, network boundary mocked.
-- Includes: real rendered component, real hook, real store/context, real Axios interceptors, real frontend side effects.
-- Mocks only: HTTP/network/server boundary (Axios adapter, `fetch` mock).
-- Does not use: real browser, real backend, real auth provider.
-- Use when: per-layer unit tests pass but runtime behavior can still fail due to timing/ordering, provider wiring, shared state, or async side-effect interaction.
-- **Do not use** for simple CSS/layout fixes where a unit test plus Playwright smoke is sufficient.
+**Playwright UI smoke** — real browser, mocked backend/auth/session. Use for: CSS/layout, responsive/mobile, authenticated screen rendering at viewport sizes. Catches what jsdom cannot. Does not replace unit or integration tests.
 
-**Playwright UI smoke** — real browser, mocked backend/auth/session, no real backend.
-- Use for: CSS/layout changes, responsive/mobile fixes, page rendering at real viewport sizes, authenticated screen rendering with mocked session, visible element checks (board, fleet, button) at desktop and mobile viewports.
-- Catches what jsdom cannot: actual CSS rendering, flexbox/grid layout, overflow, responsive breakpoints.
-- Does **not** replace unit tests or integration tests. Catches a different class of risk.
-
-**Full E2E** — real browser + real backend on port 8081.
-- Only when Team Lead explicitly routes it: API contract change, new game mode, state machine transition, or multiplayer flow requiring backend coordination.
-- Never triggered by frontend agents themselves.
+**Full E2E** — real browser + real backend on port 8081. Only when Team Lead explicitly routes it. Never triggered by frontend agents.
 
 ---
 
@@ -1495,16 +1017,7 @@ Write a new test when **all** of the following are true:
 
 #### How to write the test
 
-Use `page.route()` to mock **all** backend API calls — no real backend needed. Set `sessionStorage` to bypass redirect guards. Assert layout with `boundingBox()` and overflow with `document.documentElement.scrollWidth`.
-
-Location: `apps/frontend/tests/e2e/<page-name>-layout.spec.ts`
-
-Run command (frontend dev server must be running on port 3001):
-
-```powershell
-$env:E2E_BASE_URL='http://localhost:3001'
-cd apps/frontend && npx playwright test tests/e2e/<page-name>-layout.spec.ts --project=chromium
-```
+Owned by `playwright-e2e-agent` — see that agent's SKILL for implementation details (`page.route()`, `boundingBox`, `sessionStorage`, spec location, run command).
 
 #### If the targeted test fails
 
@@ -1560,25 +1073,18 @@ If non-critical unresolved findings remain, document them in PR summary. Do not 
 
 ## Execution Routes
 
-- `docs-only`: documentation/workflow text only
-- `frontend-only`: UI-only changes
-- `java-backend-only`: backend/internal logic only
-- `backend-and-frontend`: API contract or behavior touches both
-- `config-aware`: demo/local config change required
-- `infra`: Docker, CI, env, startup, ports, deployment
-- `auth-security`: auth, sessions, permissions, secrets, user data, external integrations
-- `multiplayer-session`: multiplayer/session/game-flow coordination
-- `full-stack-complex`: broad cross-cutting work
+Valid labels: `docs-only`, `frontend-only`, `java-backend-only`, `backend-and-frontend`, `config-aware`, `infra`, `auth-security`, `multiplayer-session`, `full-stack-complex`.
+
+Load `.claude/metadata/route-matrix.yml` when you need the description for an unfamiliar label.
 
 ## Execution Modes
 
-- `cheap`: product-lite, one implementation agent, build test only (`npm run build` or `./mvnw test`), **code review required (lite)**, **validation gap check required**, release
-- `normal`: product-lite, architect-lite when contracts change, relevant implementation agents, relevant tests, **code review required**, **validation gap check required**, release
-- `full`: product-full, architect-full, backend, frontend, infra, unit/integration/E2E, **security required + code review required + Playwright required**, release
+Valid values: `cheap`, `normal`, `full`. Load `.claude/metadata/execution-modes.yml` for gate and token budget details.
 
-**Cheap mode token budget:** product-lite → team-lead-classification → `frontend-ui-agent` (styling/copy/layout — lightweight plan + build only) or `frontend-api-agent` (hook/type tweak — lightweight plan + build only) → code-review-lite → release. No unit tests, no E2E, no security, no architecture.
-
-**Code review is required in every mode, including cheap.** The depth scales with mode (lite vs full), but it never runs zero. Security review is optional in cheap/normal unless the route triggers it (auth, sessions, secrets, hidden data). All findings always return to Team Lead — never directly to developer agents.
+**Binding rules (always enforced, never in the metadata file):**
+- Code review runs in every mode — at minimum review-lite for cheap. Never skip entirely.
+- Security review is optional in cheap/normal unless the route triggers it (auth, sessions, secrets, hidden data, external integrations).
+- All findings return to Team Lead — never directly to developer agents.
 
 ## Validation Gap Check (required in cheap and normal mode)
 
@@ -1642,37 +1148,9 @@ For pure cosmetic/audio changes where all unvalidated criteria are Risk: Low —
 
 ## File Ownership
 
-Team Lead owns routing, coordination, shared contracts, QA reassignment, retry limits, report freshness, release readiness, `.claude/**`, workflow files, and `reports/**`.
+Load `.claude/metadata/file-ownership.yml` during Step 7 ownership checks. That file lists every agent's owned paths and the shared files list.
 
-Product owns `reports/runs/<workflow-run-id>/product-spec.md`.
-Architect owns `reports/runs/<workflow-run-id>/architecture.md` and `reports/runs/<workflow-run-id>/technical-plan.md`.
-Backend owns backend production source and backend unit tests (`*Test.java`, not `*IntegrationTest.java`).
-Frontend owns frontend source and frontend unit tests (Vitest, co-located).
-Infrastructure owns Docker, CI, env examples, deployment files, service startup scripts.
-Playwright owns E2E files and `playwright.config.*`.
-Security owns `reports/runs/<workflow-run-id>/security-report.md`.
-Code Review owns `reports/runs/<workflow-run-id>/code-review-report.md`.
-Release owns final git/gh checks, push, PR, and `reports/runs/<workflow-run-id>/release-summary.md`.
-
-Shared files include:
-```
-README.md
-package.json
-package-lock.json
-pnpm-lock.yaml
-yarn.lock
-docker-compose.yml
-Dockerfile
-.env.example
-playwright.config.*
-openapi.*
-shared/**
-types/**
-.claude/**
-reports/**
-```
-
-Team Lead decides shared file edits autonomously and records every shared file change in PR summary.
+Team Lead decides shared file edits autonomously and records every shared file change in PR summary. Authority over routing, QA reassignment, retry limits, report freshness, and release readiness stays with Team Lead.
 
 ---
 
@@ -1684,131 +1162,9 @@ Default: do not add dependencies. Prefer native implementation and existing depe
 
 ## PR Summary Requirements
 
-Release summary/PR body must be written to `reports/runs/<workflow-run-id>/release-summary.md` and must be review-focused. Use this structure:
+Release summary/PR body must be written to `reports/runs/<workflow-run-id>/release-summary.md`.
 
-```md
-# Summary
-
-## 1. Requirement
-
-## 2. Product Behavior
-
-## 3. What Changed
-
-Group by relevant areas:
-- Agent Workflow / Orchestration
-- Product Agent
-- Team Lead Agent
-- Architecture Agent
-- Java Backend Agent
-- Frontend Agent
-- QA Agent
-- Release PR Agent
-- Demo Config
-
-## 4. What Was Not Changed
-
-Confirm:
-- Java backend technical rules were preserved.
-- Frontend technical rules were preserved.
-- QA technical rules were preserved.
-- Dockerfile was not changed.
-- Docker Compose files were not changed.
-- CI/deployment files were not changed.
-- Dependencies and lockfiles were not changed.
-- No obvious real leaked credentials were committed.
-
-## 5. Technical Rules Preserved / Applied
-
-## 6. How To Review
-
-## 7. Tests And Validation
-
-### Commands Run
-
-| Command | Result | Reason |
-|---|---|---|
-
-### Failures Encountered And Routed
-
-| Failure | Finding ID | Routed To | Fix Attempted | Attempts Used | Final Status |
-|---|---|---|---|---:|---|
-
-### Validation Gaps
-
-| Gap | Reason | Risk |
-|---|---|---|
-
-## 8. QA Result
-
-Status: PASS / PASS WITH RISKS / REJECTED NON-BLOCKING / BLOCKED
-
-## 9. Unresolved Findings / Known Risks
-
-| Finding ID | Severity | Status | Blocks PR | Reason |
-|---|---|---|---|---|
-
-## 10. Product / Architecture Reopen Notes
-
-## 11. Retry / Reopen Summary
-
-| Area | Limit | Used | Notes |
-|---|---:|---:|---|
-| Frontend technical attempts | 10 | ... | ... |
-| Java Backend technical attempts | 10 | ... | ... |
-| QA cycles | 5 | ... | ... |
-| Product reopens | 3 | ... | ... |
-| Architecture reopens | 3 | ... | ... |
-| Total fix cycles | 15 | ... | ... |
-| Route escalations | 3 | ... | ... |
-
-## 12. Architecture Decision
-
-## 13. Security / Demo Config Review
-
-## 14. Demo Configuration Changes
-
-| File | Key / Area | Value Type | Reason |
-|---|---|---|---|
-
-Note:
-This is a demo/home-assignment repository. Visible local/demo configuration is accepted for task completion and should be reviewed before production use.
-
-## 15. Infrastructure Safety
-
-| Area | Changed? | Notes |
-|---|---|---|
-| Dockerfile | No | Must remain unchanged |
-| Docker Compose | No | Must remain unchanged |
-| CI/CD | No | Must remain unchanged |
-| Deployment files | No | Must remain unchanged |
-| Dependencies | No | Must remain unchanged |
-
-## 16. E2E Status
-
-## 17. Cost / Execution Efficiency
-
-## 18. Agents Run
-
-## 19. Files Changed
-
-## 20. Human Review Checklist
-
-- [ ] Product behavior matches the requirement
-- [ ] Main workflow/orchestration changes are correct
-- [ ] Specialized technical agent rules were preserved
-- [ ] Java backend remains Java-focused
-- [ ] No NestJS backend rules were introduced
-- [ ] Dockerfile/Docker Compose/CI/deployment files were not changed
-- [ ] Dependencies and lockfiles were not changed
-- [ ] Demo config is acceptable for this task
-- [ ] No obvious real leaked credential was introduced
-- [ ] Tests/validation are sufficient
-- [ ] Any failures were routed to relevant agents
-- [ ] Validation gaps are acceptable
-- [ ] Unresolved findings are acceptable
-- [ ] Approve or request changes
-```
+Load `.claude/templates/pr-summary-template.md` when writing. Keep it short and review-focused — full evidence stays in `reports/runs/<workflow-run-id>/`. Only add sections beyond the template when actually relevant to the reviewer (demo config changes, unresolved findings, security notes, architecture decisions).
 
 ---
 

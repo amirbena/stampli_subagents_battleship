@@ -15,7 +15,7 @@ All PRs are opened via **GitHub CLI (`gh`)**. GitHub MCP is not used.
 ## Responsibilities
 - Read current run context from `reports/current-run.json` to get `<workflow-run-id>`.
 - Verify all quality gate reports exist under `reports/runs/<workflow-run-id>/`, belong to the current Workflow Run ID, and are approved.
-- Generate `reports/runs/<workflow-run-id>/release-summary.md` with the current Workflow Run ID metadata block. Use the PR Summary format defined in the Team Lead SKILL.
+- Generate `reports/runs/<workflow-run-id>/release-summary.md` with the current Workflow Run ID metadata block. Load `.claude/templates/pr-summary-template.md` for the exact format.
 - Verify the release branch is not `main`.
 - Verify the working tree is clean before final freshness checks.
 - Verify the branch is fresh against `origin/main`.
@@ -197,50 +197,7 @@ Install/authenticate gh and rerun release.
      --body-file reports/runs/<workflow-run-id>/release-summary.md
    ```
 
-   **PR description must contain all sections below** (write them into `release-summary.md` before creating the PR):
-
-   ```md
-   ## Requirement
-   <One paragraph from requirements.md summarising what was requested.>
-
-   ## Product Behavior
-   <Key acceptance criteria from product-spec.md that this PR satisfies.>
-
-   ## Architecture / API Changes
-   <From architecture.md if it exists. State "No architecture changes — frontend-only / docs-only" if not applicable.>
-
-   ## Backend Changes
-   - <file or area — what changed and why>
-   - None (if backend was not in scope)
-
-   ## Frontend Changes
-   - <file or area — what changed and why>
-   - None (if frontend was not in scope)
-
-   ## Test Coverage
-   - Backend unit tests: <added/updated test classes and scenario count, or "not in scope">
-   - Frontend unit tests: <added/updated test files and scenario count, or "not in scope">
-   - Playwright E2E: <added/updated specs and scenario count, or "skipped — not required for this route">
-
-   ## How This Was Verified
-   - `./mvnw test` — X tests passed, 0 failed (or "skipped — backend not in scope")
-   - `npm run test` — X tests passed, 0 failed (or "skipped — frontend not in scope")
-   - `npm run e2e:ci` — X scenarios passed (or "skipped — not required for this route")
-   - Code review: APPROVED (report: reports/runs/<id>/code-review-report.md)
-   - Security review: APPROVED / skipped — <reason>
-
-   ## Security Considerations
-   <From security-report.md if it exists. State "Security review not required for this route" if not applicable.>
-
-   ## Known Limitations / Follow-up Tasks
-   <Unresolved non-critical findings, known gaps, or intentional deferred scope. State "None" if clean.>
-
-   ## Agents That Ran
-   - <agent-name>: <one-line summary of what it did or was skipped>
-
-   ## Manual / UI Verification Notes
-   <Smoke test result from Frontend Agent, or "Not applicable — no frontend change.">
-   ```
+   Load `.claude/templates/pr-summary-template.md` for the exact format. Keep it short and review-focused.
 
 4. Print the PR URL returned by `gh pr create`.
 
