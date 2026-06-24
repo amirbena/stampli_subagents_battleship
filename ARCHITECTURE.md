@@ -211,5 +211,7 @@ This is separate from the Team Lead E2E mode decision above — it is a lightwei
 - Port 5173 (dev) / 3001 (E2E)
 
 ### Infrastructure
-- Docker Compose for local full-stack run
+- Two local run models, both valid (see README → How To Run):
+  - **Full Docker Compose** — frontend, backend, Postgres, and Redis all run as containers.
+  - **Fast native script path** (`run.sh` / `run.ps1` / `run.cmd`) — only Postgres + Redis run as containers; the backend (`./mvnw spring-boot:run`, `postgres` profile) and frontend (`npm run dev`, Vite HMR) run natively for a fast dev inner loop. Same `postgres` profile and demo env as Compose; no app images are rebuilt.
 - No Redis unless a concrete scalability requirement justifies it
