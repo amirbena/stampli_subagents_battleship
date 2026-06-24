@@ -107,6 +107,18 @@ $BackendProc = $null
 $FrontendProc = $null
 
 try {
+    # Ensure Maven Wrapper JAR is present. mvnw.cmd's built-in download uses a
+    # cmd.exe for/f + curl trick that fails on some Windows setups (blank URL from
+    # CRLF parsing). PowerShell's Invoke-WebRequest is reliable — use it instead.
+    $wrapperJar   = Join-Path $ScriptDir 'apps\backend\.mvn\wrapper\maven-wrapper.jar'
+    $wrapperProps = Join-Path $ScriptDir 'apps\backend\.mvn\wrapper\maven-wrapper.properties'
+    if (-not (Test-Path $wrapperJar)) {
+        $wrapperUrl = ((Get-Content $wrapperProps | Where-Object { $_ -match '^wrapperUrl=' } | Select-Object -First 1) -replace '^wrapperUrl=', '').Trim()
+        Write-Host "    Downloading Maven Wrapper JAR (one-time)..."
+        Invoke-WebRequest -Uri $wrapperUrl -OutFile $wrapperJar -UseBasicParsing
+        Write-Host "    Maven Wrapper JAR ready."
+    }
+
     # 3. Backend — native, postgres profile, pointing at local containers
     Write-Host "==> Starting backend natively (Spring Boot, postgres profile) on :8080/api/v1"
     $env:SPRING_PROFILES_ACTIVE    = 'postgres'
