@@ -107,6 +107,21 @@ describe('global HTTP loader store', () => {
     expect(getActiveRequestCount()).toBe(0);
   });
 
+  it('increments synchronously — no flush() needed (AC-6: synchronous interceptor)', () => {
+    // With { synchronous: true } on the request interceptor, increment() fires
+    // during the same call-stack frame as api.get(), before any microtask runs.
+    // This verifies that React 18 batching cannot collapse the 0→1→0 transition
+    // into a single render: by the time api.get() returns, count is already 1.
+    const d = deferredAdapter();
+    // Start the request but do NOT await or flush — no microtasks allowed.
+    api.get('/x', { adapter: d.adapter }).catch(() => {
+      // swallow resolution/rejection; we only care about the synchronous increment.
+    });
+
+    // Count must already be 1 here — no await, no flush.
+    expect(getActiveRequestCount()).toBe(1);
+  });
+
   it('notifies subscribers on change and stops after unsubscribe', async () => {
     const seen: number[] = [];
     const unsub = subscribeActiveRequests((n) => seen.push(n));

@@ -86,11 +86,24 @@ function decrement(): void {
  * Request interceptor — counts every user-initiated request as in flight.
  * Requests tagged `{ silent: true }` (background polls) are skipped so the global
  * loader does not appear for the 2s poll loop (AC-4).
+ *
+ * `{ synchronous: true }` (Axios v1.x) makes this interceptor run synchronously
+ * inside the caller's event loop turn — before the Promise chain. Without it,
+ * React 18 automatic batching groups the increment() microtask with the
+ * decrement() response microtask on fast local requests, so the loader counter
+ * goes 0→1→0 inside a single render flush and GlobalLoader never appears.
+ * With synchronous: true, increment() fires during the click handler's
+ * synchronous frame, React sees count→1 before the network response arrives,
+ * and GlobalLoader renders. The response interceptor is intentionally left async.
  */
-api.interceptors.request.use((config) => {
-  if (!config.silent) increment();
-  return config;
-});
+api.interceptors.request.use(
+  (config) => {
+    if (!config.silent) increment();
+    return config;
+  },
+  undefined,
+  { synchronous: true },
+);
 
 /**
  * Response interceptor — normalises backend error shapes into plain Error instances
