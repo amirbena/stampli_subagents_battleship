@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  run.ps1 — Fast local run (Windows PowerShell)
+  .run/run.ps1 — Fast local run (Windows PowerShell)
 
 .DESCRIPTION
   Starts ONLY Postgres + Redis as Docker containers, then runs the Spring Boot
@@ -14,8 +14,8 @@
 
 $ErrorActionPreference = 'Stop'
 
-# --- Resolve repo root (directory of this script) --------------------------
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+# --- Resolve repo root (one level above this script's .run\ directory) ------
+$ScriptDir = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $ScriptDir
 
 $EnvFile = 'apps/backend/.env'
@@ -28,8 +28,8 @@ $PostgresPassword = 'battleship_dev'
 
 if (Test-Path $EnvFile) {
     foreach ($line in Get-Content $EnvFile) {
-        if ($line -match '^POSTGRES_DB=(.*)$')       { $PostgresDb = $Matches[1].Trim() }
-        elseif ($line -match '^POSTGRES_USER=(.*)$')  { $PostgresUser = $Matches[1].Trim() }
+        if ($line -match '^POSTGRES_DB=(.*)$')          { $PostgresDb = $Matches[1].Trim() }
+        elseif ($line -match '^POSTGRES_USER=(.*)$')    { $PostgresUser = $Matches[1].Trim() }
         elseif ($line -match '^POSTGRES_PASSWORD=(.*)$') { $PostgresPassword = $Matches[1].Trim() }
     }
 } else {
@@ -55,7 +55,8 @@ catch { Fail "Docker daemon is not reachable. Start Docker Desktop and retry." }
 if (-not (Get-Command java -ErrorAction SilentlyContinue)) {
     Fail "Java is not installed. Java 17+ required: https://adoptium.net"
 }
-$javaRaw = (& java -version 2>&1 | Select-Object -First 1)
+# java -version writes to stderr; route through cmd.exe to avoid PS 5.1 NativeCommandError.
+$javaRaw = (& cmd /c "java -version 2>&1" | Select-Object -First 1)
 $javaVer = 0
 if ($javaRaw -match 'version "(\d+)') { $javaVer = [int]$Matches[1] }
 if ($javaVer -lt 17) { Fail "Java 17+ required, found '$javaRaw'. Install from https://adoptium.net" }
@@ -108,13 +109,13 @@ $FrontendProc = $null
 try {
     # 3. Backend — native, postgres profile, pointing at local containers
     Write-Host "==> Starting backend natively (Spring Boot, postgres profile) on :8080/api/v1"
-    $env:SPRING_PROFILES_ACTIVE   = 'postgres'
-    $env:SPRING_DATASOURCE_URL    = "jdbc:postgresql://localhost:5432/$PostgresDb"
+    $env:SPRING_PROFILES_ACTIVE    = 'postgres'
+    $env:SPRING_DATASOURCE_URL     = "jdbc:postgresql://localhost:5432/$PostgresDb"
     $env:SPRING_DATASOURCE_USERNAME = $PostgresUser
     $env:SPRING_DATASOURCE_PASSWORD = $PostgresPassword
-    $env:SPRING_REDIS_HOST        = 'localhost'
-    $env:SPRING_REDIS_PORT        = '6379'
-    $env:CORS_ALLOWED_ORIGIN      = 'http://localhost:3001'
+    $env:SPRING_REDIS_HOST         = 'localhost'
+    $env:SPRING_REDIS_PORT         = '6379'
+    $env:CORS_ALLOWED_ORIGIN       = 'http://localhost:3001'
     $BackendProc = Start-Process -FilePath 'cmd.exe' `
         -ArgumentList '/c', 'mvnw.cmd spring-boot:run' `
         -WorkingDirectory (Join-Path $ScriptDir 'apps/backend') `
@@ -148,8 +149,7 @@ try {
     Write-Host "============================================================"
     Write-Host ""
 
-    # --- 5 & 6. Stream/wait — Ctrl+C drops into finally for cleanup --------
-    # Block until either child process exits.
+    # --- 5 & 6. Wait — Ctrl+C drops into finally for cleanup --------
     while ($true) {
         if ($BackendProc.HasExited)  { Write-Host "[backend] process exited.";  break }
         if ($FrontendProc.HasExited) { Write-Host "[frontend] process exited."; break }

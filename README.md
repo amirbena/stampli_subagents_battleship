@@ -100,13 +100,13 @@ One command per OS brings up **only** Postgres + Redis as containers, then runs 
 
 ```bash
 # macOS / Linux
-./run.sh
+./.run/run.sh
 
 # Windows (PowerShell)
-.\run.ps1
+.\.run\run.ps1
 
 # Windows (cmd / double-click) — shim that calls run.ps1
-run.cmd
+.run\run.cmd
 ```
 
 **What the script does:**

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# run.sh — Fast local run (macOS/Linux)
+# .run/run.sh — Fast local run (macOS/Linux)
 #
 # Starts ONLY Postgres + Redis as Docker containers, then runs the Spring Boot
 # backend and the Vite frontend NATIVELY in real time. This avoids the heavy
@@ -17,8 +17,8 @@ set -euo pipefail
 # those forked children too, guaranteeing nothing is left on :8080 / :3001.
 set -m
 
-# --- Resolve repo root (directory of this script) --------------------------
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# --- Resolve repo root (one level above this script's .run/ directory) ------
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$SCRIPT_DIR"
 
 ENV_FILE="apps/backend/.env"
