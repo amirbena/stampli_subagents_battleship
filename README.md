@@ -271,19 +271,28 @@ Phase 1   product-agent (conditional) → reports/runs/<id>/product-spec.md
 
 Phase 2   architect-agent             → reports/runs/<id>/architecture.md  (only if contract changed)
 
-Phase 3   java-backend-agent          → apps/backend/src/main/java/
-          frontend-ui-agent  ─┐       → apps/frontend/src/components/, pages/, utils/, CSS
-          frontend-api-agent ─┘       → apps/frontend/src/api/, hooks/, types/
-                                        (frontend split only when both workstreams are clearly
-                                         independent; ui-agent is the default single-agent path)
+Phase 3   ── selected agents may run in parallel when safe ─────────────────────────┐
+          java-backend-agent    → apps/backend/src/main/java/                        │
+          frontend-ui-agent     → apps/frontend/src/components/, pages/, utils/, CSS │ Team Lead
+          frontend-api-agent    → apps/frontend/src/api/, hooks/, types/             │ decides scope
+          ─────────────────────────────────────────────────────────────────────────────┘
+          frontend-ui-agent is the default frontend path.
+          frontend-api-agent is optional: alone for API/hook/type-only changes,
+          or alongside ui-agent only when workstreams are clearly independent.
+          Team Lead pre-writes types/game.ts before spawning both frontend agents.
 
 Phase 4a — UNIT TESTS (parallel, cheapest first)
-          java-backend-agent          → ./mvnw test                       (if backend touched)
-          frontend-ui-agent           → npx vitest run src/components …   (co-located slice only)
-          frontend-api-agent          → npx vitest run src/api src/hooks … (co-located slice only)
-          Team Lead frontend gate     → npm run test + npm run build       (full suite + typecheck)
-                                        + smoke.spec.ts when user-visible behavior changed
-          ── gate: all green before integration tests start ──
+          java-backend-agent          → ./mvnw test                        (if backend touched)
+
+          Single-agent frontend path (default):
+          frontend-ui-agent           → npm run test + npm run build       (agent owns full gate)
+
+          Split frontend path (both agents ran in parallel):
+          frontend-ui-agent           → npx vitest run src/components …    (co-located slice)
+          frontend-api-agent          → npx vitest run src/api src/hooks …  (co-located slice)
+          Team Lead runs once         → npm run test + npm run build        (full suite + typecheck)
+
+          ── gate: all green → next relevant phase (scope routing below) ──
 
 Phase 4b — INTEGRATION TESTS (after unit gate, if HTTP layer changed)
           backend-integration-tests   → ./mvnw test *IntegrationTest
@@ -301,7 +310,7 @@ Phase 6   security-agent  ──┐         → reports/runs/<id>/security-repor
 Phase 7   release-pr-agent            → finalizes release-summary.md + GitHub PR
 ```
 
-Phases 3 (backend + frontend) run in parallel. Phase 4 tests run in parallel and gate Phase 5.
+Selected Phase 3 agents run in parallel when workstreams are independent — Team Lead decides. Phase 4 tests run in parallel and gate Phase 5 (frontend-only changes skip Phase 4b).
 Security and code review (Phase 6) run in parallel after all tests pass.
 Team Lead writes the release summary draft while Phase 6 runs — release agent only finalizes and creates the PR.
 The pipeline stops only when the PR URL is printed.

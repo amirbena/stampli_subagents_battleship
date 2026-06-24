@@ -53,9 +53,8 @@ User Requirement
 │                 │  repository layer + unit tests│                                          │
 └────────┬────────┘                              │  + frontend-api-agent (when independent) │
          │                                       │  api/, hooks/, types/                    │
-         │  (selected agents may run in parallel when safe;  │                                          │
-         │   API work AND UI work are clearly    │  Both only when workstreams don't overlap │
-         │   independent with low file overlap)  │  Team Lead pre-writes types/game.ts first│
+         │  selected agents may run in parallel   │  Both only when workstreams don't overlap │
+         │  when safe — Team Lead decides scope  │  Team Lead pre-writes types/game.ts first│
          │                                       └─────────┬────────────────────────────────┘
          └──────────────────────────┬──────────────────────┘
                                │
@@ -70,10 +69,10 @@ User Requirement
        │  (if backend hit)  │  │  (if frontend hit)    │                              │
        └────────┬───────────┘  └──────────┬────────────┘                              │
                 └──────────────┬───────────┘                                          │
-                               │  ── STEP 1b: TEAM LEAD FRONTEND GATE ─────────────────┤
+                               │  ── STEP 1b: TEAM LEAD FRONTEND GATE (split path only) ┤
                                │    npm run test  (full suite, cross-boundary check)   │
                                │    npm run build (TypeScript + Vite)                  │
-                               │    smoke.spec.ts (if user-visible behavior changed)   │
+                               │    skipped when single agent ran (agent owns gate)    │
                                │  ── GATE: all green ──────────────────────────────────┘
                                │
                                │  ── STEP 2: INTEGRATION TESTS (after unit gate) ──────┐
