@@ -100,7 +100,7 @@ Current decisions locked in:
 - [ ] `./mvnw test` passes (backend unit tests — if backend touched)
 - [ ] `npm run test` + `npm run build` pass (frontend — if frontend touched): single-agent path: running agent owns gate; split path: Team Lead runs once after both agents finish
 - [ ] `./mvnw test -Dtest="*IntegrationTest"` passes (backend integration tests — after unit tests green, when HTTP layer changed)
-- [ ] Cross-layer frontend integration tests pass — `*.integration.test.tsx` files included in `npm run test`; required when a bug crosses the store→React→DOM boundary (written by `frontend-ui-agent` before any production fix)
+- [ ] Cross-layer frontend integration tests pass — `*.integration.test.tsx` files included in `npm run test`; `frontend-ui-agent` self-diagnoses when one is needed and writes it before any production fix
 - [ ] `npm run test:e2e` passes (Playwright — after all tests green, Full or Smoke mode depending on change)
 - [ ] `reports/runs/<id>/security-report.md` verdict: APPROVED
 - [ ] `reports/runs/<id>/code-review-report.md` verdict: APPROVED

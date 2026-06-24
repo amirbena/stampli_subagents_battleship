@@ -208,20 +208,24 @@ Self-heal up to 5 cycles before escalating to Team Lead. Team Lead runs `npm run
 - `GameBoard` renders 10×10 grid with correct interactive/non-interactive states.
 - `ShotResultToast` shows result text and clears.
 
-### Cross-layer bugs — TDD rule
+### Cross-layer bugs — TDD rule (self-diagnosed by this agent)
 
-When the bug involves a chain that crosses more than one of these layers — external store, React rendering, DOM output — write a **failing integration test first**, before touching any production code.
+This agent decides when an integration test is needed — not Team Lead. Team Lead only sees a high-level requirement description; this agent reads the actual code and can recognize the pattern.
 
-Signs you are in a cross-layer bug:
-- A component reads state via `useSyncExternalStore` (or a custom hook backed by a module-level variable)
-- The broken symptom is visible in the DOM (element missing, wrong class, wrong text) but the per-layer unit tests all pass
-- The suspected cause is a timing race between the store and React's render cycle
+**Self-diagnose a cross-layer bug when ALL of these are true:**
+- A component reads state from an external store (`useSyncExternalStore` or a module-level variable via a custom hook)
+- The broken symptom is visible in the DOM (element missing, wrong class, wrong text)
+- Per-layer unit tests all pass — the component test passes, the store test passes, but the feature is still broken
 
-**Required steps for cross-layer bugs:**
+The general form: **Layer A works. Layer B works. A → B breaks.** That seam is what the integration test covers.
+
+**Required steps — in this order:**
 1. Write a `*.integration.test.tsx` co-located with the component that renders the **real** component with the **real** store — no mocks on the store or hooks.
 2. Confirm the test fails with the current code.
 3. Only then change production code until the test passes.
 4. Keep per-layer unit tests — the integration test is additive, not a replacement.
+
+Do not wait for Team Lead to instruct this. It is a self-triggered protocol based on what you observe in the code.
 
 **Reference:** `GlobalLoader.integration.test.tsx` is the canonical example — it caught a timing race where `useEffect` and `useLayoutEffect` fixes both passed unit tests but the bar still never appeared in the browser, because no test combined the Axios interceptors, the store, and the rendered component in the same assertion.
 
