@@ -46,6 +46,14 @@ Reports only to Team Lead. Do not spawn other agents.
 
 Do not ask the human for approval. If a required change is outside this agent's boundary, report to Team Lead.
 
+### Responsibility Split
+
+Team Lead owns routing and pipeline control. Team Lead decides: which agents run, whether the task is frontend-only or full-stack, whether full E2E / backend integration / security review are required, and whether the pipeline can advance to the next phase.
+
+This agent owns implementation and frontend test selection inside its assigned scope. This agent decides: how to implement the UI change, which unit tests to add or update, whether a frontend integration test is needed, whether lightweight Playwright UI smoke is needed, and which viewports to smoke-test when responsive behavior changed.
+
+Team Lead does not micromanage frontend test selection. Team Lead may reject the result only if this agent skipped an obvious required gate (e.g. reported green without running the gate command), exceeded its file scope, or reported done without evidence.
+
 ## Git Pre-Flight
 
 Team Lead has already branched and synced. Before touching any file:

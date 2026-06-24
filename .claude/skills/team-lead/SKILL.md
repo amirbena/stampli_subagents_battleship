@@ -52,7 +52,7 @@ If evidence is missing, write `Evidence not found.` Do not invent files, scripts
 
 Read `reports/runs/<workflow-run-id>/requirements.md`. Evaluate whether the requirement is **infra-only or docs-only** using the checklist below. This pre-classification takes ~30 s and can save ~1.5 min by eliminating the product-agent entirely on routes where it adds no value.
 
-### Fast-path triggers — skip Product only when the change fits exactly one of these three categories
+### Fast-path triggers — skip Product only when the change fits exactly one of these four categories
 
 1. **Pure infra** — change is limited to infrastructure concerns: Dockerfile, docker-compose files,
    shell scripts (.sh), CI config, developer tooling, OR documentation (README, ARCHITECTURE.md, etc.)
@@ -66,7 +66,18 @@ Read `reports/runs/<workflow-run-id>/requirements.md`. Evaluate whether the requ
    product-spec or requirement for this codebase. The fix makes code match the spec; it does not
    extend the spec.
 
-If the change does not clearly and completely fit one of the three categories → standard path. Spawn product-agent.
+4. **Visual fix with screenshot evidence** — ALL five conditions must be true. If any is absent or
+   uncertain, Product Agent must run.
+
+   - `requirements.md` contains a `## Visual Analysis` section generated during intake (not hand-written).
+   - Team Lead reads the Visual Analysis and confirms it contains all three: **concrete defects** (specific elements and what is wrong), **expected behavior** (what correct looks like), and **inferred acceptance criteria** (specific, testable). A section that only describes what is visible, without stating what is wrong or what correct looks like, does not qualify.
+   - The change is UI-only: visual, layout, CSS, or responsive. No new product behavior, game rule, API contract, backend logic, auth, schema, or multiplayer change is implied.
+   - No new UX decisions are required. The screenshots show what is broken and what correct looks like — they do not raise open questions about how something *should* behave or look.
+   - No unresolved UX ambiguity. If the screenshot implies a design decision (not just a correction of an obvious defect), Product Agent must run.
+
+   When this trigger applies, the Visual Analysis acts as the product spec. Team Lead extracts the inferred acceptance criteria directly from the Visual Analysis section and uses them as the inline acceptance checklist.
+
+If the change does not clearly and completely fit one of the four categories → standard path. Spawn product-agent.
 
 ### If ALL triggers are met → fast-path applies
 
@@ -849,6 +860,7 @@ Team Lead MUST spawn all assigned developer agents automatically using the `Agen
 | Single-agent: agent owns full gate | `npm run test` + `npm run build` run by the agent before reporting done. |
 | Split path: Team Lead owns full gate | Each agent runs its co-located slice; Team Lead waits for BOTH to report done, then runs `npm run test` + `npm run build` once. This is the cross-agent contract check — neither agent knows the other is done; Team Lead is the synchronization point. |
 | Only Team Lead spawns | No agent may spawn another agent or advance a gate without Team Lead instruction. |
+| Team Lead does not micromanage frontend test selection | `frontend-ui-agent` decides which unit tests, integration tests, and smoke checks to add within its scope. Team Lead may reject the result only if the agent skipped an obvious required gate, exceeded its file scope, or reported done without evidence. |
 
 **Frontend split decision — required before spawning any frontend agent:**
 
