@@ -34,7 +34,7 @@
   .lobby-layout {
     flex-direction: row;
     align-items: flex-start;
-    gap: 2rem;
+    gap: 3rem;
   }
 }
 
