@@ -31,7 +31,7 @@ To extend an agent, edit its `SKILL.md` — do not create parallel files.
 | Architect Agent | `.claude/skills/architect-agent` | claude-opus-4-8 | `reports/runs/<id>/architecture.md`, API contract, domain model — structure only, not environment setup |
 | Java Backend Agent | `.claude/skills/java-backend-agent` | claude-sonnet-4-6 | `apps/backend/src/main/java/` — all production backend code; `src/test/**/*Test.java` — all JUnit 5 unit tests (domain + service layer) |
 | Frontend API Agent | `.claude/skills/frontend-api-agent` | claude-sonnet-4-6 | `apps/frontend/src/api/`, `hooks/`, `types/` — HTTP wrappers, hooks, TypeScript types + Vitest unit tests |
-| Frontend UI Agent | `.claude/skills/frontend-ui-agent` | claude-sonnet-4-6 | `apps/frontend/src/components/`, `pages/`, `utils/`, CSS — render layer + Vitest component tests + cross-layer `*.integration.test.tsx` (self-diagnosed: Layer A works, Layer B works, A→B breaks) |
+| Frontend UI Agent | `.claude/skills/frontend-ui-agent` | claude-sonnet-4-6 | `apps/frontend/src/components/`, `pages/`, `utils/`, CSS — render layer + Vitest component tests + cross-layer `*.integration.test.tsx` (self-diagnosed: seam/timing/wiring/async-ordering issues where per-layer unit tests pass but runtime behavior fails) |
 | Backend Integration Tests Agent | `.claude/skills/backend-integration-tests-agent` | claude-sonnet-4-6 | `apps/backend/src/test/**/*IntegrationTest.java` — `@SpringBootTest` + MockMvc, HTTP layer |
 | Playwright E2E Agent | `.claude/skills/playwright-e2e-agent` | claude-sonnet-4-6 | `apps/frontend/tests/e2e/` — all browser tests; never assumes servers are running |
 | Security Agent | `.claude/skills/security-agent` | claude-opus-4-8 | `reports/runs/<id>/security-report.md` |
@@ -102,7 +102,7 @@ Current decisions locked in:
 - [ ] `./mvnw test` passes (backend unit tests — if backend touched)
 - [ ] `npm run test` + `npm run build` pass (frontend — if frontend touched): single-agent path: running agent owns gate; split path: Team Lead runs once after both agents finish
 - [ ] `./mvnw test -Dtest="*IntegrationTest"` passes (backend integration tests — after unit tests green, when HTTP layer changed)
-- [ ] Cross-layer frontend integration tests pass — `*.integration.test.tsx` files included in `npm run test`; `frontend-ui-agent` self-diagnoses when one is needed (DOM symptom + per-layer unit tests pass = seam bug) and writes it before any production fix
+- [ ] Cross-layer frontend integration tests pass — `*.integration.test.tsx` files included in `npm run test`; `frontend-ui-agent` self-diagnoses when one is needed (per-layer unit tests pass but runtime behavior fails due to seam, timing race, provider wiring, or async side-effect ordering) and writes it before any production fix
 - [ ] `npm run test:e2e` passes (Playwright — after all tests green, Full or Smoke mode depending on change)
 - [ ] `reports/runs/<id>/security-report.md` verdict: APPROVED
 - [ ] `reports/runs/<id>/code-review-report.md` verdict: APPROVED
