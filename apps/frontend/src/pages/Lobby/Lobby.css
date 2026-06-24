@@ -1,5 +1,5 @@
 .lobby-page {
-  max-width: 860px;
+  max-width: 960px;
   margin: 0 auto;
   padding: 1.5rem;
   width: 100%;
@@ -10,8 +10,15 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1rem;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+/* Subtitle shown when playing vs computer */
+.vs-computer-banner {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  margin-bottom: 1.25rem;
 }
 
 .waiting-banner {
@@ -24,8 +31,6 @@
   text-align: center;
 }
 
-/* Placement area: stacks vertically and stays centered by default;
-   becomes a top-aligned two-column layout on wider screens. */
 .lobby-layout {
   display: flex;
   flex-direction: column;
@@ -33,17 +38,18 @@
   gap: 1.5rem;
 }
 
+/* Desktop: side-by-side — fleet panel fixed, board area fills the rest */
 @media (min-width: 768px) {
   .lobby-layout {
     flex-direction: row;
     align-items: flex-start;
-    justify-content: center;
-    gap: 2.5rem;
+    gap: 2rem;
   }
+  /* Board area grows to fill remaining space; board grid stays centered inside it */
+  .lobby-board-area { flex: 1; }
 }
 
-/* Board section: board grid, Confirm Ready button, and helper text
-   stay grouped and centered together as one cohesive column. */
+/* Board section: grid + button + hint grouped and centered as one column */
 .lobby-board-area {
   display: flex;
   flex-direction: column;
@@ -59,19 +65,16 @@
   text-align: center;
 }
 
-/* Mobile: single-column polished layout — fleet and board each take full width,
-   button stretches to full width, header stacks vertically. */
+/* Mobile: single-column, all children full-width */
 @media (max-width: 767px) {
   .lobby-layout { align-items: stretch; }
   .lobby-board-area { width: 100%; }
-  /* Override the shared component's min-width so it fills the column cleanly */
   .lobby-page .fleet-list-panel { width: 100%; min-width: 0; }
   .confirm-ready-btn { width: 100%; min-width: 0; }
   .lobby-header { flex-direction: column; align-items: flex-start; }
 }
 
-/* Sub-480px: shrink the board (lobby-scoped only, so the in-game board
-   is unaffected) and tighten padding so the 10×10 grid never overflows. */
+/* Sub-480px: shrink board cells (lobby-scoped only — in-game board unaffected) */
 @media (max-width: 480px) {
   .lobby-page {
     --cell-size: clamp(24px, 7.2vw, 32px);
