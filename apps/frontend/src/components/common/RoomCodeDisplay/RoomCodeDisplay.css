@@ -16,6 +16,8 @@
   letter-spacing: 0.2em;
   color: var(--color-primary);
   font-family: monospace;
+  /* Always let the user manually select the code (needed for the copy fallback). */
+  user-select: all;
 }
 
 .copy-btn {
