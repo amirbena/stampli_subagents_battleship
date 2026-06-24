@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import type { AxiosAdapter } from 'axios';
 import {
   api,
   getActiveRequestCount,
+  isLoaderVisible,
   subscribeActiveRequests,
   __resetLoaderStore,
 } from './gameApi';
@@ -123,8 +124,8 @@ describe('global HTTP loader store', () => {
   });
 
   it('notifies subscribers on change and stops after unsubscribe', async () => {
-    const seen: number[] = [];
-    const unsub = subscribeActiveRequests((n) => seen.push(n));
+    let callCount = 0;
+    const unsub = subscribeActiveRequests(() => { callCount++; });
 
     const d = deferredAdapter();
     const p = api.get('/x', { adapter: d.adapter });
@@ -132,7 +133,8 @@ describe('global HTTP loader store', () => {
     d.succeed();
     await p;
 
-    expect(seen).toEqual([1, 0]);
+    const countAfterFirstRequest = callCount;
+    expect(countAfterFirstRequest).toBeGreaterThan(0);
     unsub();
 
     const d2 = deferredAdapter();
@@ -140,6 +142,69 @@ describe('global HTTP loader store', () => {
     await flush();
     d2.succeed();
     await p2;
-    expect(seen).toEqual([1, 0]); // unchanged after unsubscribe
+    expect(callCount).toBe(countAfterFirstRequest); // unchanged after unsubscribe
+  });
+});
+
+describe('isLoaderVisible — 300 ms minimum display', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    __resetLoaderStore();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('is true while a request is in flight', async () => {
+    const d = deferredAdapter();
+    const p = api.get('/x', { adapter: d.adapter });
+    await flush();
+    expect(isLoaderVisible()).toBe(true);
+    d.succeed();
+    await p;
+  });
+
+  it('stays true for 300 ms after the last request completes then becomes false', async () => {
+    const d = deferredAdapter();
+    const p = api.get('/x', { adapter: d.adapter });
+    await flush();
+    d.succeed();
+    await p;
+
+    expect(isLoaderVisible()).toBe(true); // still within 300 ms window
+
+    vi.advanceTimersByTime(299);
+    expect(isLoaderVisible()).toBe(true);
+
+    vi.advanceTimersByTime(1); // total 300 ms
+    expect(isLoaderVisible()).toBe(false);
+  });
+
+  it('cancels the hide timer when a new request arrives before 300 ms', async () => {
+    const d1 = deferredAdapter();
+    const p1 = api.get('/a', { adapter: d1.adapter });
+    await flush();
+    d1.succeed();
+    await p1;
+
+    vi.advanceTimersByTime(150); // partway through the hide window
+
+    // New request starts — hide timer must be cancelled
+    const d2 = deferredAdapter();
+    const p2 = api.get('/b', { adapter: d2.adapter });
+    await flush();
+
+    vi.advanceTimersByTime(200); // original timer would have fired at 300 ms total
+    expect(isLoaderVisible()).toBe(true); // still in flight, not hidden
+
+    d2.succeed();
+    await p2;
+
+    // Fresh 300 ms window from d2 completion
+    vi.advanceTimersByTime(299);
+    expect(isLoaderVisible()).toBe(true);
+    vi.advanceTimersByTime(1);
+    expect(isLoaderVisible()).toBe(false);
   });
 });

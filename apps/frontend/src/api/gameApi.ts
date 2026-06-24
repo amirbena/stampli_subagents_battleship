@@ -38,18 +38,21 @@ declare module 'axios' {
 }
 
 // --- Global HTTP loader store -------------------------------------------------
-// A tiny observable counter of user-initiated requests currently in flight.
-// Lives here because gameApi.ts is the single owner of the axios instance, so it
-// is the only place that can reliably observe request start/settle. React
-// subscribes via the useActiveRequests hook; no extra dependency required.
+// Tracks in-flight user-initiated requests AND a "loader visible" boolean that
+// stays true for 300 ms after the last request settles. The visible flag lives
+// here (not in React state) so that useSyncExternalStore reads it at render time:
+// even when a very fast localhost response arrives before React's first render,
+// the flag is still true and GlobalLoader renders the bar correctly.
 
-type LoaderListener = (active: number) => void;
+type LoaderListener = () => void;
 
 let activeRequestCount = 0;
+let loaderVisible = false;
+let hideTimer: ReturnType<typeof setTimeout> | null = null;
 const listeners = new Set<LoaderListener>();
 
 function emit(): void {
-  for (const listener of listeners) listener(activeRequestCount);
+  for (const listener of listeners) listener();
 }
 
 /** Number of non-silent requests currently in flight. */
@@ -57,7 +60,12 @@ export function getActiveRequestCount(): number {
   return activeRequestCount;
 }
 
-/** Subscribe to in-flight count changes. Returns an unsubscribe function. */
+/** Whether the global loader bar should be visible right now. */
+export function isLoaderVisible(): boolean {
+  return loaderVisible;
+}
+
+/** Subscribe to loader state changes. Returns an unsubscribe function. */
 export function subscribeActiveRequests(listener: LoaderListener): () => void {
   listeners.add(listener);
   return () => {
@@ -68,17 +76,36 @@ export function subscribeActiveRequests(listener: LoaderListener): () => void {
 /** Test-only: reset the counter and listeners between cases. */
 export function __resetLoaderStore(): void {
   activeRequestCount = 0;
+  loaderVisible = false;
+  if (hideTimer !== null) {
+    clearTimeout(hideTimer);
+    hideTimer = null;
+  }
   listeners.clear();
 }
 
 function increment(): void {
   activeRequestCount += 1;
+  // Cancel any pending hide so back-to-back requests keep the bar visible.
+  if (hideTimer !== null) {
+    clearTimeout(hideTimer);
+    hideTimer = null;
+  }
+  loaderVisible = true;
   emit();
 }
 
 function decrement(): void {
   // Guard against ever going negative if a settle fires without a matching start.
   activeRequestCount = Math.max(0, activeRequestCount - 1);
+  if (activeRequestCount === 0) {
+    // Keep the bar visible for 300 ms so fast requests are always perceivable.
+    hideTimer = setTimeout(() => {
+      loaderVisible = false;
+      hideTimer = null;
+      emit();
+    }, 300);
+  }
   emit();
 }
 

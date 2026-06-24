@@ -1,43 +1,19 @@
-import React, { useState, useLayoutEffect } from 'react';
-import { useActiveRequests } from '../../../hooks/useActiveRequests';
+import React, { useSyncExternalStore } from 'react';
+import { subscribeActiveRequests, isLoaderVisible } from '../../../api/gameApi';
 import './GlobalLoader.css';
 
 /**
  * Global, non-blocking HTTP loader. Visible whenever at least one user-initiated
- * request is in flight (create/join/place/remove/ready/fire/initial-load/refresh),
- * and stays visible until the LAST overlapping request settles (AC-5). It clears on
- * both success and error because the counter is decremented in both interceptor
- * branches (AC-2/AC-3).
+ * request is in flight and for 300 ms after the last one settles (so fast requests
+ * are always perceivable). Background polls tagged `silent` are excluded.
  *
- * Background polls are excluded (AC-4) and the indicator is a fixed top bar that does
- * not cover or freeze the board (AC-6) — pointer-events are disabled so gameplay
- * underneath remains interactive.
- *
- * Minimum display time: even if a request completes very quickly (e.g. 20ms on
- * localhost), the bar stays visible for at least 300ms so users can perceive it.
- * When activeRequests > 0, the bar shows immediately. When it drops back to 0,
- * hiding is deferred by 300ms. If a new request starts before the timer fires,
- * the timer is cancelled and the bar stays visible without interruption.
+ * Visibility is derived directly from the loader store via useSyncExternalStore —
+ * no local useState or useEffect. This avoids a timing race where a sub-millisecond
+ * localhost response could decrement the counter before React's effect ever ran,
+ * causing setVisible(true) to be skipped entirely.
  */
 export function GlobalLoader(): React.ReactElement | null {
-  const activeRequests = useActiveRequests();
-  // `visible` lags behind activeRequests by up to 300ms on the trailing edge so the
-  // bar never flashes too briefly for the user to perceive.
-  const [visible, setVisible] = useState(false);
-
-  useLayoutEffect(() => {
-    if (activeRequests > 0) {
-      // Show immediately when any request is in flight.
-      setVisible(true);
-      return;
-    }
-    // Delay hiding so fast requests (e.g. <20ms on localhost) still display the bar
-    // long enough for the user to notice. If another request arrives before the
-    // timer fires, the cleanup callback cancels it and we stay visible.
-    const timer = setTimeout(() => setVisible(false), 300);
-    return () => clearTimeout(timer);
-  }, [activeRequests]);
-
+  const visible = useSyncExternalStore(subscribeActiveRequests, isLoaderVisible);
   if (!visible) return null;
 
   return (
