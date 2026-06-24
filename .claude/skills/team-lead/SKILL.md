@@ -847,7 +847,7 @@ Team Lead MUST spawn all assigned developer agents automatically using the `Agen
 | `frontend-api-agent` is optional | Use it alone for hook/API/type-only changes, or in parallel when data-layer work is clearly independent of UI work. |
 | No `frontend-unit-test-agent` | Unit tests belong to the implementing agent. |
 | Single-agent: agent owns full gate | `npm run test` + `npm run build` run by the agent before reporting done. |
-| Split path: Team Lead owns full gate | Each agent runs its co-located slice; Team Lead runs `npm run test` + `npm run build` once after both finish to catch cross-boundary regressions. |
+| Split path: Team Lead owns full gate | Each agent runs its co-located slice; Team Lead waits for BOTH to report done, then runs `npm run test` + `npm run build` once. This is the cross-agent contract check — neither agent knows the other is done; Team Lead is the synchronization point. |
 | Only Team Lead spawns | No agent may spawn another agent or advance a gate without Team Lead instruction. |
 
 **Frontend split decision — required before spawning any frontend agent:**
@@ -950,12 +950,20 @@ Typical skip cases: service/domain logic change only, frontend-only change, refa
 
 **Step 1b — Frontend Test Gate (Team Lead runs — split path only):**
 
-Only when **both** `frontend-api-agent` and `frontend-ui-agent` were spawned in parallel. After both report their co-located slice green, Team Lead runs the full gate once to catch cross-boundary regressions:
+Only when **both** `frontend-api-agent` and `frontend-ui-agent` were spawned in parallel. Because the agents ran in parallel, neither knows the other is done or green — Team Lead is the only synchronization point. After **both** report their co-located slice green, Team Lead runs:
 
 ```bash
-cd apps/frontend && npm run test    # full Vitest suite
-cd apps/frontend && npm run build   # TypeScript compile + Vite build
+cd apps/frontend && npm run test    # full Vitest suite — catches cross-boundary test failures
+cd apps/frontend && npm run build   # TypeScript compile — catches silent consumer breaks
+                                    # (hook shape changed in api-agent; component breaks in ui-agent)
 ```
+
+This gate is not a formality — it is the **cross-agent contract verification step**. `npm run build` is what catches the case where `frontend-api-agent` changed a hook's return shape and `frontend-ui-agent`'s component broke silently as a consumer, without either agent's co-located tests failing.
+
+If this gate fails:
+- TypeScript error → read the file path → route to owner → re-run `npm run build`
+- Test failure → read the file path → route to owner → re-run `npm run test`
+- Both fixed → re-run full gate once more before advancing
 
 **Skip Step 1b entirely** when only one frontend agent ran — the agent already owns the full gate.
 
