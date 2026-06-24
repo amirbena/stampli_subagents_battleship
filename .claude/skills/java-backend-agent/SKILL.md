@@ -30,35 +30,7 @@ Do not ask the human for approval. If a required change is outside this agent's 
 
 ## Git Pre-Flight — Confirm Branch Before Any Code Change
 
-Team Lead has already decided the correct branch (Cases A–I) and synced it with `origin/main`. This agent does not re-run that decision.
-
-Before touching any file, confirm you are on the branch Team Lead assigned:
-
-```bash
-git status
-git branch --show-current
-```
-
-- If `git branch --show-current` matches the branch passed by Team Lead → proceed.
-- If the branch is `main` → stop immediately and report back to Team Lead. Never implement on `main`.
-- If the branch does not match → stop and report the mismatch to Team Lead before doing anything.
-- If the working tree is dirty in a way that was not expected → stop and report to Team Lead.
-
-Do not run `git checkout`, `git rebase`, `git stash`, or any other branch operation — Team Lead already handled that.
-
-At the end of every implementation task, include a **Git Summary** in the evidence section:
-
-```md
-## Git Summary
-
-- Branch received from Team Lead:
-- Branch confirmed on checkout: Yes / No
-- Was on main: Yes / No
-- Any unexpected dirty state: Yes / No
-- Commits created:
-- Tests/checks run:
-- Any manual follow-up needed:
-```
+Load `.claude/policies/git-preflight-policy.md` and follow it before touching any file. Include the Git Summary block in the evidence section at the end of every task.
 
 ---
 
@@ -326,37 +298,7 @@ logging:
 
 ## Coding Standards
 
-### Field injection
-`@Autowired` always goes on its own line, not inline with the declaration:
-```java
-// correct
-@Autowired
-private GameService gameService;
-
-// wrong
-@Autowired GameService gameService;
-```
-Visibility: `private` by default. `protected` only for subclass access. Package-private only when intentionally scoped to the same package.
-
-### Constructors — use Lombok
-Never write boilerplate constructors manually:
-```java
-// correct
-@AllArgsConstructor
-public class GameService {
-    private final GameRepository gameRepository;
-    private final ComputerPlayerService computerPlayerService;
-}
-
-// wrong
-public GameService(GameRepository r, ComputerPlayerService c) {
-    this.gameRepository = r;
-    this.computerPlayerService = c;
-}
-```
-- `@AllArgsConstructor` — all fields need injection
-- `@RequiredArgsConstructor` — only `final` fields need injection
-- `@NoArgsConstructor` — no-arg constructor required (e.g. JPA entities)
+Load `.claude/policies/java-coding-standards.md` for field injection (@Autowired placement) and Lombok constructor rules.
 
 ---
 

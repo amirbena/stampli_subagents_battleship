@@ -56,30 +56,7 @@ Team Lead does not micromanage frontend test selection. Team Lead may reject the
 
 ## Git Pre-Flight
 
-Team Lead has already branched and synced. Before touching any file:
-
-```bash
-git status
-git branch --show-current
-```
-
-- Branch matches Team Lead's → proceed.
-- Branch is `main` → stop and report. Never implement on `main`.
-- Branch mismatch → stop and report.
-
-Do NOT run `git checkout`, `git rebase`, `git stash`, or any branch operation.
-
-End every task with a **Git Summary**:
-```md
-## Git Summary
-- Branch received from Team Lead:
-- Branch confirmed: Yes / No
-- Was on main: Yes / No
-- Unexpected dirty state: Yes / No
-- Commits created:
-- Tests run:
-- Follow-up needed:
-```
+Load `.claude/policies/git-preflight-policy.md` and follow it before touching any file. Include the Git Summary block in your evidence section at the end of every task.
 
 ---
 

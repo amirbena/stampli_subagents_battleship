@@ -96,14 +96,7 @@ For security issues, prefer assigning production vulnerabilities to the producti
 
 ## Demo Config Classification
 
-When reviewing config/env files, classify values as:
-- `PUBLIC_CONFIG` — safe public value
-- `PLACEHOLDER_CONFIG` — explicit placeholder, safe
-- `DEMO_CONFIG_ACCEPTED` — demo/local value acceptable for this task repository
-- `UNKNOWN_SENSITIVE_VALUE` — unknown risk; document but do not block by default
-- `OBVIOUS_REAL_LEAKED_CREDENTIAL` — hard block (real AWS key, real GH token, real private key, real prod DB URL)
-
-Do not block for `PLACEHOLDER_CONFIG` or `DEMO_CONFIG_ACCEPTED`. Do not over-block on dotenv/demo-sensitive-looking values. Only `OBVIOUS_REAL_LEAKED_CREDENTIAL` blocks unconditionally.
+Load `.claude/policies/demo-config-policy.md` for the full classification table and rules.
 
 ## Findings Must Include Blocks PR Tag
 
@@ -132,19 +125,7 @@ APPROVED | REQUIRES CHANGES
 
 ## Findings
 
-### Finding SEC-001
-- Finding ID:
-- Observed failure:
-- Evidence:
-- Suspected root cause:
-- Suspected owner:
-- Files involved:
-- Recommended next agent:
-- Attempt count:
-- Severity: Critical / High / Medium / Low
-- Blocks PR: Yes / No
-- required_fix:
-- verification_command:
+<load .claude/templates/finding-report-template.md for the Finding SEC-001 field structure>
 
 ## Notes
 <optional non-blocking observations>

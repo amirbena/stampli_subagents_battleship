@@ -197,38 +197,7 @@ Install/authenticate gh and rerun release.
      --body-file reports/runs/<workflow-run-id>/release-summary.md
    ```
 
-   Write `release-summary.md` using the short review-focused format from Team Lead's PR Summary Requirements. The format is:
-
-   ```md
-   # Summary
-
-   ## Requirement
-   <1–3 sentences describing what was requested>
-
-   ## What Changed
-   - <main change 1>
-   - <main change 2>
-   - <main change 3>
-
-   ## Validation
-
-   | Check | Result |
-   |---|---|
-   | Backend tests | PASS / SKIPPED — reason |
-   | Frontend tests | PASS / SKIPPED — reason |
-   | Build | PASS / SKIPPED — reason |
-   | Playwright smoke / E2E | PASS / SKIPPED — reason |
-   | Code review | APPROVED / APPROVED WITH RISKS / SKIPPED — reason |
-
-   ## Risks / Notes
-   - <only include real risks, known gaps, or important reviewer notes>
-   - If none: `No known blocking risks.`
-
-   ## Files Changed
-   - <main changed areas — not a full file-by-file dump unless the change is small>
-   ```
-
-   Only add sections beyond this when actually relevant to the reviewer: unresolved findings, security notes, architecture decisions, demo config. Do not include retry tables, agent execution history, cost sections, infrastructure safety boilerplate, or "what was not changed" confirmations.
+   Load `.claude/templates/pr-summary-template.md` for the exact format. Keep it short and review-focused.
 
 4. Print the PR URL returned by `gh pr create`.
 
