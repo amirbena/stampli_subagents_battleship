@@ -831,7 +831,7 @@ Assign only agents listed in `team-lead-plan.md`. Each agent runs with:
 
 No other agent may spawn a sub-agent, unilaterally widen scope, or self-promote to the next phase.
 
-Each developer agent must produce a Proposed Change Plan before editing files.
+Each developer agent must produce a Proposed Change Plan before editing files. For `frontend-ui-agent`, the plan must include a "Tests to add/update" section covering: which unit tests are being added or updated and why, whether an integration test is warranted (and for what seam risk), and whether Playwright smoke is needed. Team Lead reads this section to verify test decisions are sound — not to prescribe specific test cases, which remain the agent's own call.
 
 ### Automatic Parallel Spawning — Required
 

@@ -95,7 +95,10 @@ New components (if any):
 CSS changes:
 - file: what changes
 
-Tests to add:
+Tests to add/update:
+- Unit tests: <what behavior or structure is being tested and why>
+- Integration test: <yes/no — if yes, what seam/timing/wiring risk warrants it>
+- Smoke: <yes/no — if yes, which viewports and what visible behavior to verify>
 
 Risks:
 ```
@@ -214,6 +217,26 @@ Use the cheapest test that catches the problem. Do not skip levels downward or j
 Do not write a frontend integration test for a bug that a component unit test can catch. Do not run Playwright smoke for a bug that a unit test already covers. Do not run full E2E for a layout issue that smoke with mocks can verify.
 
 **For every implementation task — new component, modified component, CSS/layout change, new page section — this agent decides which tests to add within its zone.** Team Lead does not prescribe individual test cases. Apply the priority ladder: assess whether a unit test covers the change, then whether a seam/timing risk warrants an integration test, then whether visible browser behavior requires smoke. Record the decision (and any skip reason) in the Evidence section.
+
+#### Proactive unit test rule
+
+When implementing or modifying a component or page, add or update co-located unit tests when the change meaningfully affects any of the following:
+- Conditional rendering (element shown or hidden based on state or props)
+- Visible output, text content, or labels
+- CSS class or state-class application (e.g. `.cell--hit`, `.disabled`, `.mobile-layout`)
+- Disabled or enabled state of interactive elements
+- Loading, error, or empty state rendering
+- Important DOM structure (section present, wrapper rendered, correct nesting)
+
+Do not add a unit test for every tiny copy or color change. The bar is: would a future regression in this behavior be caught by the test? If yes, write it. If the change is too shallow to regress meaningfully — a one-word label change, a padding tweak — skip and record why.
+
+#### Proactive integration test assessment
+
+When a change wires a real hook, store, context provider, or Axios interceptor into a component or page, assess whether a frontend integration test is warranted before implementing. Ask: can a bug exist at this seam (timing, provider wiring, async ordering, side-effect interaction) that a component unit test would not catch? If yes, plan the integration test alongside the production change. Do not add one by default for simple component rendering or CSS changes — only when the risk is genuinely in the seam.
+
+#### Proactive smoke assessment
+
+When a change affects user-visible layout, responsive behavior, or an authenticated screen, plan a Playwright UI smoke run with mocked backend. This is the right tool for browser layout confidence — not unit tests, which cannot render real CSS.
 
 ---
 
