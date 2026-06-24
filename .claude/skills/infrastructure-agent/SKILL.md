@@ -1,7 +1,7 @@
 ---
 name: infrastructure-agent
-description: Creates Dockerfiles, docker-compose.yml, environment documentation, and run instructions according to the architecture. Does not add Redis/PostgreSQL unless explicitly required.
-model: claude-haiku-4-5-20251001
+description: Creates Dockerfiles, docker-compose.yml, environment documentation, run instructions, and cross-platform startup scripts according to the architecture. Does not add Redis/PostgreSQL unless explicitly required.
+model: claude-sonnet-4-6
 argument-hint: <architecture.md path>
 ---
 
@@ -157,6 +157,63 @@ The E2E CI path must:
 - Wait for frontend availability.
 - Run Playwright.
 - Tear down services.
+
+## Native Run Scripts — Scope And Rules
+
+When Team Lead assigns native run scripts (`run.sh`, `run.ps1`, `run.cmd`) or Maven Wrapper patches (`mvnw.cmd`), apply the checklist below **before** reporting done. These are multi-platform files with non-obvious runtime traps; static syntax checks alone are not sufficient.
+
+### Bash / POSIX scripts (`run.sh`, `*.sh`)
+
+**Background process capture**
+- Never launch a background job as `cmd | filter &` — `$!` captures the **tail of the pipeline** (the filter PID), not `cmd`. The actual child process is orphaned and `kill $!` does nothing useful.
+- Correct pattern: use process substitution `cmd > >(filter) &` so `$!` is the real `cmd` PID.
+- If the script uses `kill -- -"$PID"` (negated PID = process group kill), enable job control first with `set -m`.
+
+**Self-verify commands (must pass before reporting done)**
+```bash
+bash -n run.sh         # syntax check — exits 1 on any error
+```
+Also visually confirm: every `&` background job is started with process substitution or exec so `$!` captures the intended PID.
+
+---
+
+### PowerShell scripts (`run.ps1`, `*.ps1`)
+
+**PS 5.1 empty-catch nesting bug**
+- `} catch {}` (empty catch body) nested inside a `for`/`while` loop inside an outer `try/finally` confuses the PS 5.1 parser. It misidentifies which `try` the bare `catch` belongs to and reports "Missing closing '}'".
+- Fix: extract any nested try/catch into a named helper function defined before the outer `try`.
+
+**Non-ASCII characters**
+- PS 5.1 reads `.ps1` files using the system default encoding (CP1252 on most Windows machines). UTF-8-encoded em-dashes (`—` U+2014, bytes `E2 80 94`) become three garbage characters and can cause lexer errors.
+- Use `--` instead of `—` in all string literals and comments.
+
+**Self-verify commands (must pass before reporting done)**
+```powershell
+# Parse without executing:
+$errs = $null
+[System.Management.Automation.Language.Parser]::ParseFile(
+    "run.ps1", [ref]$null, [ref]$errs)
+if ($errs.Count -eq 0) { "PARSE OK" } else { $errs }
+```
+
+---
+
+### Windows cmd batch (`mvnw.cmd`, `run.cmd`, `*.cmd`)
+
+**Maven Wrapper JAR invocation**
+- `maven-wrapper-3.2.0.jar` has no `Main-Class` entry in its MANIFEST.MF. `java -jar <jar>` always fails with "no main manifest attribute".
+- Use `java -classpath "<jar>" org.apache.maven.wrapper.MavenWrapperMain` instead.
+- Always pass `-Dmaven.multiModuleProjectDirectory=<dir>` — `MavenWrapperMain` requires it and prints the full Java usage block if it is absent.
+
+**`%~dp0` trailing backslash**
+- `%~dp0` always ends with `\` (e.g. `C:\path\to\dir\`). Using it directly in `-Dkey="%~dp0"` produces `-Dkey="C:\path\"`, where `\"` is an escaped quote inside a cmd quoted token — this breaks Java's argument parser.
+- Strip the trailing backslash AFTER using `%~dp0` to build file paths (so `\` separators are preserved), then quote the entire `-D=value` token: `java "-Dmaven.multiModuleProjectDirectory=%VARNAME%"`.
+
+**JAR download in cmd batch**
+- `for /f "tokens=2 delims==" ... curl` URL parsing returns a blank value on properties files with CRLF line endings.
+- Use `powershell -NoProfile -Command "Invoke-WebRequest -Uri $url -OutFile $jar -UseBasicParsing"` for any JAR download.
+
+---
 
 ## Rules
 - No Redis unless architecture explicitly requires Redis for v1.

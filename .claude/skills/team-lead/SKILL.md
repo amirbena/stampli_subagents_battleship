@@ -48,26 +48,66 @@ If evidence is missing, write `Evidence not found.` Do not invent files, scripts
 
 ---
 
+## Step 0.5 — Fast-Path Pre-Classification (before spawning product-agent)
+
+Read `reports/runs/<workflow-run-id>/requirements.md`. Evaluate whether the requirement is **infra-only or docs-only** using the checklist below. This pre-classification takes ~30 s and can save ~1.5 min by eliminating the product-agent entirely on routes where it adds no value.
+
+### Fast-path triggers — ALL must be true
+
+- No new REST endpoint, DTO field, or API contract change of any kind
+- No game rule, domain model, or state machine change
+- No user-visible UI behavior, routing, or component change
+- No test strategy change (no new test files or test frameworks)
+- The change is limited to: startup scripts, run instructions, env config, README, ARCHITECTURE.md, Dockerfiles, CI config, or developer tooling
+
+### If ALL triggers are met → fast-path applies
+
+1. Write a 10-line inline acceptance checklist directly into `reports/runs/<workflow-run-id>/team-lead-classification.md` (see format below).
+2. Mark `product-agent` as `Skipped — fast-path` in the agent table.
+3. Skip Step 1 entirely and proceed to Step 2 (classification) then Step 4 (plan).
+
+**Inline acceptance checklist format (fast-path only):**
+```md
+## Inline Acceptance Checklist (fast-path — product-agent skipped)
+
+| # | Criterion | Verifiable by |
+|---|-----------|---------------|
+| 1 | <first concrete acceptance criterion from the requirement> | <how to check> |
+| 2 | ... | ... |
+```
+Keep it to 5–10 criteria. Focus on observable outcomes (file exists, command runs, output shows X). Do not pad.
+
+### If any trigger is absent → standard path
+
+Proceed to Step 1 normally. Spawn the product-agent.
+
+---
+
 ## Step 1 — Read Product Spec
 
 After Product Agent finishes, read `reports/runs/<workflow-run-id>/product-spec.md`. Verify the Workflow Run ID matches the current run. If stale, trigger Product Agent to regenerate before continuing.
+
+Skip this step entirely when the fast-path applied in Step 0.5.
 
 ---
 
 ## Step 1b — Scope Validation
 
-After reading `product-spec.md`, Team Lead must explicitly validate scope before any implementation or architecture work starts. Write this block into `reports/runs/<workflow-run-id>/team-lead-classification.md` as the first section:
+After reading `product-spec.md` (or writing the inline checklist on fast-path), Team Lead must explicitly validate scope before any implementation or architecture work starts. Write this block into `reports/runs/<workflow-run-id>/team-lead-classification.md` as the first section:
 
 ```md
 ## Scope Validation
 
 Workflow Run ID:
-Product Spec Read: Yes / No (stale → stop)
+Product Spec Read: Yes / No / Skipped (fast-path)
+Fast-Path Applied: Yes / No
+Fast-Path Reason: <all triggers met / trigger X absent>
 
 ### Agent Requirement Decision
 
 | Agent | Required? | Reason |
 |-------|-----------|--------|
+| product-agent | Yes / No — skipped (fast-path) | ... |
 | java-backend-agent | Yes / No | ... |
 | frontend-agent | Yes / No | ... |
 | backend-integration-tests-agent | Yes / No | ... |
@@ -868,12 +908,28 @@ This order minimises cost: unit tests catch obvious breaks cheaply, integration 
 
 All unit test _scenarios_ within a single agent run must also be parallelized — see java-backend-agent for JUnit 5 parallel config.
 
-#### Review phase (after all tests pass)
-- Spawn `code-review-agent` automatically. If the route triggered security requirements, spawn `security-agent` in **parallel** with `code-review-agent`.
-- Never wait for human to prompt the review phase — it fires as soon as all tests are green.
+#### Review phase (after all tests pass) — run in parallel with draft release summary
+
+Do **two things simultaneously** as soon as all tests are green:
+
+**a) Spawn review agents (parallel):**
+- Always spawn `code-review-agent`.
+- If the route triggered security requirements, spawn `security-agent` in the same response as `code-review-agent` so both run in parallel.
+- Never wait for human to prompt this phase.
+
+**b) Team Lead writes a draft `reports/runs/<workflow-run-id>/release-summary.md`** inline while the review agents run:
+- Include: requirement summary, product/architecture status, backend/frontend/infra changes, test results, quality gates (tests only — leave verdict row blank).
+- Do NOT include the code-review verdict yet (it isn't back).
+- Label the verdict row: `Code review: PENDING`.
+
+When review agents return:
+- If APPROVED (or APPROVED WITH RISKS): fill in the verdict row, add the findings table, then spawn `release-pr-agent`.
+- If changes requested: route fixes per Step 9 (QA loop), re-review, then finalize the summary.
+
+This overlaps ~1.5 min of release report writing with the code-review window, so the release agent's job shrinks to: read the draft, finalize verdict section, commit, push, create PR.
 
 #### Release phase
-- After code review (and security if required) return APPROVED, spawn `release-pr-agent` automatically.
+- After code review (and security if required) return APPROVED, spawn `release-pr-agent` with the pre-written draft path so it can finalize and create the PR immediately.
 
 Never pause the workflow and ask the human to "send a message to continue". The entire flow from requirement to PR is non-interactive.
 
