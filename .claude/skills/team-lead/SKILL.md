@@ -1142,6 +1142,8 @@ When any agent in the parallel test phase reports a failure, Team Lead is the so
 | TypeScript compile error in frontend | read file path → route to owner (`api/hooks/types` → `frontend-api-agent`; `components/pages/utils` → `frontend-ui-agent`) **self-heals** | Fix type error; re-run `npm run build` |
 | Playwright test fails — backend returns unexpected response | `java-backend-agent` | Fix the backend; re-run `npm run test:e2e` |
 | Playwright test fails — UI behaves incorrectly | `frontend-ui-agent` | Fix the component; re-run `npm run test:e2e` |
+| Playwright test fails — API/hook layer wrong | `frontend-api-agent` | Fix the hook/API; if `frontend-ui-agent` also changed files in this fix cycle, it must re-run its tests (unit + integration + smoke) and be green before E2E re-triggers |
+| Playwright test fails — both frontend agents changed files | `frontend-api-agent` + `frontend-ui-agent` | Both must re-run their tests and be green; only then re-trigger E2E. If only one agent changed files, the other does not re-verify. |
 | Playwright test fails — test is flaky or assertion is wrong | `playwright-e2e-agent` | Fix the test; re-run `npm run test:e2e` |
 
 ### Routing rules
@@ -1152,6 +1154,7 @@ When any agent in the parallel test phase reports a failure, Team Lead is the so
 4. **Route to exactly one agent.** Do not spawn multiple fix agents for the same failure.
 5. **After the fix, re-run only the failing suite** — not all tests.
 6. **E2E does not start until all test gates are green.**
+7. **Before re-triggering E2E after a frontend fix** — check which agents changed files in this fix cycle. If both `frontend-api-agent` and `frontend-ui-agent` changed files, both must re-run their tests and be green. If only one changed files, only that agent re-verifies. Never re-trigger E2E when the sibling agent's tests are unknown.
 
 ### Fix cycle limit
 
