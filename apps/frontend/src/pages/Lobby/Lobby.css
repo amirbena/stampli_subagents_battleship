@@ -1,5 +1,5 @@
 .lobby-page {
-  max-width: 1100px;
+  max-width: 860px;
   margin: 0 auto;
   padding: 1.5rem;
   width: 100%;
@@ -24,31 +24,47 @@
   text-align: center;
 }
 
+/* Placement area: stacks vertically and stays centered by default;
+   becomes a top-aligned two-column layout on wider screens. */
 .lobby-layout {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 1.5rem;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 900px) {
   .lobby-layout {
     flex-direction: row;
     align-items: flex-start;
-    gap: 3rem;
+    justify-content: center;
+    gap: 2.5rem;
   }
 }
 
+/* Board section: board grid, Confirm Ready button, and helper text
+   stay grouped and centered together as one cohesive column. */
 .lobby-board-area {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  align-items: flex-start;
+  align-items: center;
 }
 
 .confirm-ready-btn { min-width: 200px; }
 
-.placement-hint { font-size: 0.85rem; color: var(--color-text-muted); }
+.placement-hint {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  text-align: center;
+}
 
+/* Mobile fit: shrink the board (lobby-scoped only, so the in-game board
+   is unaffected) and tighten padding so the 10x10 grid never overflows. */
 @media (max-width: 480px) {
+  .lobby-page {
+    --cell-size: clamp(24px, 7.2vw, 32px);
+    padding: 1rem 0.75rem;
+  }
   .lobby-header { flex-direction: column; align-items: flex-start; }
 }
