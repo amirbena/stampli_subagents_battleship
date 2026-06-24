@@ -45,15 +45,17 @@ User Requirement
          │                                        │ returns to Team Lead
          │◄───────────────────────────────────────┘
          │
-         ├──────────────────────────────────────────────────────────┐
-         ▼                                                          ▼
-┌─────────────────┐                                    ┌───────────────────┐
-│  Java Backend   │  Spring Boot game engine,          │  Frontend Agent   │  React/TypeScript UI,
-│  Agent          │  domain model, REST API,           │                   │  pages, components,
-│                 │  repository layer                  │                   │  frontend unit tests
-└────────┬────────┘                                    └─────────┬─────────┘
-         │               (parallel)                              │
-         └─────────────────────┬──────────────────────────────────┘
+         ├───────────────────────────────────────────────────────────────────┐
+         ▼                                                                 ▼
+┌─────────────────┐                                    ┌────────────────────────────────────┐
+│  Java Backend   │  Spring Boot game engine,          │  Frontend API Agent                │
+│  Agent          │  domain model, REST API,           │  api/, hooks/, types/, Vitest      │
+│                 │  repository layer + unit tests     ├────────────────────────────────────┤
+└────────┬────────┘                                    │  Frontend UI Agent                 │
+         │               (all three parallel)          │  components/, pages/, utils/, CSS  │
+         │                                             │  Vitest component tests            │
+         │                                             └─────────┬──────────────────────────┘
+         └──────────────────────────┬──────────────────────────────┘
                                │
                                │  ── STEP 1: UNIT TESTS (parallel, cheapest) ──────────┐
                                ▼                                                        │
@@ -126,7 +128,8 @@ User Requirement
 | **Team Lead** | opus-4-8 | Orchestration, plan, branch decisions, quality gates | `.claude/skills/team-lead` |
 | **Architect Agent** | opus-4-8 | `reports/runs/<id>/architecture.md`, API contract, domain model | `.claude/skills/architect-agent` |
 | **Java Backend Agent** | sonnet-4-6 | `apps/backend/src/main/java/` — all production Java; `src/test/**/*Test.java` — JUnit 5 + Mockito unit tests | `.claude/skills/java-backend-agent` |
-| **Frontend Agent** | sonnet-4-6 | `apps/frontend/src/` — React/TypeScript + Vitest unit tests | `.claude/skills/frontend-agent` |
+| **Frontend API Agent** | sonnet-4-6 | `apps/frontend/src/api/`, `hooks/`, `types/` — HTTP wrappers, hooks, TS types + Vitest unit tests | `.claude/skills/frontend-api-agent` |
+| **Frontend UI Agent** | sonnet-4-6 | `apps/frontend/src/components/`, `pages/`, `utils/`, CSS — render layer + Vitest component tests | `.claude/skills/frontend-ui-agent` |
 | **Backend Integration Tests Agent** | sonnet-4-6 | `apps/backend/src/test/**/*IntegrationTest.java` — `@SpringBootTest` + MockMvc (HTTP layer) | `.claude/skills/backend-integration-tests-agent` |
 | **Playwright E2E Agent** | sonnet-4-6 | `apps/frontend/tests/e2e/` — browser E2E tests | `.claude/skills/playwright-e2e-agent` |
 | **Security Agent** | opus-4-8 | `reports/runs/<id>/security-report.md` | `.claude/skills/security-agent` |
@@ -142,7 +145,9 @@ User Requirement
 - **Team Lead** owns all decisions — branch, scope, agent routing, quality gates. No other agent makes decisions.
 - **Architect** owns structure (domain model, API contract, folder layout) — never environment setup or implementation.
 - **Java Backend Agent** owns JUnit 5 unit tests for domain and service layer — no separate backend unit test agent (same rationale as frontend).
-- **Frontend Agent** owns Vitest unit tests for its own components — no separate frontend unit test agent.
+- **Frontend API Agent** owns Vitest unit tests for `api/`, `hooks/`, and `types/` — co-located in those directories.
+- **Frontend UI Agent** owns Vitest component tests for `components/`, `pages/`, and `utils/` — co-located. It is also the sole agent for cheap/styling-only changes.
+- Both frontend agents run in parallel. Team Lead pre-writes the `types/game.ts` contract change (always a small architecture-driven edit) before spawning them.
 - **Playwright E2E Agent** owns browser tests — never touches production code.
 
 ### Run Isolation

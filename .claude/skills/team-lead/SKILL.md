@@ -117,7 +117,8 @@ Fast-Path Reason: <all triggers met / trigger X absent>
 |-------|-----------|--------|
 | product-agent | Yes / No — skipped (fast-path) | ... |
 | java-backend-agent | Yes / No | ... |
-| frontend-agent | Yes / No | ... |
+| frontend-api-agent | Yes / No | owns api/, hooks/, types/ |
+| frontend-ui-agent | Yes / No | owns components/, pages/, utils/, CSS |
 | backend-integration-tests-agent | Yes / No | ... |
 | playwright-e2e-agent | Yes / No | ... |
 | infrastructure-agent | Yes / No | ... |
@@ -314,8 +315,8 @@ Required Output:
 
 If Java backend build fails: route to java-backend-agent
 If Spring/runtime startup fails: route to java-backend-agent
-If frontend build fails: route to frontend-agent
-If frontend runtime fails: route to frontend-agent
+If frontend build fails: read the failing file path — route to `frontend-api-agent` (api/hooks/types) or `frontend-ui-agent` (components/pages/utils/CSS)
+If frontend runtime fails: same routing by file path
 If QA rejects: Team Lead classifies and routes to suspected owner
 If security concern appears: route to security-agent
 If demo config issue appears: route to relevant agent (allowed demo config is not a blocker)
@@ -830,9 +831,24 @@ Each developer agent must produce a Proposed Change Plan before editing files.
 Team Lead MUST spawn all assigned developer agents automatically using the `Agent` tool — do NOT stop and wait for human input between agent launches.
 
 #### Implementation phase (parallel where independent)
-- `backend-and-frontend` or `full-stack-complex`: spawn `java-backend-agent` and `frontend-agent` as **two parallel `Agent` calls in one response**.
-- `java-backend-only`: spawn only `java-backend-agent`.
-- `frontend-only`: spawn only `frontend-agent`.
+
+The frontend is split into two parallel agents. Team Lead decides which to use based on scope:
+
+| Scope of change | Agents to spawn |
+|---|---|
+| `backend-and-frontend` or `full-stack-complex` | `java-backend-agent` + `frontend-api-agent` + `frontend-ui-agent` — all three in one parallel response |
+| `java-backend-only` | `java-backend-agent` only |
+| `frontend-only` — data/hook/type change only | `frontend-api-agent` only |
+| `frontend-only` — rendering/CSS/copy/layout only | `frontend-ui-agent` only |
+| `frontend-only` — both data and render layers | `frontend-api-agent` + `frontend-ui-agent` in parallel |
+
+**Coordination rule for full-stack or frontend changes that touch `types/game.ts`:**
+Before spawning either frontend agent, Team Lead writes the `types/game.ts` change directly (it is always a small, architecture-driven change). Both agents then start in parallel, with `frontend-api-agent` treating the type as already present and `frontend-ui-agent` reading it as the import source for props.
+
+**Routing after fixes:**
+- Hook/API/type failure → `frontend-api-agent` self-heals.
+- Component/page/CSS failure → `frontend-ui-agent` self-heals.
+- TypeScript compile error in frontend: read the file path — route to the agent that owns it.
 
 #### E2E Infrastructure Pre-Gate — Required Only When E2E Mode Is Full
 
@@ -891,7 +907,7 @@ Typical skip cases: service/domain logic change only, frontend-only change, refa
 
 Spawn simultaneously:
 - `java-backend-agent` (unit test run: `./mvnw test`) — if backend was touched
-- `frontend-agent` (unit test run: `npm run test`) — if frontend was touched
+- `frontend-api-agent` and/or `frontend-ui-agent` (unit test run: `npm run test`) — if frontend was touched; spawn both if both ran in implementation phase
 
 These two are fully independent and run at the same time.
 
@@ -1058,16 +1074,17 @@ When any agent in the parallel test phase reports a failure, Team Lead is the so
 | JUnit unit test itself wrong (bad assertion/mock) | `java-backend-agent` **self-heals** — no Team Lead hop | Fix test; re-run `./mvnw test` |
 | `@SpringBootTest` / MockMvc fails (80% case) | `java-backend-agent` directly | Fix controller/DTO/exception handler; re-run `*IntegrationTest` |
 | `@SpringBootTest` / MockMvc fails after 2 java-backend cycles | Team Lead reads output → `backend-integration-tests-agent` | Fix the test setup/assertion; re-run `*IntegrationTest` |
-| Vitest / RTL test fails (component, hook, logic) | `frontend-agent` **self-heals** — no Team Lead hop | Fix component/hook; re-run `npm run test` |
-| Vitest / RTL test itself wrong (bad assertion/mock) | `frontend-agent` **self-heals** — no Team Lead hop | Fix test; re-run `npm run test` |
-| TypeScript compile error in frontend | `frontend-agent` **self-heals** — no Team Lead hop | Fix type error; re-run `npm run build` |
+| Vitest / RTL test fails (hook, API, type logic) | `frontend-api-agent` **self-heals** — no Team Lead hop | Fix hook/API; re-run `npm run test` |
+| Vitest / RTL test fails (component, page, render) | `frontend-ui-agent` **self-heals** — no Team Lead hop | Fix component; re-run `npm run test` |
+| Vitest test itself wrong (bad assertion/mock) | owning frontend agent **self-heals** — no Team Lead hop | Fix test; re-run `npm run test` |
+| TypeScript compile error in frontend | read file path → route to owner (`api/hooks/types` → `frontend-api-agent`; `components/pages/utils` → `frontend-ui-agent`) **self-heals** | Fix type error; re-run `npm run build` |
 | Playwright test fails — backend returns unexpected response | `java-backend-agent` | Fix the backend; re-run `npm run test:e2e` |
-| Playwright test fails — UI behaves incorrectly | `frontend-agent` | Fix the component; re-run `npm run test:e2e` |
+| Playwright test fails — UI behaves incorrectly | `frontend-ui-agent` | Fix the component; re-run `npm run test:e2e` |
 | Playwright test fails — test is flaky or assertion is wrong | `playwright-e2e-agent` | Fix the test; re-run `npm run test:e2e` |
 
 ### Routing rules
 
-1. **Unit test failures never route through Team Lead.** `java-backend-agent` and `frontend-agent` own their tests and self-heal directly. Team Lead only steps in when the fix cycle limit is reached.
+1. **Unit test failures never route through Team Lead.** `java-backend-agent`, `frontend-api-agent`, and `frontend-ui-agent` own their tests and self-heal directly. Team Lead only steps in when the fix cycle limit is reached.
 2. **Integration test failures default to `java-backend-agent`** — wrong status code, missing exception handler, DTO serialization mismatch account for ~80% of cases. Only route to `backend-integration-tests-agent` if java-backend-agent fails to fix it after 2 cycles.
 3. **Read the failure output before routing** for Playwright failures — a backend bug can surface in a frontend test and vice versa.
 4. **Route to exactly one agent.** Do not spawn multiple fix agents for the same failure.
@@ -1173,9 +1190,9 @@ If two consecutive attempts repeat the same hypothesis without new evidence, Tea
 | java-backend-build | java-backend-agent |
 | java-backend-runtime | java-backend-agent |
 | java-backend-test | java-backend-agent |
-| frontend-build | frontend-agent |
-| frontend-runtime | frontend-agent |
-| frontend-test | frontend-agent |
+| frontend-build | `frontend-api-agent` or `frontend-ui-agent` (read failing file path to route) |
+| frontend-runtime | same file-path routing |
+| frontend-test | same file-path routing |
 | qa-acceptance | Team Lead classifies owner from evidence |
 | security | security-agent |
 | demo-config | relevant agent; demo/placeholder values are not blockers |
@@ -1320,8 +1337,8 @@ cd apps/frontend && npx playwright test smoke.spec.ts
 
 - No backend required — the Playwright `webServer` config starts `npm run dev` automatically.
 - Must pass before routing to code review or release.
-- If it fails after a frontend change, route back to `frontend-agent` as a `frontend-runtime` finding.
-- **Skip** for purely internal refactors, type-only changes, test-only changes, copy-only changes, or isolated CSS tweaks already covered by build/unit tests. When skipped, `frontend-agent` records the reason in its Evidence section and Team Lead records it in `test-results.md`.
+- If it fails after a frontend change, route back to `frontend-ui-agent` as a `frontend-runtime` finding (smoke tests rendering and navigation).
+- **Skip** for purely internal refactors, type-only changes, test-only changes, copy-only changes, or isolated CSS tweaks already covered by build/unit tests. When skipped, the owning frontend agent records the reason in its Evidence section and Team Lead records it in `test-results.md`.
 
 If a test command does not exist:
 - Do not block by default
@@ -1374,7 +1391,7 @@ If non-critical unresolved findings remain, document them in PR summary. Do not 
 - `normal`: product-lite, architect-lite when contracts change, relevant implementation agents, relevant tests, **code review required**, **validation gap check required**, release
 - `full`: product-full, architect-full, backend, frontend, infra, unit/integration/E2E, **security required + code review required + Playwright required**, release
 
-**Cheap mode token budget:** product-lite → team-lead-classification → frontend-agent (lightweight plan + build only) → code-review-lite → release. No unit tests, no E2E, no security, no architecture.
+**Cheap mode token budget:** product-lite → team-lead-classification → `frontend-ui-agent` (styling/copy/layout — lightweight plan + build only) or `frontend-api-agent` (hook/type tweak — lightweight plan + build only) → code-review-lite → release. No unit tests, no E2E, no security, no architecture.
 
 **Code review is required in every mode, including cheap.** The depth scales with mode (lite vs full), but it never runs zero. Security review is optional in cheap/normal unless the route triggers it (auth, sessions, secrets, hidden data). All findings always return to Team Lead — never directly to developer agents.
 
