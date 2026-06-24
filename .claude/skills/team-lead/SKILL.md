@@ -292,140 +292,11 @@ When Architecture runs, it writes `reports/runs/<workflow-run-id>/architecture.m
 
 ## Step 4 — Execution Plan
 
-After Product (and optional Architecture), write `reports/runs/<workflow-run-id>/team-lead-plan.md`:
+After Product (and optional Architecture), write `reports/runs/<workflow-run-id>/team-lead-plan.md`.
 
-```md
-# Team Lead Execution Plan
+Load `.claude/templates/team-lead-execution-plan-template.md` and fill in every section. Required sections: Requirement Summary, Product Summary, Architecture Status, Execution Route, Execution Mode, Agents To Run/Skipped, Developer Assignments, Work Order, File Ownership, Shared File Handling, Required Tests, Runtime/Build/Test Failure Routing, QA Plan, Security Review Required, Backend Integration Tests Required, E2E Mode, Demo Config Plan, Done Criteria, Loop Prevention Plan, Risk Handling Policy.
 
-Workflow Run ID:
-Generated From Branch:
-Generated From Commit:
-Generated At:
-
-## Requirement Summary
-
-## Product Summary
-
-## Architecture Status
-
-Architecture Required:
-Architecture Run:
-Architecture Summary:
-Architecture Skipped Reason:
-
-## Execution Route
-
-docs-only / frontend-only / java-backend-only / backend-and-frontend / config-aware / infra / auth-security / multiplayer-session / full-stack-complex
-
-## Execution Mode
-
-cheap / normal / full
-
-## Agents To Run
-
-## Agents Skipped And Why
-
-## Developer Assignments
-
-For each developer agent:
-
-Agent:
-Assignment:
-Allowed Scope:
-Expected Files/Areas:
-Out of Scope:
-Required Output:
-
-## Work Order
-
-## File Ownership
-
-## Shared File Handling
-
-## Required Tests
-
-## Runtime / Build / Test Failure Routing
-
-If Java backend build fails: route to java-backend-agent
-If Spring/runtime startup fails: route to java-backend-agent
-If frontend build fails: read the failing file path — route to `frontend-api-agent` (api/hooks/types) or `frontend-ui-agent` (components/pages/utils/CSS)
-If frontend runtime fails: same routing by file path
-If QA rejects: Team Lead classifies and routes to suspected owner
-If security concern appears: route to security-agent
-If demo config issue appears: route to relevant agent (allowed demo config is not a blocker)
-If infra change appears required: route to infrastructure-agent only if explicitly allowed; otherwise document as recommendation
-
-## QA Plan
-
-## Security Review Required
-
-Yes/No and reason.
-
-## Backend Integration Tests Required
-
-Yes / No — and exact trigger (which of the five conditions matched, or why all were absent).
-
-## E2E Mode
-
-None / Smoke / Full — and reason.
-
-**Decision rules (pick the first that matches):**
-
-| Condition | E2E Mode |
-|-----------|----------|
-| API contract changed (new endpoint, changed request/response shape, new status codes) | **Full** — frontend + live backend on port 8081 |
-| New game mode, state machine transition, or multiplayer flow requiring backend coordination | **Full** |
-| New frontend pages/flows/components but NO contract change | **Smoke** — `smoke.spec.ts` only, no backend |
-| Pure styling, copy, or layout change | **Smoke** |
-| Backend-only change, zero frontend impact | **None** |
-
-When mode is **Full**, Team Lead must pass the E2E Infrastructure Pre-Gate before spawning playwright-e2e-agent (see Step 6).
-When mode is **Smoke**, Team Lead spawns playwright-e2e-agent with instruction to run `smoke.spec.ts` only — no backend webServer needed.
-When mode is **None**, playwright-e2e-agent is not spawned.
-
-## Demo Config / Dotenv Plan
-
-Config changes required: Yes/No
-Allowed files: ...
-Values are: PUBLIC_CONFIG / DEMO_CONFIG_ACCEPTED / PLACEHOLDER_CONFIG / UNKNOWN_SENSITIVE_VALUE
-Human setup required: Yes/No
-
-## Done Criteria
-
-## Loop Prevention Plan
-
-Frontend technical attempt limit: 10
-Java Backend technical attempt limit: 10
-QA cycle limit: 5
-Product reopen limit: 3
-Architecture reopen limit: 3
-Route escalation limit: 3
-Total fix cycle limit: 15
-
-## Technical Agent Rule Preservation
-
-- Java Backend technical rules remain active.
-- Frontend technical rules remain active.
-- QA technical rules remain active.
-- Security technical rules remain active.
-- Infrastructure technical rules remain active.
-
-## Infrastructure Non-Modification Confirmation
-
-- Dockerfile must not be touched by this workflow update.
-- Docker Compose files must not be touched by this workflow update.
-- CI/deployment files must not be touched by this workflow update.
-- Dependencies and lockfiles must not be touched by this workflow update.
-
-## Risk Handling Policy
-
-Which risks can be documented in PR:
-Which risks require hard blocker:
-
-## Workflow Metadata
-
-Workflow Run ID:
-```
+Do not produce a plan without filling in every applicable section. The template contains the E2E mode decision table and loop prevention limits — use them when filling in those sections.
 
 ---
 
@@ -1086,28 +957,13 @@ Level 4:   full E2E — real browser + real backend, only when Team Lead explici
 
 These definitions are binding for routing decisions. Use them to decide which test type to require.
 
-**Frontend unit tests** — Vitest/jsdom, one isolated frontend unit.
-- Component unit test: renders with controlled props or mocked dependencies, asserts DOM output/behavior. Use for: conditional rendering, button visibility, disabled/enabled state, empty/loading/error state, modal/toast visibility, text and labels, CSS class/state-class application, board cell rendering, layout DOM structure, responsive structural expectations jsdom can validate.
-- Hook unit test: uses `renderHook`, asserts returned data shape, loading/error/success transitions, API response mapping. Owned by `frontend-api-agent`.
-- Utility unit test: pure functions — board cell mapping, coordinate helpers, formatters.
+**Frontend unit tests** — Vitest/jsdom, one isolated unit. Catches: conditional rendering, wrong text/class, missing section, button visibility, disabled/enabled state. Owned by: component/util → `frontend-ui-agent`; hook → `frontend-api-agent`.
 
-Unit tests **can and should** catch simple UI regressions: missing button, wrong text, wrong CSS class, missing section, wrong conditional state. For screenshot-like bugs caused by component structure, props, state, or CSS class logic — require unit tests first before escalating.
+**Frontend integration tests** — Vitest/jsdom, multiple real frontend layers, network boundary mocked. Use when: per-layer unit tests pass but runtime behavior fails due to timing/ordering, provider wiring, shared state, or async side-effect interaction. Do not use for simple CSS/layout fixes.
 
-**Frontend integration tests** — Vitest/jsdom, multiple real frontend layers together, network boundary mocked.
-- Includes: real rendered component, real hook, real store/context, real Axios interceptors, real frontend side effects.
-- Mocks only: HTTP/network/server boundary (Axios adapter, `fetch` mock).
-- Does not use: real browser, real backend, real auth provider.
-- Use when: per-layer unit tests pass but runtime behavior can still fail due to timing/ordering, provider wiring, shared state, or async side-effect interaction.
-- **Do not use** for simple CSS/layout fixes where a unit test plus Playwright smoke is sufficient.
+**Playwright UI smoke** — real browser, mocked backend/auth/session. Use for: CSS/layout, responsive/mobile, authenticated screen rendering at viewport sizes. Catches what jsdom cannot. Does not replace unit or integration tests.
 
-**Playwright UI smoke** — real browser, mocked backend/auth/session, no real backend.
-- Use for: CSS/layout changes, responsive/mobile fixes, page rendering at real viewport sizes, authenticated screen rendering with mocked session, visible element checks (board, fleet, button) at desktop and mobile viewports.
-- Catches what jsdom cannot: actual CSS rendering, flexbox/grid layout, overflow, responsive breakpoints.
-- Does **not** replace unit tests or integration tests. Catches a different class of risk.
-
-**Full E2E** — real browser + real backend on port 8081.
-- Only when Team Lead explicitly routes it: API contract change, new game mode, state machine transition, or multiplayer flow requiring backend coordination.
-- Never triggered by frontend agents themselves.
+**Full E2E** — real browser + real backend on port 8081. Only when Team Lead explicitly routes it. Never triggered by frontend agents.
 
 ---
 
@@ -1161,16 +1017,7 @@ Write a new test when **all** of the following are true:
 
 #### How to write the test
 
-Use `page.route()` to mock **all** backend API calls — no real backend needed. Set `sessionStorage` to bypass redirect guards. Assert layout with `boundingBox()` and overflow with `document.documentElement.scrollWidth`.
-
-Location: `apps/frontend/tests/e2e/<page-name>-layout.spec.ts`
-
-Run command (frontend dev server must be running on port 3001):
-
-```powershell
-$env:E2E_BASE_URL='http://localhost:3001'
-cd apps/frontend && npx playwright test tests/e2e/<page-name>-layout.spec.ts --project=chromium
-```
+Owned by `playwright-e2e-agent` — see that agent's SKILL for implementation details (`page.route()`, `boundingBox`, `sessionStorage`, spec location, run command).
 
 #### If the targeted test fails
 
@@ -1226,25 +1073,18 @@ If non-critical unresolved findings remain, document them in PR summary. Do not 
 
 ## Execution Routes
 
-- `docs-only`: documentation/workflow text only
-- `frontend-only`: UI-only changes
-- `java-backend-only`: backend/internal logic only
-- `backend-and-frontend`: API contract or behavior touches both
-- `config-aware`: demo/local config change required
-- `infra`: Docker, CI, env, startup, ports, deployment
-- `auth-security`: auth, sessions, permissions, secrets, user data, external integrations
-- `multiplayer-session`: multiplayer/session/game-flow coordination
-- `full-stack-complex`: broad cross-cutting work
+Valid labels: `docs-only`, `frontend-only`, `java-backend-only`, `backend-and-frontend`, `config-aware`, `infra`, `auth-security`, `multiplayer-session`, `full-stack-complex`.
+
+Load `.claude/metadata/route-matrix.yml` when you need the description for an unfamiliar label.
 
 ## Execution Modes
 
-- `cheap`: product-lite, one implementation agent, build test only (`npm run build` or `./mvnw test`), **code review required (lite)**, **validation gap check required**, release
-- `normal`: product-lite, architect-lite when contracts change, relevant implementation agents, relevant tests, **code review required**, **validation gap check required**, release
-- `full`: product-full, architect-full, backend, frontend, infra, unit/integration/E2E, **security required + code review required + Playwright required**, release
+Valid values: `cheap`, `normal`, `full`. Load `.claude/metadata/execution-modes.yml` for gate and token budget details.
 
-**Cheap mode token budget:** product-lite → team-lead-classification → `frontend-ui-agent` (styling/copy/layout — lightweight plan + build only) or `frontend-api-agent` (hook/type tweak — lightweight plan + build only) → code-review-lite → release. No unit tests, no E2E, no security, no architecture.
-
-**Code review is required in every mode, including cheap.** The depth scales with mode (lite vs full), but it never runs zero. Security review is optional in cheap/normal unless the route triggers it (auth, sessions, secrets, hidden data). All findings always return to Team Lead — never directly to developer agents.
+**Binding rules (always enforced, never in the metadata file):**
+- Code review runs in every mode — at minimum review-lite for cheap. Never skip entirely.
+- Security review is optional in cheap/normal unless the route triggers it (auth, sessions, secrets, hidden data, external integrations).
+- All findings return to Team Lead — never directly to developer agents.
 
 ## Validation Gap Check (required in cheap and normal mode)
 
@@ -1308,37 +1148,9 @@ For pure cosmetic/audio changes where all unvalidated criteria are Risk: Low —
 
 ## File Ownership
 
-Team Lead owns routing, coordination, shared contracts, QA reassignment, retry limits, report freshness, release readiness, `.claude/**`, workflow files, and `reports/**`.
+Load `.claude/metadata/file-ownership.yml` during Step 7 ownership checks. That file lists every agent's owned paths and the shared files list.
 
-Product owns `reports/runs/<workflow-run-id>/product-spec.md`.
-Architect owns `reports/runs/<workflow-run-id>/architecture.md` and `reports/runs/<workflow-run-id>/technical-plan.md`.
-Backend owns backend production source and backend unit tests (`*Test.java`, not `*IntegrationTest.java`).
-Frontend owns frontend source and frontend unit tests (Vitest, co-located).
-Infrastructure owns Docker, CI, env examples, deployment files, service startup scripts.
-Playwright owns E2E files and `playwright.config.*`.
-Security owns `reports/runs/<workflow-run-id>/security-report.md`.
-Code Review owns `reports/runs/<workflow-run-id>/code-review-report.md`.
-Release owns final git/gh checks, push, PR, and `reports/runs/<workflow-run-id>/release-summary.md`.
-
-Shared files include:
-```
-README.md
-package.json
-package-lock.json
-pnpm-lock.yaml
-yarn.lock
-docker-compose.yml
-Dockerfile
-.env.example
-playwright.config.*
-openapi.*
-shared/**
-types/**
-.claude/**
-reports/**
-```
-
-Team Lead decides shared file edits autonomously and records every shared file change in PR summary.
+Team Lead decides shared file edits autonomously and records every shared file change in PR summary. Authority over routing, QA reassignment, retry limits, report freshness, and release readiness stays with Team Lead.
 
 ---
 
@@ -1352,38 +1164,7 @@ Default: do not add dependencies. Prefer native implementation and existing depe
 
 Release summary/PR body must be written to `reports/runs/<workflow-run-id>/release-summary.md`.
 
-The PR body is for the human reviewer — keep it short and review-focused. Full workflow evidence (test output, agent logs, finding registry, retry history) stays in `reports/runs/<workflow-run-id>/`.
-
-```md
-# Summary
-
-## Requirement
-<1–3 sentences describing what was requested>
-
-## What Changed
-- <main change 1>
-- <main change 2>
-- <main change 3>
-
-## Validation
-
-| Check | Result |
-|---|---|
-| Backend tests | PASS / SKIPPED — reason |
-| Frontend tests | PASS / SKIPPED — reason |
-| Build | PASS / SKIPPED — reason |
-| Playwright smoke / E2E | PASS / SKIPPED — reason |
-| Code review | APPROVED / APPROVED WITH RISKS / SKIPPED — reason |
-
-## Risks / Notes
-- <only include real risks, known gaps, or important reviewer notes>
-- If none: `No known blocking risks.`
-
-## Files Changed
-- <main changed areas — not a full file-by-file dump unless the change is small>
-```
-
-Only add sections beyond this when actually relevant: demo config changes, unresolved findings, security notes, architecture decisions. Do not include retry tables, agent execution history, cost sections, infrastructure safety boilerplate, or "what was not changed" confirmations unless a reviewer specifically needs them.
+Load `.claude/templates/pr-summary-template.md` when writing. Keep it short and review-focused — full evidence stays in `reports/runs/<workflow-run-id>/`. Only add sections beyond the template when actually relevant to the reviewer (demo config changes, unresolved findings, security notes, architecture decisions).
 
 ---
 

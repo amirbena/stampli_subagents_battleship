@@ -1,0 +1,31 @@
+# Execution Route Definitions
+# Team Lead loads this during Step 2 classification when naming the route.
+# Route selection logic (decision tree) stays in Team Lead Step 2.
+
+routes:
+  docs-only:
+    description: Documentation or workflow text only — no application code change
+
+  frontend-only:
+    description: UI-only changes — components, pages, CSS, hooks, types; no backend behavior change
+
+  java-backend-only:
+    description: Backend/internal logic only — no frontend impact, no API contract change
+
+  backend-and-frontend:
+    description: API contract or behavior touches both backend and frontend
+
+  config-aware:
+    description: Demo/local config change required alongside the implementation
+
+  infra:
+    description: Docker, CI, env, startup scripts, ports, deployment
+
+  auth-security:
+    description: Auth, sessions, permissions, secrets, user data, external integrations
+
+  multiplayer-session:
+    description: Multiplayer/session/game-flow coordination, cross-client sync
+
+  full-stack-complex:
+    description: Broad cross-cutting work spanning more than two layers

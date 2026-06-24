@@ -30,10 +30,28 @@ grep -q 'VITE_API_BASE_URL' apps/frontend/playwright.config.ts && echo "OK" || e
 
 If any check fails, report the result to Team Lead with the exact item that failed. Do not begin writing E2E tests until Team Lead confirms all four checks pass. Team Lead routes failed items to the owning agent.
 
+## Targeted UI Validation Test — Implementation (Level 0.5)
+
+When Team Lead routes a targeted layout/render test, use this pattern:
+
+- Mock all backend API calls with `page.route()` — no real backend needed.
+- Set `sessionStorage` to bypass redirect guards if the page requires auth.
+- Assert layout with `boundingBox()` and overflow with `document.documentElement.scrollWidth`.
+- Location: `apps/frontend/tests/e2e/<page-name>-layout.spec.ts`
+- Run command (frontend dev server must be running on port 3001):
+
+```powershell
+$env:E2E_BASE_URL='http://localhost:3001'
+cd apps/frontend && npx playwright test tests/e2e/<page-name>-layout.spec.ts --project=chromium
+```
+
+If the targeted test fails: capture the full failure output + screenshot path from `playwright-report/` or `test-results/`, and report to Team Lead with the exact failing assertion, screenshot path, and expected vs measured values.
+
 ## Responsibilities
 - Simulate full multiplayer flows using two browser contexts (Player A and Player B).
 - Validate that UI and backend work together correctly end-to-end.
 - Produce a Playwright HTML test report.
+- Write targeted layout/render tests when routed by Team Lead (see above).
 - **Never assume ports or servers are already running.** Verify the E2E environment before writing any test.
 
 ## Team Lead Contract

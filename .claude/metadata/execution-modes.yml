@@ -1,0 +1,28 @@
+# Execution Mode Definitions
+# Team Lead loads this during Step 2 classification when selecting mode.
+# Mode selection logic and binding rules stay in Team Lead.
+
+modes:
+  cheap:
+    description: product-lite, one implementation agent, build test only
+    gates: [build, code-review-lite, validation-gap-check, release]
+    token_budget: >
+      product-lite → team-lead-classification →
+      frontend-ui-agent (styling/copy/layout) or frontend-api-agent (hook/type tweak) →
+      code-review-lite → release.
+      No unit tests, no E2E, no security, no architecture.
+
+  normal:
+    description: product-lite, architect-lite when contracts change, relevant agents and tests
+    gates: [unit-tests, build, code-review, validation-gap-check, release]
+    notes: architect-lite runs only when API/contract changes
+
+  full:
+    description: product-full, architect-full, all relevant agents, all test levels
+    gates: [unit-tests, integration-tests, build, security, code-review, playwright, release]
+    notes: security required; Playwright required
+
+# Binding rules (always enforced by Team Lead regardless of mode):
+# - Code review runs in every mode — at minimum review-lite for cheap.
+# - Security review is optional in cheap/normal unless the route triggers it.
+# - All findings return to Team Lead — never directly to developer agents.
