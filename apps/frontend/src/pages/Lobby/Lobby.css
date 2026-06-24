@@ -33,7 +33,7 @@
   gap: 1.5rem;
 }
 
-@media (min-width: 900px) {
+@media (min-width: 768px) {
   .lobby-layout {
     flex-direction: row;
     align-items: flex-start;
@@ -59,12 +59,22 @@
   text-align: center;
 }
 
-/* Mobile fit: shrink the board (lobby-scoped only, so the in-game board
-   is unaffected) and tighten padding so the 10x10 grid never overflows. */
+/* Mobile: single-column polished layout — fleet and board each take full width,
+   button stretches to full width, header stacks vertically. */
+@media (max-width: 767px) {
+  .lobby-layout { align-items: stretch; }
+  .lobby-board-area { width: 100%; }
+  /* Override the shared component's min-width so it fills the column cleanly */
+  .lobby-page .fleet-list-panel { width: 100%; min-width: 0; }
+  .confirm-ready-btn { width: 100%; min-width: 0; }
+  .lobby-header { flex-direction: column; align-items: flex-start; }
+}
+
+/* Sub-480px: shrink the board (lobby-scoped only, so the in-game board
+   is unaffected) and tighten padding so the 10×10 grid never overflows. */
 @media (max-width: 480px) {
   .lobby-page {
     --cell-size: clamp(24px, 7.2vw, 32px);
     padding: 1rem 0.75rem;
   }
-  .lobby-header { flex-direction: column; align-items: flex-start; }
 }
