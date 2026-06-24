@@ -20,6 +20,7 @@ interface UsePlacementResult extends PlacementState {
   setPreview: (anchor: Coordinate | null) => void;
   placeShip: (anchor: Coordinate) => ShipDto | null;
   removeShip: (type: ShipType) => void;
+  hydrate: (ships: ShipDto[]) => void;
   reset: () => void;
 }
 
@@ -115,6 +116,28 @@ export function usePlacement(): UsePlacementResult {
     setPlacedShips((prev) => prev.filter((s) => s.shipType !== type));
   }, []);
 
+  /**
+   * Seeds placement state from ships already persisted on the server board.
+   *
+   * Used by the Lobby to rehydrate after a page refresh: the backend re-renders
+   * placed ships on the board (via `gameState.myBoard.ships`), but local placement
+   * state would otherwise reset to empty, desyncing the Fleet List panel from the board.
+   *
+   * Replaces `placedShips` with the provided ships, clears any active selection and
+   * preview, and intentionally leaves `orientation` untouched (selected tool is not
+   * persisted across refresh — the user accepts "no tool selected" after rehydration).
+   *
+   * This is a pure state setter with no once-only guard — the caller (Lobby) owns the
+   * guard. Wrapped in `useCallback` with an empty dependency array so its identity is
+   * stable and a consumer can safely use it as an effect dependency.
+   */
+  const hydrate = useCallback((ships: ShipDto[]) => {
+    setPlacedShips(ships);
+    setSelectedShipType(null);
+    setPreviewCells([]);
+    setPreviewValid(false);
+  }, []);
+
   /** Resets all placement state — used when the player wants to start over. */
   const reset = useCallback(() => {
     setPlacedShips([]);
@@ -137,6 +160,7 @@ export function usePlacement(): UsePlacementResult {
     setPreview,
     placeShip,
     removeShip,
+    hydrate,
     reset,
   };
 }

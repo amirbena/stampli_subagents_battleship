@@ -2,18 +2,26 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { Lobby } from './Lobby';
+import type { ShipDto, ShipType } from '../../types/game';
 
 vi.mock('react-router-dom', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router-dom')>();
   return { ...actual, useNavigate: () => vi.fn() };
 });
 
+// Controllable polling mock — tests override the returned gameState.
+let pollingReturn: { gameState: unknown; isLoading: boolean } = {
+  gameState: null,
+  isLoading: false,
+};
 vi.mock('../../hooks/useGamePolling', () => ({
-  useGamePolling: () => ({ gameState: null, isLoading: false }),
+  useGamePolling: () => pollingReturn,
 }));
 
-vi.mock('../../hooks/usePlacement', () => ({
-  usePlacement: () => ({
+// Controllable placement mock — tests override placedShips/selectedShipType/allPlaced.
+let placementReturn: Record<string, unknown>;
+function makePlacement(overrides: Record<string, unknown> = {}) {
+  return {
     placedShips: [],
     selectedShipType: null,
     orientation: 'HORIZONTAL',
@@ -25,7 +33,12 @@ vi.mock('../../hooks/usePlacement', () => ({
     placeShip: vi.fn(),
     removeShip: vi.fn(),
     setPreview: vi.fn(),
-  }),
+    hydrate: vi.fn(),
+    ...overrides,
+  };
+}
+vi.mock('../../hooks/usePlacement', () => ({
+  usePlacement: () => placementReturn,
 }));
 
 vi.mock('../../api/gameApi', () => ({
@@ -34,10 +47,24 @@ vi.mock('../../api/gameApi', () => ({
   setReady: vi.fn(),
 }));
 
+function ship(shipType: ShipType, cells: { row: number; col: number }[]): ShipDto {
+  return { shipType, cells, hits: [], sunk: false };
+}
+
+const FULL_FLEET: ShipDto[] = [
+  ship('CARRIER', [{ row: 0, col: 0 }]),
+  ship('BATTLESHIP', [{ row: 1, col: 0 }]),
+  ship('CRUISER', [{ row: 2, col: 0 }]),
+  ship('SUBMARINE', [{ row: 3, col: 0 }]),
+  ship('DESTROYER', [{ row: 4, col: 0 }]),
+];
+
 beforeEach(() => {
   sessionStorage.clear();
   sessionStorage.setItem('gameId', 'GAME01');
   sessionStorage.setItem('playerId', 'player1');
+  pollingReturn = { gameState: null, isLoading: false };
+  placementReturn = makePlacement();
 });
 
 describe('Lobby — vs Computer mode', () => {
@@ -67,5 +94,77 @@ describe('Lobby — vs Human mode', () => {
     render(<MemoryRouter><Lobby /></MemoryRouter>);
     // RoomCodeDisplay renders the gameId text somewhere
     expect(screen.getByText('GAME01')).toBeInTheDocument();
+  });
+});
+
+describe('Lobby — post-hydration fleet/board state', () => {
+  it('marks already-placed ship types as placed in the Fleet List panel', () => {
+    // Simulate the state after hydrate() ran: placedShips reflects the server board.
+    placementReturn = makePlacement({
+      placedShips: FULL_FLEET,
+      allPlaced: true,
+      selectedShipType: null,
+    });
+    pollingReturn = {
+      gameState: {
+        status: 'PLACING_SHIPS',
+        myBoard: { ships: FULL_FLEET, missedShots: [], hits: [] },
+        myReady: false,
+      },
+      isLoading: false,
+    };
+    render(<MemoryRouter><Lobby /></MemoryRouter>);
+
+    // FleetShipItem renders a "Placed" badge per placed ship type — all 5 present.
+    expect(screen.getAllByText('Placed')).toHaveLength(5);
+    // Placed ship buttons are disabled (cannot re-select an already-placed type).
+    const carrier = screen.getByRole('button', { name: /carrier, size 5, placed/i });
+    expect(carrier).toBeDisabled();
+  });
+
+  it('enables Confirm Ready when all ships placed post-hydration and player not ready', () => {
+    placementReturn = makePlacement({
+      placedShips: FULL_FLEET,
+      allPlaced: true,
+      selectedShipType: null,
+    });
+    pollingReturn = {
+      gameState: {
+        status: 'PLACING_SHIPS',
+        myBoard: { ships: FULL_FLEET, missedShots: [], hits: [] },
+        myReady: false,
+      },
+      isLoading: false,
+    };
+    render(<MemoryRouter><Lobby /></MemoryRouter>);
+
+    const confirm = screen.getByRole('button', { name: /confirm ready/i });
+    expect(confirm).toBeEnabled();
+  });
+
+  it('renders no pre-selected ship and a non-interactive board after hydration (no selection)', () => {
+    placementReturn = makePlacement({
+      placedShips: FULL_FLEET,
+      allPlaced: true,
+      selectedShipType: null,
+    });
+    pollingReturn = {
+      gameState: {
+        status: 'PLACING_SHIPS',
+        myBoard: { ships: FULL_FLEET, missedShots: [], hits: [] },
+        myReady: false,
+      },
+      isLoading: false,
+    };
+    render(<MemoryRouter><Lobby /></MemoryRouter>);
+
+    // No ship selected → rotate section (only shown when a ship is selected) is absent.
+    expect(screen.queryByText(/press/i)).not.toBeInTheDocument();
+    // No ship selected → board passes interactive=false, so BoardCell renders cells as
+    // role="gridcell" (not role="button"). With interactive=true they would be buttons
+    // labelled "Row N Col M: ...". Assert no such interactive cell buttons exist.
+    expect(screen.queryByRole('button', { name: /^row \d+ col \d+/i })).not.toBeInTheDocument();
+    // The cells are still present as gridcells (board renders regardless of interactivity).
+    expect(screen.getAllByRole('gridcell').length).toBeGreaterThan(0);
   });
 });
