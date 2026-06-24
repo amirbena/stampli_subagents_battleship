@@ -1401,7 +1401,7 @@ Level 3: targeted E2E
 Level 4: full E2E/regression
 ```
 
-### Smoke Test Gate (Level 0) — Required For User-Visible Frontend Behavior Changes
+### Smoke Test Gate (Level 0) — Sanity Check For Any UI-Visible Change
 
 For routes that include frontend changes (`frontend-only`, `backend-and-frontend`, `full-stack-complex`), run the smoke gate when the change affects user-visible behavior: routing, page rendering, game interaction, placement flow, validation, navigation, or visible UI state.
 
@@ -1413,6 +1413,53 @@ cd apps/frontend && npx playwright test smoke.spec.ts
 - Must pass before routing to code review or release.
 - If it fails after a frontend change, route back to `frontend-ui-agent` as a `frontend-runtime` finding (smoke tests rendering and navigation).
 - **Skip** for purely internal refactors, type-only changes, test-only changes, copy-only changes, or isolated CSS tweaks already covered by build/unit tests. When skipped, the owning frontend agent records the reason in its Evidence section and Team Lead records it in `test-results.md`.
+
+---
+
+### Targeted UI Validation Test (Level 0.5) — For Layout / Render Changes
+
+Smoke tests only verify navigation and page boot — they do **not** render authenticated screens (e.g. the lobby with ships placed) and cannot catch visual layout regressions. For any UI change where the acceptance criteria include layout, alignment, overflow, or visual positioning, Team Lead must run or write a targeted Playwright test after smoke passes.
+
+#### When to write a new targeted test
+
+Write a new test when **all** of the following are true:
+1. The change is `frontend-only` or `frontend-and-backend` and affects a user-visible layout or render state.
+2. No existing targeted test covers the affected page/component (check `apps/frontend/tests/e2e/` for a matching `*-layout.spec.ts` or `*-render.spec.ts`).
+3. The acceptance criteria include at least one of: element alignment, overflow prevention, responsive stacking, visibility of specific elements on specific viewports.
+
+**Skip** for: pure copy changes, color-only changes, icon swaps, test-only changes, or when an existing targeted test already covers the affected area.
+
+#### How to write the test
+
+Use `page.route()` to mock **all** backend API calls — no real backend needed. Set `sessionStorage` to bypass redirect guards. Assert layout with `boundingBox()` and overflow with `document.documentElement.scrollWidth`.
+
+Location: `apps/frontend/tests/e2e/<page-name>-layout.spec.ts`
+
+Run command (frontend dev server must be running on port 3001):
+
+```powershell
+$env:E2E_BASE_URL='http://localhost:3001'
+cd apps/frontend && npx playwright test tests/e2e/<page-name>-layout.spec.ts --project=chromium
+```
+
+#### If the targeted test fails
+
+1. Capture the **full failure output** — error message, failing assertion, and the auto-saved screenshot path from `playwright-report/` or `test-results/`.
+2. Add a finding to the finding registry:
+   - Type: `ui-layout`
+   - Severity: `High`
+   - Suspected Owner: `frontend-ui-agent`
+   - Last Evidence: paste the exact failing assertion line + screenshot path
+3. Route to `frontend-ui-agent` with:
+   - The exact failing assertion (e.g. `Expected fleet panel left (58px) to equal h1 left (24px) ± 5px`)
+   - The screenshot path so the agent can read it with the `Read` tool
+   - What the test expected vs what it measured
+4. After the fix, re-run the targeted test. If it passes, re-run smoke. Then proceed to code review.
+5. The `frontend-ui-agent` must not re-run E2E from scratch — only the targeted test, then smoke.
+
+#### Visual Analysis from requirements.md
+
+If `requirements.md` contains a `## Visual Analysis` section (populated from attached screenshots during requirement intake), `frontend-ui-agent` must read it before making any CSS changes. The visual defect table and inferred acceptance criteria in that section are the primary specification — they are more precise than text-only criteria.
 
 If a test command does not exist:
 - Do not block by default
