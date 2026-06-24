@@ -197,50 +197,38 @@ Install/authenticate gh and rerun release.
      --body-file reports/runs/<workflow-run-id>/release-summary.md
    ```
 
-   **PR description must contain all sections below** (write them into `release-summary.md` before creating the PR):
+   Write `release-summary.md` using the short review-focused format from Team Lead's PR Summary Requirements. The format is:
 
    ```md
+   # Summary
+
    ## Requirement
-   <One paragraph from requirements.md summarising what was requested.>
+   <1–3 sentences describing what was requested>
 
-   ## Product Behavior
-   <Key acceptance criteria from product-spec.md that this PR satisfies.>
+   ## What Changed
+   - <main change 1>
+   - <main change 2>
+   - <main change 3>
 
-   ## Architecture / API Changes
-   <From architecture.md if it exists. State "No architecture changes — frontend-only / docs-only" if not applicable.>
+   ## Validation
 
-   ## Backend Changes
-   - <file or area — what changed and why>
-   - None (if backend was not in scope)
+   | Check | Result |
+   |---|---|
+   | Backend tests | PASS / SKIPPED — reason |
+   | Frontend tests | PASS / SKIPPED — reason |
+   | Build | PASS / SKIPPED — reason |
+   | Playwright smoke / E2E | PASS / SKIPPED — reason |
+   | Code review | APPROVED / APPROVED WITH RISKS / SKIPPED — reason |
 
-   ## Frontend Changes
-   - <file or area — what changed and why>
-   - None (if frontend was not in scope)
+   ## Risks / Notes
+   - <only include real risks, known gaps, or important reviewer notes>
+   - If none: `No known blocking risks.`
 
-   ## Test Coverage
-   - Backend unit tests: <added/updated test classes and scenario count, or "not in scope">
-   - Frontend unit tests: <added/updated test files and scenario count, or "not in scope">
-   - Playwright E2E: <added/updated specs and scenario count, or "skipped — not required for this route">
-
-   ## How This Was Verified
-   - `./mvnw test` — X tests passed, 0 failed (or "skipped — backend not in scope")
-   - `npm run test` — X tests passed, 0 failed (or "skipped — frontend not in scope")
-   - `npm run e2e:ci` — X scenarios passed (or "skipped — not required for this route")
-   - Code review: APPROVED (report: reports/runs/<id>/code-review-report.md)
-   - Security review: APPROVED / skipped — <reason>
-
-   ## Security Considerations
-   <From security-report.md if it exists. State "Security review not required for this route" if not applicable.>
-
-   ## Known Limitations / Follow-up Tasks
-   <Unresolved non-critical findings, known gaps, or intentional deferred scope. State "None" if clean.>
-
-   ## Agents That Ran
-   - <agent-name>: <one-line summary of what it did or was skipped>
-
-   ## Manual / UI Verification Notes
-   <Smoke test result from Frontend Agent, or "Not applicable — no frontend change.">
+   ## Files Changed
+   - <main changed areas — not a full file-by-file dump unless the change is small>
    ```
+
+   Only add sections beyond this when actually relevant to the reviewer: unresolved findings, security notes, architecture decisions, demo config. Do not include retry tables, agent execution history, cost sections, infrastructure safety boilerplate, or "what was not changed" confirmations.
 
 4. Print the PR URL returned by `gh pr create`.
 
