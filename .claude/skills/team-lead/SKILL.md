@@ -52,13 +52,21 @@ If evidence is missing, write `Evidence not found.` Do not invent files, scripts
 
 Read `reports/runs/<workflow-run-id>/requirements.md`. Evaluate whether the requirement is **infra-only or docs-only** using the checklist below. This pre-classification takes ~30 s and can save ~1.5 min by eliminating the product-agent entirely on routes where it adds no value.
 
-### Fast-path triggers — ALL must be true
+### Fast-path triggers — skip Product only when the change fits exactly one of these three categories
 
-- No new REST endpoint, DTO field, or API contract change of any kind
-- No game rule, domain model, or state machine change
-- No user-visible UI behavior, routing, or component change
-- No test strategy change (no new test files or test frameworks)
-- The change is limited to: startup scripts, run instructions, env config, README, ARCHITECTURE.md, Dockerfiles, CI config, or developer tooling
+1. **Pure infra** — change is limited to infrastructure concerns: Dockerfile, docker-compose files,
+   shell scripts (.sh), CI config, developer tooling, OR documentation (README, ARCHITECTURE.md, etc.)
+   that exclusively describes how to run, build, or deploy the app.
+   Never applies to documentation that describes game behavior, user flows, or API contracts.
+
+2. **Pure internal refactor** — rename, extract, or restructure with zero behavior change, zero API
+   change, and zero game rule change. Confirmed by reading the diff before deciding.
+
+3. **Bug fix restoring documented behavior** — expected behavior is already stated in an existing
+   product-spec or requirement for this codebase. The fix makes code match the spec; it does not
+   extend the spec.
+
+If the change does not clearly and completely fit one of the three categories → standard path. Spawn product-agent.
 
 ### If ALL triggers are met → fast-path applies
 
