@@ -53,7 +53,7 @@ User Requirement
 │                 │  repository layer + unit tests│                                          │
 └────────┬────────┘                              │  + frontend-api-agent (when independent) │
          │                                       │  api/, hooks/, types/                    │
-         │  (parallel; frontend split only when  │                                          │
+         │  (selected agents may run in parallel when safe;  │                                          │
          │   API work AND UI work are clearly    │  Both only when workstreams don't overlap │
          │   independent with low file overlap)  │  Team Lead pre-writes types/game.ts first│
          │                                       └─────────┬────────────────────────────────┘
