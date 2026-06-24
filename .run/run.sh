@@ -121,8 +121,28 @@ cleanup() {
   [ -n "$BACKEND_PID" ]  && kill -KILL -- -"$BACKEND_PID"  2>/dev/null || true
   echo ""
   echo "Native backend + frontend stopped."
-  echo "Postgres + Redis containers are STILL RUNNING (left up for a faster next boot)."
-  echo "To stop them:  ${COMPOSE_DOWN_CMD}"
+
+  # Offer to also tear down the Postgres + Redis containers. The trap's stdin is
+  # the log pipe, not the terminal, so read from the controlling TTY. If there is
+  # no interactive TTY (CI, piped run), skip the prompt and leave containers up so
+  # the script can never hang. `read` is guarded so a timeout/EOF can't abort the
+  # trap mid-way under `set -euo pipefail`.
+  local ans=""
+  if [ -t 0 ] || [ -e /dev/tty ]; then
+    printf "Also stop the Postgres + Redis containers? [y/N] "
+    read -r -t 30 ans < /dev/tty || ans=""
+  fi
+  case "$ans" in
+    y|Y)
+      echo "==> Stopping Postgres + Redis containers..."
+      ${COMPOSE_DOWN_CMD} || true
+      echo "Postgres + Redis containers stopped."
+      ;;
+    *)
+      echo "Postgres + Redis containers are STILL RUNNING (left up for a faster next boot)."
+      echo "To stop them:  ${COMPOSE_DOWN_CMD}"
+      ;;
+  esac
 }
 trap cleanup INT TERM EXIT
 

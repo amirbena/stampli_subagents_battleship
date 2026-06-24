@@ -126,7 +126,12 @@ One command per OS brings up **only** Postgres + Redis as containers, then runs 
 
 **Preflight requirements:** Docker (daemon running), Java 17+, Node 18+ and npm. The fast path still needs Docker — it runs Postgres + Redis as containers.
 
-**How to stop:** press **Ctrl+C**. The script cleanly terminates the native backend and frontend (no orphaned processes on 8080 / 3001). The **Postgres + Redis containers are left running** for a faster next boot — stop them when you're done with:
+**How to stop:** press **Ctrl+C**. The script cleanly terminates the native backend and frontend (no orphaned processes on 8080 / 3001), then asks **`Also stop the Postgres + Redis containers? [y/N]`**:
+
+- Answer **`y`** → the containers are torn down with `docker compose --env-file apps/backend/.env down` (data volumes are preserved).
+- Press **Enter** / answer anything else (the default) → the **Postgres + Redis containers are left running** for a faster next boot.
+
+When the script runs non-interactively (CI, piped output, no terminal), the prompt is skipped and the containers are left running. You can always stop them manually with:
 
 ```bash
 docker compose --env-file apps/backend/.env down

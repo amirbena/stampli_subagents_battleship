@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  .run/run.ps1 — Fast local run (Windows PowerShell)
+  .run/run.ps1 -- Fast local run (Windows PowerShell)
 
 .DESCRIPTION
   Starts ONLY Postgres + Redis as Docker containers, then runs the Spring Boot
@@ -121,6 +121,21 @@ function Stop-ProcTree($Proc) {
     }
 }
 
+# --- Helper: prompt whether to also tear down the containers ---------------
+# Defined before the main try/finally so its try/catch is NOT nested inside the
+# outer try -- this avoids the PS 5.1 parser mis-binding a nested catch.
+# Returns $true only on an explicit yes; never hangs when non-interactive.
+function Confirm-ComposeDown {
+    if (-not [Environment]::UserInteractive) { return $false }
+    try {
+        $answer = Read-Host "Also stop the Postgres + Redis containers? [y/N]"
+    } catch {
+        # CTRL+C or no console available -- fall back to leave-up default.
+        return $false
+    }
+    return ($answer -eq 'y' -or $answer -eq 'Y')
+}
+
 # --- 3 & 4. Launch native backend + frontend -------------------------------
 $BackendProc  = $null
 $FrontendProc = $null
@@ -212,6 +227,13 @@ finally {
     Stop-ProcTree $BackendProc
     Write-Host ""
     Write-Host "Native backend + frontend stopped."
-    Write-Host "Postgres + Redis containers are STILL RUNNING (left up for a faster next boot)."
-    Write-Host "To stop them:  $ComposeDownCmd"
+
+    if (Confirm-ComposeDown) {
+        Write-Host "==> Stopping Postgres + Redis containers..."
+        docker compose --env-file $EnvFile down
+        Write-Host "Postgres + Redis containers stopped."
+    } else {
+        Write-Host "Postgres + Redis containers are STILL RUNNING (left up for a faster next boot)."
+        Write-Host "To stop them:  $ComposeDownCmd"
+    }
 }
