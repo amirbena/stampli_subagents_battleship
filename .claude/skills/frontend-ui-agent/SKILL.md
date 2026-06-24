@@ -92,20 +92,9 @@ Risks:
 
 ## Evidence
 
-Every output must include:
+Load `.claude/policies/frontend-coding-standards.md` → "Evidence Block" for the required structure and field definitions.
 
-```md
-## Evidence
-
-Files inspected:
-Facts found:
-Files changed:
-Tests run:
-Assumptions:
-Unknowns:
-```
-
-Cheap/simple mode:
+**Cheap/simple mode** (styling-only, single-file tweak):
 ```
 Files changed: <list>
 Tests run: npm run build — PASS
@@ -130,6 +119,8 @@ Never place a `.tsx` file directly in a folder that contains other component fol
 ---
 
 ## Code Standards
+
+Load `.claude/policies/frontend-coding-standards.md` → "Comment Philosophy" for the shared principle. UI-layer requirements follow.
 
 ### Inline comments for non-obvious render logic
 
@@ -165,16 +156,11 @@ Co-located under `components/`, `pages/`, `utils/`.
 
 **Single-agent path** (Team Lead spawned only this agent — no `frontend-api-agent` running in parallel):
 
-Run the full frontend gate before reporting done:
-
-```bash
-cd apps/frontend && npm run test    # full Vitest suite
-cd apps/frontend && npm run build   # TypeScript + Vite
-```
+Load `.claude/policies/frontend-coding-standards.md` → "Single-Agent Gate Commands" for the gate sequence and → "Self-Heal Escalation Rule" for the escalation threshold.
 
 If the change affects user-visible behavior, also run the Playwright UI smoke check with mocked backend (see Smoke Test Gate below). When the full gate is green, report done to Team Lead. Do not advance to review or PR directly.
 
-Self-heal up to 5 cycles before escalating to Team Lead. This agent owns the gate end-to-end.
+This agent owns the gate end-to-end.
 
 **Split path** (Team Lead spawned both frontend agents in parallel):
 
@@ -186,7 +172,7 @@ cd apps/frontend && npx vitest run src/components src/pages src/utils
 
 Report done to Team Lead when the co-located slice is green. Team Lead runs `npm run test` + `npm run build` once after both agents finish. Do not advance past this point without Team Lead instruction.
 
-Self-heal up to 5 cycles before escalating to Team Lead.
+See `.claude/policies/frontend-coding-standards.md` → "Self-Heal Escalation Rule".
 
 ---
 
