@@ -16,5 +16,5 @@ if not exist "%MAVEN_WRAPPER_JAR%" (
 
 @REM maven-wrapper-3.2.0.jar has no Main-Class in its manifest, so `java -jar`
 @REM always fails with "no main manifest attribute". Use -classpath instead.
-java -classpath "%MAVEN_WRAPPER_JAR%" org.apache.maven.wrapper.MavenWrapperMain %*
+java -Dmaven.multiModuleProjectDirectory="%MAVEN_PROJECTBASEDIR%" -classpath "%MAVEN_WRAPPER_JAR%" org.apache.maven.wrapper.MavenWrapperMain %*
 endlocal
