@@ -95,7 +95,8 @@ Assign every finding to exactly one suspected owner:
 | Owner | Use For |
 |-------|---------|
 | `java-backend-agent` | backend production behavior, domain, API, DTOs, sanitization |
-| `frontend-agent` | React UI, API integration, polling hook, frontend types |
+| `frontend-api-agent` | API wrappers, hooks, polling, DTO mapping, frontend types |
+| `frontend-ui-agent` | React components, pages, board rendering, CSS, visual states |
 | `java-backend-agent` | missing or weak backend unit tests |
 | `playwright-e2e-agent` | missing or weak browser E2E tests |
 | `infrastructure-agent` | Docker, README, env docs, run configuration |

@@ -14,7 +14,7 @@ Everything below must be installed and verified before running `/requirement`. T
 |------|-------------|--------|---------|
 | Java | 17 | `java -version` | [adoptium.net](https://adoptium.net) |
 | Maven wrapper | — | `./mvnw -version` (in `apps/backend/`) | bundled — no install needed |
-| Node.js | 18 | `node -v` | [nodejs.org](https://nodejs.org) |
+| Node.js | 18 (20 or 22 recommended for E2E) | `node -v` | [nodejs.org](https://nodejs.org) |
 | npm | 9 | `npm -v` | bundled with Node.js |
 | Docker | 20 | `docker -v` | [docker.com](https://docker.com) — optional, only needed for `docker compose up` |
 
@@ -271,13 +271,28 @@ Phase 1   product-agent (conditional) → reports/runs/<id>/product-spec.md
 
 Phase 2   architect-agent             → reports/runs/<id>/architecture.md  (only if contract changed)
 
-Phase 3   java-backend-agent  ──┐     → apps/backend/src/main/java/
-          frontend-agent      ──┘     → apps/frontend/src/               (parallel)
+Phase 3   ── selected agents may run in parallel when safe ─────────────────────────┐
+          java-backend-agent    → apps/backend/src/main/java/                        │
+          frontend-ui-agent     → apps/frontend/src/components/, pages/, utils/, CSS │ Team Lead
+          frontend-api-agent    → apps/frontend/src/api/, hooks/, types/             │ decides scope
+          ─────────────────────────────────────────────────────────────────────────────┘
+          frontend-ui-agent is the default frontend path.
+          frontend-api-agent is optional: alone for API/hook/type-only changes,
+          or alongside ui-agent only when workstreams are clearly independent.
+          Team Lead pre-writes types/game.ts before spawning both frontend agents.
 
 Phase 4a — UNIT TESTS (parallel, cheapest first)
-          java-backend-agent          → ./mvnw test            (unit tests, if backend touched)
-          frontend-agent              → npm run test           (Vitest, if frontend touched)
-          ── gate: both must be green before integration tests start ──
+          java-backend-agent          → ./mvnw test                        (if backend touched)
+
+          Single-agent frontend path (default):
+          frontend-ui-agent           → npm run test + npm run build       (agent owns full gate)
+
+          Split frontend path (both agents ran in parallel):
+          frontend-ui-agent           → npx vitest run src/components …    (co-located slice)
+          frontend-api-agent          → npx vitest run src/api src/hooks …  (co-located slice)
+          Team Lead runs once         → npm run test + npm run build        (full suite + typecheck)
+
+          ── gate: all green → next relevant phase (scope routing below) ──
 
 Phase 4b — INTEGRATION TESTS (after unit gate, if HTTP layer changed)
           backend-integration-tests   → ./mvnw test *IntegrationTest
@@ -295,7 +310,7 @@ Phase 6   security-agent  ──┐         → reports/runs/<id>/security-repor
 Phase 7   release-pr-agent            → finalizes release-summary.md + GitHub PR
 ```
 
-Phases 3 (backend + frontend) run in parallel. Phase 4 tests run in parallel and gate Phase 5.
+Selected Phase 3 agents run in parallel when workstreams are independent — Team Lead decides. Phase 4 tests run in parallel and gate Phase 5 (frontend-only changes skip Phase 4b).
 Security and code review (Phase 6) run in parallel after all tests pass.
 Team Lead writes the release summary draft while Phase 6 runs — release agent only finalizes and creates the PR.
 The pipeline stops only when the PR URL is printed.
@@ -310,7 +325,8 @@ Each agent is a skill in [`.claude/skills/`](.claude/skills/) with a `model:` fi
 | product-agent | claude-sonnet-4-6 | User stories + acceptance criteria |
 | architect-agent | claude-opus-4-8 | API contract + domain model |
 | java-backend-agent | claude-sonnet-4-6 | Game logic + REST API + JUnit unit tests |
-| frontend-agent | claude-sonnet-4-6 | React UI (mobile-first) + Vitest unit tests |
+| frontend-api-agent | claude-sonnet-4-6 | API wrappers, hooks, TypeScript types + Vitest unit tests |
+| frontend-ui-agent | claude-sonnet-4-6 | React components, pages, CSS (mobile-first) + Vitest component tests |
 | backend-integration-tests-agent | claude-sonnet-4-6 | @SpringBootTest HTTP layer tests |
 | playwright-e2e-agent | claude-sonnet-4-6 | Browser E2E tests |
 | security-agent | claude-opus-4-8 | Security + integrity review |

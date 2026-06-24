@@ -30,7 +30,8 @@ To extend an agent, edit its `SKILL.md` — do not create parallel files.
 | Product Agent | `.claude/skills/product-agent` | claude-sonnet-4-6 | `reports/runs/<id>/product-spec.md`, user stories, acceptance criteria |
 | Architect Agent | `.claude/skills/architect-agent` | claude-opus-4-8 | `reports/runs/<id>/architecture.md`, API contract, domain model — structure only, not environment setup |
 | Java Backend Agent | `.claude/skills/java-backend-agent` | claude-sonnet-4-6 | `apps/backend/src/main/java/` — all production backend code; `src/test/**/*Test.java` — all JUnit 5 unit tests (domain + service layer) |
-| Frontend Agent | `.claude/skills/frontend-agent` | claude-sonnet-4-6 | `apps/frontend/src/` — all React/TypeScript UI code + Vitest unit tests |
+| Frontend API Agent | `.claude/skills/frontend-api-agent` | claude-sonnet-4-6 | `apps/frontend/src/api/`, `hooks/`, `types/` — HTTP wrappers, hooks, TypeScript types + Vitest unit tests |
+| Frontend UI Agent | `.claude/skills/frontend-ui-agent` | claude-sonnet-4-6 | `apps/frontend/src/components/`, `pages/`, `utils/`, CSS — render layer + Vitest component tests |
 | Backend Integration Tests Agent | `.claude/skills/backend-integration-tests-agent` | claude-sonnet-4-6 | `apps/backend/src/test/**/*IntegrationTest.java` — `@SpringBootTest` + MockMvc, HTTP layer |
 | Playwright E2E Agent | `.claude/skills/playwright-e2e-agent` | claude-sonnet-4-6 | `apps/frontend/tests/e2e/` — all browser tests; never assumes servers are running |
 | Security Agent | `.claude/skills/security-agent` | claude-opus-4-8 | `reports/runs/<id>/security-report.md` |
@@ -64,9 +65,9 @@ Run when frontend pages or flows are added/changed but **no contract change**:
 
 Smoke E2E runs `smoke.spec.ts` only. No backend webServer entry required.
 
-#### Frontend Agent — Internal Smoke Gate (selective)
+#### Frontend UI Agent — Internal Smoke Gate (selective)
 
-When the `frontend-agent` implements a change, it runs `smoke.spec.ts` as its own pre-report verification — but only when the change affects **user-visible behavior** (routing, rendering, game interaction, placement flow, validation, navigation, visible UI state).
+When `frontend-ui-agent` implements a change, it runs `smoke.spec.ts` as its own pre-report verification — but only when the change affects **user-visible behavior** (routing, rendering, game interaction, placement flow, validation, navigation, visible UI state).
 
 **Skip** for: pure refactors, type-only changes, test-only changes, copy-only changes, or isolated CSS tweaks covered by build/unit tests. Record the skip reason in the Evidence section.
 
@@ -91,13 +92,13 @@ Do not add a new agent unless **both** conditions are true:
 2. The test type or task requires a different execution context (e.g. different runtime, different Spring profile, different tool chain).
 
 Current decisions locked in:
-- **No separate Frontend Unit Tests Agent.** Frontend unit tests (Vitest + RTL) are owned by the Frontend Agent. When frontend logic, component state, validation, rendering conditions, hooks, or helpers are changed, the Frontend Agent adds or updates the relevant tests co-located with the affected code.
+- **Frontend split into two agents — split only when independent.** `frontend-api-agent` owns `api/`, `hooks/`, `types/` — data fetching, DTO mapping, API error mapping, loading counters, retries, and types needed for API contracts. `frontend-ui-agent` owns `components/`, `pages/`, `utils/`, CSS — board rendering, visual states, UX behavior, modals/toasts. Split and run in parallel **only when the requirement contains independently implementable API/data-layer work AND UI/render-layer work**. For small or tightly-coupled changes, use `frontend-ui-agent` as the default single agent. For data/hook-only changes, use `frontend-api-agent` alone. Team Lead pre-writes `types/game.ts` before spawning both agents; neither agent may independently modify shared boundary types. `frontend-ui-agent` runs `smoke.spec.ts` as an internal pre-report check only (not the E2E phase) — Playwright E2E is a separate step owned by `playwright-e2e-agent`.
 - **No separate Backend Unit Tests Agent.** Java unit tests (JUnit 5 + Mockito, domain + service layer) are owned by the Java Backend Agent — same rationale as frontend. When backend logic changes, the Java Backend Agent adds or updates the corresponding `*Test.java` files in the same pass.
 - **No DB Integration Tests Agent at this stage.** The backend uses in-memory storage by default. A dedicated DB integration tests agent should only be introduced if the codebase moves to PostgreSQL/JPA/Hibernate as the primary persistence layer, adds schema migrations, or requires repository-level tests with a real database or Testcontainers.
 
 ## Quality Gates (all required before PR, run in this order)
 - [ ] `./mvnw test` passes (backend unit tests — if backend touched)
-- [ ] `npm run test` passes (frontend unit tests — Vitest, if frontend touched) — parallel with above
+- [ ] `npm run test` + `npm run build` pass (frontend — if frontend touched): single-agent path: running agent owns gate; split path: Team Lead runs once after both agents finish
 - [ ] `./mvnw test -Dtest="*IntegrationTest"` passes (backend integration tests — after unit tests green, when HTTP layer changed)
 - [ ] `npm run test:e2e` passes (Playwright — after all tests green, Full or Smoke mode depending on change)
 - [ ] `reports/runs/<id>/security-report.md` verdict: APPROVED
