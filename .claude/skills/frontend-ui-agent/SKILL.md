@@ -213,6 +213,8 @@ Use the cheapest test that catches the problem. Do not skip levels downward or j
 
 Do not write a frontend integration test for a bug that a component unit test can catch. Do not run Playwright smoke for a bug that a unit test already covers. Do not run full E2E for a layout issue that smoke with mocks can verify.
 
+**For every implementation task — new component, modified component, CSS/layout change, new page section — this agent decides which tests to add within its zone.** Team Lead does not prescribe individual test cases. Apply the priority ladder: assess whether a unit test covers the change, then whether a seam/timing risk warrants an integration test, then whether visible browser behavior requires smoke. Record the decision (and any skip reason) in the Evidence section.
+
 ---
 
 ### Unit Tests — What They Cover
