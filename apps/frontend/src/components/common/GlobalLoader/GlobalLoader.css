@@ -1,0 +1,37 @@
+/* Fixed top progress bar. Non-blocking: pointer-events disabled so the board
+   underneath stays interactive while requests are in flight (AC-6). */
+.global-loader {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 1000;
+  pointer-events: none;
+  overflow: hidden;
+  background: transparent;
+}
+
+.global-loader__bar {
+  width: 40%;
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: 0 2px 2px 0;
+  animation: global-loader-slide 1s ease-in-out infinite;
+}
+
+@keyframes global-loader-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .global-loader__bar {
+    width: 100%;
+    animation: global-loader-pulse 1s ease-in-out infinite;
+  }
+  @keyframes global-loader-pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+}

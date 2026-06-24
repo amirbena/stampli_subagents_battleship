@@ -17,20 +17,95 @@ import type {
  * Base URL comes from the Vite env variable — falls back to localhost for local dev.
  * The /api/v1 prefix matches the global context-path set in application.yml.
  */
-const api = axios.create({
+// Exported for tests only: lets the loader test drive real requests through the
+// request/response interceptors using a per-request stub adapter. Production code
+// must keep calling through the typed wrappers below, never this instance directly.
+export const api = axios.create({
   baseURL: `${import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'}/api/v1`,
   headers: { 'Content-Type': 'application/json' },
 });
 
 /**
- * Response interceptor — normalises backend error shapes into plain Error instances.
+ * Augment axios request config with a `silent` flag. When true the request is
+ * excluded from the global in-flight loader counter — used for the 2s background
+ * poll loop so it never flickers the loader (Decision D1). User-initiated calls
+ * omit it. Module augmentation keeps it type-safe at every call site without casts.
+ */
+declare module 'axios' {
+  interface AxiosRequestConfig {
+    silent?: boolean;
+  }
+}
+
+// --- Global HTTP loader store -------------------------------------------------
+// A tiny observable counter of user-initiated requests currently in flight.
+// Lives here because gameApi.ts is the single owner of the axios instance, so it
+// is the only place that can reliably observe request start/settle. React
+// subscribes via the useActiveRequests hook; no extra dependency required.
+
+type LoaderListener = (active: number) => void;
+
+let activeRequestCount = 0;
+const listeners = new Set<LoaderListener>();
+
+function emit(): void {
+  for (const listener of listeners) listener(activeRequestCount);
+}
+
+/** Number of non-silent requests currently in flight. */
+export function getActiveRequestCount(): number {
+  return activeRequestCount;
+}
+
+/** Subscribe to in-flight count changes. Returns an unsubscribe function. */
+export function subscribeActiveRequests(listener: LoaderListener): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+/** Test-only: reset the counter and listeners between cases. */
+export function __resetLoaderStore(): void {
+  activeRequestCount = 0;
+  listeners.clear();
+}
+
+function increment(): void {
+  activeRequestCount += 1;
+  emit();
+}
+
+function decrement(): void {
+  // Guard against ever going negative if a settle fires without a matching start.
+  activeRequestCount = Math.max(0, activeRequestCount - 1);
+  emit();
+}
+
+/**
+ * Request interceptor — counts every user-initiated request as in flight.
+ * Requests tagged `{ silent: true }` (background polls) are skipped so the global
+ * loader does not appear for the 2s poll loop (AC-4).
+ */
+api.interceptors.request.use((config) => {
+  if (!config.silent) increment();
+  return config;
+});
+
+/**
+ * Response interceptor — normalises backend error shapes into plain Error instances
+ * and ALWAYS settles the loader counter (success AND error) so it never sticks.
  * The backend returns { error: string } on 4xx/5xx; we surface that message directly
  * so callers can display `e.message` in the UI without parsing response bodies.
  */
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (!response.config.silent) decrement();
+    return response;
+  },
   (error: AxiosError<{ error?: string }>) => {
-    console.log("error", error);
+    // config may be undefined on request-setup failures; treat missing as non-silent.
+    if (!error.config?.silent) decrement();
     const message =
       error.response?.data?.error ??
       error.message ??
@@ -152,14 +227,18 @@ export async function fireShot(
  *
  * @param gameId   the game room
  * @param playerId determines which board is "mine" vs "opponent" in the response
+ * @param silent   when true, excluded from the global loader (background poll only)
  * @returns sanitised game state safe to render directly in the UI
  */
 export async function getGameState(
   gameId: string,
   playerId: string,
+  silent = false,
 ): Promise<GameStateResponse> {
   const { data } = await api.get<GameStateResponse>(`/games/${gameId}/state`, {
     params: { playerId },
+    // `silent` is read by the request/response interceptors to skip loader counting.
+    silent,
   });
   return data;
 }

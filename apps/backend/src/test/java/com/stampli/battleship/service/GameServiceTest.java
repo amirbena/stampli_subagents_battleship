@@ -1,6 +1,7 @@
 package com.stampli.battleship.service;
 
 import com.stampli.battleship.domain.*;
+import com.stampli.battleship.dto.GameStateResponse;
 import com.stampli.battleship.dto.PlaceShipResponse;
 import com.stampli.battleship.repository.GameRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -139,5 +140,107 @@ class GameServiceTest {
         assertThatThrownBy(() -> gameService.removeShip(GAME_ID, PLAYER_A_ID, ShipType.DESTROYER))
                 .isInstanceOf(GameException.class)
                 .hasMessageContaining("before the game starts");
+    }
+
+    // -------------------------------------------------------------------------
+    // getGameState — opponent board `hits` reveal (AC-7, AC-11, AC-12)
+    // -------------------------------------------------------------------------
+
+    private static final String PLAYER_B_ID = "player-b";
+
+    /**
+     * Builds an IN_PROGRESS game where Player B (the opponent) has a CRUISER placed
+     * horizontally at (0,0)-(0,2). Returns the game; caller wires the shot history.
+     */
+    private Game inProgressGameWithOpponentCruiser() {
+        Player playerB = new Player(PLAYER_B_ID, GAME_ID);
+        gameWaitingForPlayers.addPlayerB(playerB);
+
+        Coordinate anchor = new Coordinate(0, 0);
+        Ship cruiser = new Ship(ShipType.CRUISER,
+                Board.computeCells(ShipType.CRUISER, anchor, Orientation.HORIZONTAL),
+                Orientation.HORIZONTAL);
+        playerB.getBoard().placeShip(cruiser);
+
+        gameWaitingForPlayers.startGame();
+        return gameWaitingForPlayers;
+    }
+
+    @Test
+    void getGameState_opponentBoardHitsContainsRequestersNonSunkHitCell() {
+        Game game = inProgressGameWithOpponentCruiser();
+        // Player A hits one cell of the 3-cell cruiser — ship is NOT sunk
+        Player opponent = game.getPlayerB();
+        Coordinate hitCell = new Coordinate(0, 0);
+        opponent.getBoard().shipAt(hitCell).orElseThrow().recordHit(hitCell);
+        game.addShot(new Shot(PLAYER_A_ID, hitCell, ShotResult.HIT));
+
+        when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(game));
+
+        GameStateResponse state = gameService.getGameState(GAME_ID, PLAYER_A_ID);
+
+        assertThat(state.getOpponentBoard().getHits())
+                .extracting("row", "col")
+                .containsExactly(org.assertj.core.groups.Tuple.tuple(0, 0));
+        // Not-yet-sunk ship is not revealed via ships
+        assertThat(state.getOpponentBoard().getShips()).isEmpty();
+    }
+
+    @Test
+    void getGameState_doesNotRevealUnhitCellsOfNotYetSunkOpponentShip() {
+        Game game = inProgressGameWithOpponentCruiser();
+        Player opponent = game.getPlayerB();
+        Coordinate hitCell = new Coordinate(0, 0);
+        opponent.getBoard().shipAt(hitCell).orElseThrow().recordHit(hitCell);
+        game.addShot(new Shot(PLAYER_A_ID, hitCell, ShotResult.HIT));
+
+        when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(game));
+
+        GameStateResponse state = gameService.getGameState(GAME_ID, PLAYER_A_ID);
+
+        // Un-fired ship cells (0,1) and (0,2) must NOT appear in hits or ships
+        assertThat(state.getOpponentBoard().getHits())
+                .extracting("row", "col")
+                .doesNotContain(
+                        org.assertj.core.groups.Tuple.tuple(0, 1),
+                        org.assertj.core.groups.Tuple.tuple(0, 2));
+        assertThat(state.getOpponentBoard().getShips()).isEmpty();
+    }
+
+    @Test
+    void getGameState_opponentsOwnShotsDoNotAppearInRequestersView() {
+        Game game = inProgressGameWithOpponentCruiser();
+        Player opponent = game.getPlayerB();
+        // Requester (A) hits (0,0)
+        Coordinate myHit = new Coordinate(0, 0);
+        opponent.getBoard().shipAt(myHit).orElseThrow().recordHit(myHit);
+        game.addShot(new Shot(PLAYER_A_ID, myHit, ShotResult.HIT));
+        // Opponent (B) records a HIT shot of its own at (5,5) — must never leak into A's opponent view
+        game.addShot(new Shot(PLAYER_B_ID, new Coordinate(5, 5), ShotResult.HIT));
+
+        when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(game));
+
+        GameStateResponse state = gameService.getGameState(GAME_ID, PLAYER_A_ID);
+
+        assertThat(state.getOpponentBoard().getHits())
+                .extracting("row", "col")
+                .containsExactly(org.assertj.core.groups.Tuple.tuple(0, 0))
+                .doesNotContain(org.assertj.core.groups.Tuple.tuple(5, 5));
+    }
+
+    @Test
+    void getGameState_myBoardHitsIsEmptyList() {
+        Game game = inProgressGameWithOpponentCruiser();
+        Player opponent = game.getPlayerB();
+        Coordinate hitCell = new Coordinate(0, 0);
+        opponent.getBoard().shipAt(hitCell).orElseThrow().recordHit(hitCell);
+        game.addShot(new Shot(PLAYER_A_ID, hitCell, ShotResult.HIT));
+
+        when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(game));
+
+        GameStateResponse state = gameService.getGameState(GAME_ID, PLAYER_A_ID);
+
+        // Own-board hits flow via ships[].hits, so the flat myBoard.hits array is always empty
+        assertThat(state.getMyBoard().getHits()).isEmpty();
     }
 }

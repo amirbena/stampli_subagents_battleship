@@ -14,6 +14,21 @@ describe('BoardCell', () => {
     expect(container.firstChild).toHaveClass(`board-cell--${state}`);
   });
 
+  // Color semantics (miss=red, hit=green, sunk distinct) are asserted at the CSS
+  // layer; here we lock the class contract those styles hang off of.
+  it('renders distinct classes for hit, miss, and sunk', () => {
+    const { rerender, container } = render(<BoardCell state="hit" row={0} col={0} />);
+    expect(container.firstChild).toHaveClass('board-cell--hit');
+
+    rerender(<BoardCell state="miss" row={0} col={0} />);
+    expect(container.firstChild).toHaveClass('board-cell--miss');
+
+    rerender(<BoardCell state="sunk" row={0} col={0} />);
+    expect(container.firstChild).toHaveClass('board-cell--sunk');
+    // sunk is its own class — never the plain hit class — so it stays visually distinct.
+    expect(container.firstChild).not.toHaveClass('board-cell--hit');
+  });
+
   it('has role="gridcell" when not interactive', () => {
     render(<BoardCell state="empty" row={0} col={0} />);
     expect(screen.getByRole('gridcell')).toBeInTheDocument();
