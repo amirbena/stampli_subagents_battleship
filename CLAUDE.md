@@ -65,9 +65,9 @@ Run when frontend pages or flows are added/changed but **no contract change**:
 
 Smoke E2E runs `smoke.spec.ts` only. No backend webServer entry required.
 
-#### Frontend Agent — Internal Smoke Gate (selective)
+#### Frontend UI Agent — Internal Smoke Gate (selective)
 
-When the `frontend-agent` implements a change, it runs `smoke.spec.ts` as its own pre-report verification — but only when the change affects **user-visible behavior** (routing, rendering, game interaction, placement flow, validation, navigation, visible UI state).
+When `frontend-ui-agent` implements a change, it runs `smoke.spec.ts` as its own pre-report verification — but only when the change affects **user-visible behavior** (routing, rendering, game interaction, placement flow, validation, navigation, visible UI state).
 
 **Skip** for: pure refactors, type-only changes, test-only changes, copy-only changes, or isolated CSS tweaks covered by build/unit tests. Record the skip reason in the Evidence section.
 

@@ -194,7 +194,7 @@ Full mode requires the E2E Infrastructure Pre-Gate to pass before the Playwright
 
 #### Frontend Agent — Internal Smoke Gate (selective)
 
-The `frontend-agent` runs `smoke.spec.ts` as its own verification step, but only when the change affects **user-visible behavior**: routing, page rendering, game interaction, placement flow, validation, navigation, or visible UI state.
+The `frontend-ui-agent` runs `smoke.spec.ts` as its own pre-report verification step, but only when the change affects **user-visible behavior**: routing, page rendering, game interaction, placement flow, validation, navigation, or visible UI state.
 
 **Skip** the internal smoke gate for: pure refactors, type-only changes, test-only changes, copy-only changes, or isolated CSS tweaks already covered by build/unit tests. When skipped, the agent records the reason in its Evidence section and Team Lead records it in `test-results.md`.
 
