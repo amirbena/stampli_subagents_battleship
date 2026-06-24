@@ -20,10 +20,16 @@ User Requirement
 │  Intake         │  guards branch safety, writes requirements.md
 └────────┬────────┘
          │
-         ▼
+         ▼  Step 0.5 — Fast-Path Pre-Classification
+         │  Team Lead reads requirements.md FIRST.
+         │  If change is infra/docs-only (no API, domain, UI, or test change):
+         │    → writes 10-line inline checklist, skips Product Agent entirely
+         │  Otherwise:
+         │    ↓
 ┌─────────────────┐
 │  Product Agent  │  Converts requirement into acceptance criteria,
-│                 │  writes run-scoped product-spec.md
+│  (conditional)  │  writes run-scoped product-spec.md
+│                 │  SKIPPED on infra/docs fast-path (~1.5 min saved)
 └────────┬────────┘
          │
          ▼
@@ -89,15 +95,19 @@ User Requirement
                     ▼                       ▼
          ┌──────────────────┐   ┌──────────────────────┐
          │  Security Agent  │   │  Code Review Agent   │  (parallel)
-         │                  │   │                      │
+         │  (if required)   │   │                      │
          └────────┬─────────┘   └──────────┬───────────┘
                   └──────────┬─────────────┘
                              │  both must return APPROVED
+                             │
+                             │  ◄── Team Lead writes draft release-summary.md
+                             │       HERE, in parallel with the review agents
+                             │       (requirement, changes, test results — no verdict yet)
+                             │       Saves ~1.5 min: release agent only finalizes + creates PR
                              ▼
                   ┌──────────────────────┐
-                  │  Release PR Agent    │  Verifies all quality gates,
-                  │                      │  writes release-summary.md,
-                  │                      │  opens PR via gh CLI
+                  │  Release PR Agent    │  Finalizes release-summary.md verdict,
+                  │                      │  commits, pushes, opens PR via gh CLI
                   └──────────────────────┘
                              │
                              ▼
@@ -121,8 +131,8 @@ User Requirement
 | **Playwright E2E Agent** | sonnet-4-6 | `apps/frontend/tests/e2e/` — browser E2E tests | `.claude/skills/playwright-e2e-agent` |
 | **Security Agent** | opus-4-8 | `reports/runs/<id>/security-report.md` | `.claude/skills/security-agent` |
 | **Code Review Agent** | opus-4-8 | `reports/runs/<id>/code-review-report.md` | `.claude/skills/code-review-agent` |
-| **Infrastructure Agent** | haiku-4-5 | `docker-compose.yml`, env docs, run instructions | `.claude/skills/infrastructure-agent` |
-| **Release PR Agent** | haiku-4-5 | `reports/runs/<id>/release-summary.md`, PR via `gh` | `.claude/skills/release-pr-agent` |
+| **Infrastructure Agent** | sonnet-4-6 | `docker-compose.yml`, env docs, run instructions, cross-platform startup scripts | `.claude/skills/infrastructure-agent` |
+| **Release PR Agent** | haiku-4-5 | `reports/runs/<id>/release-summary.md` (finalizes draft), PR via `gh` | `.claude/skills/release-pr-agent` |
 
 ---
 

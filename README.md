@@ -261,33 +261,42 @@ You can also pass your idea inline:
 ### What happens after you confirm
 
 ```
-Phase 1   product-agent              → reports/runs/<id>/product-spec.md
-Phase 2   architect-agent            → reports/runs/<id>/architecture.md  (only if contract changed)
-Phase 3   java-backend-agent  ──┐    → apps/backend/src/main/java/
-          frontend-agent      ──┘    → apps/frontend/src/               (parallel)
+Phase 0.5 fast-path check            Team Lead reads requirements.md first.
+                                      If change is infra/docs-only → writes inline
+                                      acceptance checklist, skips Phase 1 entirely.
+
+Phase 1   product-agent (conditional) → reports/runs/<id>/product-spec.md
+                                        SKIPPED on infra/docs fast-path (~1.5 min saved)
+
+Phase 2   architect-agent             → reports/runs/<id>/architecture.md  (only if contract changed)
+
+Phase 3   java-backend-agent  ──┐     → apps/backend/src/main/java/
+          frontend-agent      ──┘     → apps/frontend/src/               (parallel)
 
 Phase 4a — UNIT TESTS (parallel, cheapest first)
-          java-backend-agent         → ./mvnw test            (unit tests, if backend touched)
-          frontend-agent             → npm run test           (Vitest, if frontend touched)
+          java-backend-agent          → ./mvnw test            (unit tests, if backend touched)
+          frontend-agent              → npm run test           (Vitest, if frontend touched)
           ── gate: both must be green before integration tests start ──
 
 Phase 4b — INTEGRATION TESTS (after unit gate, if HTTP layer changed)
-          backend-integration-tests  → ./mvnw test *IntegrationTest
+          backend-integration-tests   → ./mvnw test *IntegrationTest
           ── gate: must be green before E2E starts ──
 
-Phase 5   playwright-e2e-agent       → apps/frontend/tests/e2e/
+Phase 5   playwright-e2e-agent        → apps/frontend/tests/e2e/
           • Full mode  — all specs + live backend (when API contract changed)
           • Smoke mode — smoke.spec.ts only, no backend (user-visible frontend change, no contract change)
           • None       — skipped (backend-only change)
 
-Phase 6   security-agent  ──┐        → reports/runs/<id>/security-report.md
-          code-review-agent ┘        → reports/runs/<id>/code-review-report.md  (parallel)
+Phase 6   security-agent  ──┐         → reports/runs/<id>/security-report.md    (parallel)
+          code-review-agent ┘         → reports/runs/<id>/code-review-report.md
+          ── Team Lead drafts release-summary.md in parallel with Phase 6 ──
 
-Phase 7   release-pr-agent           → GitHub PR
+Phase 7   release-pr-agent            → finalizes release-summary.md + GitHub PR
 ```
 
 Phases 3 (backend + frontend) run in parallel. Phase 4 tests run in parallel and gate Phase 5.
 Security and code review (Phase 6) run in parallel after all tests pass.
+Team Lead writes the release summary draft while Phase 6 runs — release agent only finalizes and creates the PR.
 The pipeline stops only when the PR URL is printed.
 
 ### Agent definitions
@@ -305,7 +314,7 @@ Each agent is a skill in [`.claude/skills/`](.claude/skills/) with a `model:` fi
 | playwright-e2e-agent | claude-sonnet-4-6 | Browser E2E tests |
 | security-agent | claude-opus-4-8 | Security + integrity review |
 | code-review-agent | claude-opus-4-8 | Engineering review |
-| infrastructure-agent | claude-haiku-4-5-20251001 | Docker + env setup |
+| infrastructure-agent | claude-sonnet-4-6 | Docker + env setup + cross-platform startup scripts |
 | release-pr-agent | claude-haiku-4-5-20251001 | PR creation |
 
 To swap an agent to a different model or provider, edit the `model:` line in its `SKILL.md`.

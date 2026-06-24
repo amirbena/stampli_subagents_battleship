@@ -35,7 +35,7 @@ To extend an agent, edit its `SKILL.md` — do not create parallel files.
 | Playwright E2E Agent | `.claude/skills/playwright-e2e-agent` | claude-sonnet-4-6 | `apps/frontend/tests/e2e/` — all browser tests; never assumes servers are running |
 | Security Agent | `.claude/skills/security-agent` | claude-opus-4-8 | `reports/runs/<id>/security-report.md` |
 | Code Review Agent | `.claude/skills/code-review-agent` | claude-opus-4-8 | `reports/runs/<id>/code-review-report.md` |
-| Infrastructure Agent | `.claude/skills/infrastructure-agent` | claude-haiku-4-5-20251001 | `docker-compose.yml`, env documentation, run instructions |
+| Infrastructure Agent | `.claude/skills/infrastructure-agent` | claude-sonnet-4-6 | `docker-compose.yml`, env documentation, run instructions, cross-platform startup scripts |
 | Release PR Agent | `.claude/skills/release-pr-agent` | claude-haiku-4-5-20251001 | `reports/runs/<id>/release-summary.md`, PR creation |
 
 ## E2E Decision Rule
