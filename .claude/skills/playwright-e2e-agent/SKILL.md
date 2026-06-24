@@ -10,6 +10,26 @@ argument-hint: <product-spec.md path>
 ## Mission
 Validate the real multiplayer game experience from the browser against a running frontend and backend.
 
+## Infrastructure Pre-Gate
+
+When Team Lead routes a Full E2E run, this agent verifies environment readiness before writing or running tests. Run these checks in order:
+
+```bash
+# 1. Backend E2E Spring profile exists
+test -f apps/backend/src/main/resources/application-e2e.yml && echo "OK" || echo "MISSING"
+
+# 2. Maven e2e profile exists in pom.xml
+grep -q '<id>e2e</id>' apps/backend/pom.xml && echo "OK" || echo "MISSING"
+
+# 3. playwright.config.ts has a backend webServer entry
+grep -q 'spring-boot:run' apps/frontend/playwright.config.ts && echo "OK" || echo "MISSING"
+
+# 4. playwright.config.ts passes VITE_API_BASE_URL to frontend webServer
+grep -q 'VITE_API_BASE_URL' apps/frontend/playwright.config.ts && echo "OK" || echo "MISSING"
+```
+
+If any check fails, report the result to Team Lead with the exact item that failed. Do not begin writing E2E tests until Team Lead confirms all four checks pass. Team Lead routes failed items to the owning agent.
+
 ## Responsibilities
 - Simulate full multiplayer flows using two browser contexts (Player A and Player B).
 - Validate that UI and backend work together correctly end-to-end.

@@ -110,6 +110,64 @@ If the requirement involves audio, video, or external media assets:
 
 Filling unused sections with "N/A" or placeholder text wastes tokens and time.
 
+---
+
+## Light Mode
+
+When Team Lead invokes with `mode: LIGHT — UX Interaction Clarification only`, this is a narrow UX clarification pass, not a full product discovery.
+
+Write **only** these sections to `reports/runs/<workflow-run-id>/product-spec.md`:
+
+```md
+# Product Spec
+
+## Product Mode
+Light — UX Interaction Clarification
+
+## Requirement Summary
+<2–3 sentences>
+
+## UX Expectations
+- What the user sees immediately after the action
+- What feedback appears while processing
+- Whether optimistic UI is expected
+- Whether loading/disabled state is expected
+- How stale state should be avoided
+- What happens on success
+- What happens on failure
+- What must feel instant
+- What may show loading
+
+## Acceptance Criteria
+UX-only, testable criteria.
+
+## Out of Scope
+What must not change.
+
+## Product Assumptions
+Only assumptions needed for UX clarification.
+
+## Workflow Metadata
+Workflow Run ID:
+```
+
+**Do not write** in Light Mode: User Flows, Edge Cases, Data/State Expectations, Permissions, Product Risks, Cost-Saving Notes, QA Notes, Suggested Classification Hints, or Ambiguity Assessment unless directly relevant.
+
+**Light Mode prohibitions:**
+- Do not choose implementation agents
+- Do not advance the pipeline
+- Do not introduce new game rules unless explicitly required by the requirement
+- Do not introduce backend/API/auth/schema/multiplayer changes unless clearly required
+- Do not expand scope beyond UX clarification
+
+After writing `product-spec.md`, return to Team Lead with:
+- UX acceptance criteria
+- What must feel instant
+- What may show loading
+- Any scope expansion risks identified
+
+Control returns to Team Lead. Team Lead continues routing.
+
 ## Output
 
 Create the `reports/runs/<workflow-run-id>/` directory if it does not exist before writing.
