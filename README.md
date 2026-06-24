@@ -250,7 +250,7 @@ E2E_BASE_URL=http://localhost:3000 npm run test:e2e
 /requirement
 ```
 
-The skill will ask what you want to build, clarify any gaps with up to 4 questions, write `reports/requirements.md`, show it to you for confirmation, then automatically launch the full pipeline. No further input needed.
+The skill captures your requirement and hands off autonomously. If you attach screenshots or files, it reads them first and writes a `## Visual Analysis` section into `requirements.md` — concrete defects, expected behavior, and inferred acceptance criteria derived from visual evidence. This feeds every downstream agent and enables the fast-path to skip Product Agent for pure visual fixes.
 
 You can also pass your idea inline:
 
@@ -262,9 +262,14 @@ You can also pass your idea inline:
 
 ```
 Phase 0.5 fast-path check            Team Lead reads requirements.md first.
-                                      If change is pure infra, pure internal refactor,
-                                      or bug fix restoring documented behavior →
-                                      writes inline acceptance checklist, skips Phase 1.
+                                      Skips Product Agent when change is:
+                                      (1) pure infra, (2) pure internal refactor,
+                                      (3) bug fix restoring documented behavior, OR
+                                      (4) visual fix — Visual Analysis present in
+                                      requirements.md with concrete defects + expected
+                                      behavior + inferred criteria, UI-only, no UX
+                                      ambiguity, no backend/API/schema change.
+                                      Writes inline acceptance checklist and continues.
 
 Phase 1   product-agent (conditional) → reports/runs/<id>/product-spec.md
                                         SKIPPED on fast-path (~1.5 min saved)
@@ -286,9 +291,12 @@ Phase 4a — UNIT + INTEGRATION TESTS (parallel, cheapest first)
 
           Single-agent frontend path (default):
           frontend-ui-agent           → npm run test + npm run build       (agent owns full gate)
-                                        includes *.integration.test.tsx for cross-layer bugs
-                                        (DOM symptom + per-layer tests pass = seam bug);
-                                        written by the agent BEFORE the fix
+                                        agent selects its own tests: unit for isolated DOM/
+                                        state/class issues; integration for seam/timing/
+                                        wiring/async-ordering risks; Playwright smoke for
+                                        real-browser layout confidence.
+                                        *.integration.test.tsx written BEFORE the fix when
+                                        per-layer unit tests pass but runtime behavior fails.
 
           Split frontend path (both agents ran in parallel):
           frontend-ui-agent           → npx vitest run src/components …    (co-located slice)

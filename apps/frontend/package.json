@@ -8,7 +8,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test tests/e2e/lobby-layout.spec.ts --project=chromium"
   },
   "dependencies": {
     "axios": "^1.18.0",

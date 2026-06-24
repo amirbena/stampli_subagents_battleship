@@ -17,14 +17,22 @@ User Requirement
        ▼
 ┌─────────────────┐
 │  Requirement    │  Captures raw request, creates isolated workflow run,
-│  Intake         │  guards branch safety, writes requirements.md
+│  Intake         │  guards branch safety, writes requirements.md.
+│                 │  Step 0: if images/files attached, reads them with
+│                 │  vision and writes ## Visual Analysis into requirements.md
+│                 │  (concrete defects, expected behavior, inferred criteria).
+│                 │  Skipped entirely when no attachments.
 └────────┬────────┘
          │
          ▼  Step 0.5 — Fast-Path Pre-Classification
          │  Team Lead reads requirements.md FIRST.
-         │  If change is pure infra, pure internal refactor, or bug fix
-         │  restoring documented behavior → writes 10-line inline checklist,
-         │  skips Product Agent entirely. Otherwise:
+         │  If change is (1) pure infra, (2) pure internal refactor,
+         │  (3) bug fix restoring documented behavior, OR
+         │  (4) visual fix with screenshot evidence — Visual Analysis
+         │  present with concrete defects + expected behavior + inferred
+         │  criteria, UI-only, no UX ambiguity, no backend/API change →
+         │  writes 10-line inline checklist, skips Product Agent entirely.
+         │  Otherwise:
          │    ↓
 ┌─────────────────┐
 │  Product Agent  │  Converts requirement into acceptance criteria,
@@ -155,7 +163,7 @@ User Requirement
 - **Architect** owns structure (domain model, API contract, folder layout) — never environment setup or implementation.
 - **Java Backend Agent** owns JUnit 5 unit tests for domain and service layer — no separate backend unit test agent (same rationale as frontend).
 - **Frontend API Agent** owns Vitest unit tests for `api/`, `hooks/`, and `types/` — co-located in those directories.
-- **Frontend UI Agent** owns Vitest component tests for `components/`, `pages/`, and `utils/` — co-located. It is also the sole agent for cheap/styling-only changes. It self-diagnoses cross-layer bugs: when the DOM symptom exists but per-layer unit tests all pass (Layer A works, Layer B works, A→B breaks), it writes a failing `*.integration.test.tsx` (real component + real dependencies, no mocks) **before** touching any production code. Covers: store→component, hook→component, router→page, validation→error display — see [TDD rule in SKILL.md](.claude/skills/frontend-ui-agent/SKILL.md).
+- **Frontend UI Agent** owns Vitest component tests for `components/`, `pages/`, and `utils/` — co-located. It is also the sole agent for cheap/styling-only changes. It owns test selection within its scope — Team Lead does not prescribe individual test cases. It applies a priority ladder: (1) unit test for isolated DOM/state/class issues, (2) frontend integration test for seam/timing/wiring/async-ordering issues where per-layer unit tests cannot exercise the risk together, (3) Playwright smoke for real-browser layout and responsive confidence. It self-diagnoses when a frontend integration test is needed: when runtime behavior is broken but per-layer unit tests all pass — including timing races (interceptor fires before React renders), provider wiring, and shared state ordering, not only A→B seam breaks. It writes the failing `*.integration.test.tsx` (real component + real hook/store/interceptor, network boundary mocked) **before** touching production code — see [TDD rule in SKILL.md](.claude/skills/frontend-ui-agent/SKILL.md).
 - **Frontend split is conservative.** `frontend-ui-agent` is the default for any single-agent case (small, tightly-coupled, or UI-only). `frontend-api-agent` runs alone for hook/type-only changes. Both run in parallel only when the requirement has clearly independent API/data-layer work AND independent UI/render-layer work. Team Lead pre-writes `types/game.ts` before spawning both. When both run in parallel, Team Lead is the synchronization point — it waits for both to finish, then runs the full gate as a cross-agent contract check before advancing.
 - **E2E failure routing follows data, not symptom.** A visible UI symptom does not mean the bug is in the UI layer. Team Lead checks the data flow first — if the hook returns wrong data, route to `frontend-api-agent`; if the hook is correct but the component renders wrong, route to `frontend-ui-agent`. After any `frontend-api-agent` fix, always run `npm run build` before re-triggering E2E to catch silent consumer breaks.
 - **Playwright E2E Agent** owns browser tests — never touches production code.
@@ -204,11 +212,15 @@ Full mode requires the E2E Infrastructure Pre-Gate to pass before the Playwright
 
 #### Frontend UI Agent — Internal Smoke Gate (selective, pre-report only)
 
-The `frontend-ui-agent` runs `smoke.spec.ts` as its own pre-report verification step, but only when the change affects **user-visible behavior**: routing, page rendering, game interaction, placement flow, validation, navigation, or visible UI state.
+The `frontend-ui-agent` runs `smoke.spec.ts` as its own pre-report verification step, but only when the change affects **user-visible behavior**: routing, page rendering, game interaction, placement flow, validation, navigation, or visible UI state. Smoke uses a real browser with a mocked backend — no real backend needed.
 
 **Skip** the internal smoke gate for: pure refactors, type-only changes, test-only changes, copy-only changes, or isolated CSS tweaks already covered by build/unit tests. When skipped, the agent records the reason in its Evidence section and Team Lead records it in `test-results.md`.
 
 This is separate from the Team Lead E2E mode decision above — it is a lightweight pre-check the agent runs on itself before reporting done.
+
+#### Level 0.5 — Targeted UI Validation Test (Team Lead, post-smoke)
+
+For layout/alignment/responsive acceptance criteria that smoke cannot verify (smoke only checks navigation and page boot, not authenticated screen layout), Team Lead runs or writes a targeted Playwright test after smoke passes. These tests use `page.route()` to mock all API calls, `sessionStorage` to bypass auth redirects, and `boundingBox()` + `scrollWidth` assertions to verify pixel-level layout. Location: `apps/frontend/tests/e2e/<page>-layout.spec.ts`. On failure, Team Lead routes the exact assertion + auto-saved screenshot to `frontend-ui-agent`.
 
 ### Quality Gates (all must pass before PR)
 - `./mvnw test` — backend unit tests
