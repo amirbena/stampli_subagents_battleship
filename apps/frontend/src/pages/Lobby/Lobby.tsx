@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useState, useMemo } from 'react';
+import React, { useEffect, useCallback, useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { placeShip, removeShip, setReady } from '../../api/gameApi';
 import { usePlacement } from '../../hooks/usePlacement';
@@ -27,15 +27,43 @@ export function Lobby(): React.ReactElement {
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const placement = usePlacement();
+  const placement = usePlacement(gameId);
   const { gameState, isLoading } = useGamePolling(gameId, playerId, true);
 
-  // Navigate to game once IN_PROGRESS
+  // One-time guard so hydration runs exactly once per Lobby mount.
+  const hydratedRef = useRef(false);
+
+  // Rehydrate local placement state from the persisted server board on refresh/reconnect.
+  // After a page refresh the backend still has the placed ships (gameState.myBoard.ships),
+  // but usePlacement resets to empty — so the Fleet List panel desyncs from the board.
+  // Conditions (ALL must hold) so we hydrate exactly once on the first server board carrying
+  // ships and NEVER clobber a freshly placed optimistic ship on a later 2s poll:
+  //   1. !hydratedRef.current        — we have not already hydrated this mount
+  //   2. placedShips.length === 0    — local state is still empty (no optimistic placement yet)
+  //   3. myBoard.ships.length > 0    — the server is actually carrying placed ships
+  // The selected tool is intentionally NOT restored (hydrate clears selection to null).
+  useEffect(() => {
+    const serverShips = gameState?.myBoard?.ships;
+    if (
+      !hydratedRef.current &&
+      placement.placedShips.length === 0 &&
+      serverShips &&
+      serverShips.length > 0
+    ) {
+      placement.hydrate(serverShips);
+      hydratedRef.current = true;
+    }
+  }, [gameState?.myBoard?.ships, placement]);
+
+  // Navigate to game once IN_PROGRESS.
+  // Clear the placement sessionStorage key before navigating so stale ship positions
+  // from this game do not bleed into a future game started in the same tab.
   useEffect(() => {
     if (gameState?.status === 'IN_PROGRESS') {
+      try { window.sessionStorage.removeItem(`placement_ships_${gameId}`); } catch {}
       navigate('/game');
     }
-  }, [gameState?.status, navigate]);
+  }, [gameState?.status, navigate, gameId]);
 
   // Redirect home if no session
   useEffect(() => {
