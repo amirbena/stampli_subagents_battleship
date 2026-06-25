@@ -34,4 +34,4 @@ PR: https://github.com/amirbena/stampli_subagents_battleship/pull/33
 - [x] Install split into 1a (frontend) + 1b (backend) with platform variants
 - [x] chmod + mvn alternative in macOS backend block
 - [x] Code review APPROVED
-- [ ] PR #33 updated (release-pr-agent)
+- [x] PR #33 updated (release-pr-agent)
