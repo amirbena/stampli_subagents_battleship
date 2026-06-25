@@ -5,19 +5,32 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+import java.util.stream.IntStream;
+
 @Configuration
 public class CorsConfig implements WebMvcConfigurer {
 
-    // Uses allowedOriginPatterns instead of allowedOrigins so that wildcard port
-    // patterns (e.g. http://localhost:[*]) are supported alongside allowCredentials(true).
-    // Spring rejects allowedOrigins("*") with allowCredentials(true) — never use that.
-    @Value("${battleship.cors.allowed-origin-pattern}")
-    private String allowedOriginPattern;
+    // Port range for allowed localhost origins.
+    // Only ports in [minPort, maxPort] are permitted — explicit enumeration avoids
+    // the open-ended wildcard http://localhost:[*] that accepted any port.
+    // Spring permits allowedOrigins(explicit list) with allowCredentials(true);
+    // only the literal "*" wildcard is forbidden alongside allowCredentials.
+    @Value("${battleship.cors.min-port:3000}")
+    private int minPort;
+
+    @Value("${battleship.cors.max-port:3030}")
+    private int maxPort;
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
+        // Build the explicit origin list at startup so the range is enforced strictly.
+        // IntStream.rangeClosed is inclusive on both ends, matching [minPort, maxPort].
+        String[] allowedOrigins = IntStream.rangeClosed(minPort, maxPort)
+                .mapToObj(port -> "http://localhost:" + port)
+                .toArray(String[]::new);
+
         registry.addMapping("/**")
-                .allowedOriginPatterns(allowedOriginPattern)
+                .allowedOrigins(allowedOrigins)
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
                 .allowCredentials(true);

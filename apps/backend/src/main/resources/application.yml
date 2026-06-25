@@ -25,6 +25,8 @@ spring:
 
 battleship:
   cors:
-    # [*] is Spring's wildcard token for any port value in allowedOriginPatterns.
-    # This lets any localhost port through without enumerating ports explicitly.
-    allowed-origin-pattern: ${CORS_ALLOWED_ORIGIN_PATTERN:http://localhost:[*]}
+    # Strict port range for allowed localhost CORS origins (inclusive).
+    # Only http://localhost:<minPort> through http://localhost:<maxPort> are permitted.
+    # Override via CORS_MIN_PORT / CORS_MAX_PORT environment variables.
+    min-port: ${CORS_MIN_PORT:3000}
+    max-port: ${CORS_MAX_PORT:3030}

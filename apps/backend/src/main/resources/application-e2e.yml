@@ -19,8 +19,5 @@ spring:
       - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
       - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
 
-battleship:
-  cors:
-    # Explicit localhost:3001 origin used by the Playwright E2E test runner.
-    # allowedOriginPatterns accepts both explicit origins and wildcard patterns.
-    allowed-origin-pattern: http://localhost:3001
+# Port 3001 is within the default 3000–3030 range enforced by CorsConfig.
+# No CORS override is needed for the E2E profile.
