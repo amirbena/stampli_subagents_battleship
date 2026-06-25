@@ -155,7 +155,7 @@ User Requirement
 | **Frontend API Agent** | sonnet-4-6 | `apps/frontend/src/api/`, `hooks/`, `types/` — HTTP wrappers, hooks, TS types + Vitest unit tests | `.claude/skills/frontend-api-agent` |
 | **Frontend UI Agent** | sonnet-4-6 | `apps/frontend/src/components/`, `pages/`, `utils/`, CSS — render layer + Vitest component tests | `.claude/skills/frontend-ui-agent` |
 | **Backend Integration Tests Agent** | sonnet-4-6 | `apps/backend/src/test/**/*IntegrationTest.java` — `@SpringBootTest` + MockMvc, **exception-only** for cross-layer flows and profile-specific wiring | `.claude/skills/backend-integration-tests-agent` |
-| **Playwright E2E Agent** | sonnet-4-6 | `apps/frontend/tests/e2e/` — browser E2E tests | `.claude/skills/playwright-e2e-agent` |
+| **Playwright E2E Agent** | sonnet-4-6 | `apps/frontend/tests/e2e/`, `apps/frontend/playwright.config.*` — browser E2E tests | `.claude/skills/playwright-e2e-agent` |
 | **Security Agent** | opus-4-8 | `reports/runs/<id>/security-report.md` | `.claude/skills/security-agent` |
 | **Code Review Agent** | opus-4-8 | `reports/runs/<id>/code-review-report.md` | `.claude/skills/code-review-agent` |
 | **Infrastructure Agent** | sonnet-4-6 | `docker-compose.yml`, env docs, run instructions, cross-platform startup scripts | `.claude/skills/infrastructure-agent` |
