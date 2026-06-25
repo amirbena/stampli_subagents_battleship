@@ -108,6 +108,13 @@ public class GameController {
         return ResponseEntity.noContent().build();
     }
 
+    // GET /api/v1/games/{code}/restore — Restore-by-Code (COMPUTER games only; 200 / 404)
+    @GetMapping("/{code}/restore")
+    public ResponseEntity<RestoreGameResponse> restoreGame(@PathVariable String code) {
+        RestoreGameResponse response = gameService.restoreGame(code);
+        return ResponseEntity.ok(response);
+    }
+
     // GET /api/v1/games/{gameId}/state?playerId= — Get Game State
     @GetMapping("/{gameId}/state")
     public ResponseEntity<GameStateResponse> getGameState(

@@ -193,10 +193,10 @@ test.describe('Flow 1 — First visit (no localStorage)', () => {
     // ambiguity with the section's aria-label ("Enter your display name").
     await expect(page.getByRole('textbox', { name: /display name/i })).toBeVisible();
 
-    // All three game-start actions must be disabled.
-    await expect(page.getByRole('button', { name: /create game/i })).toBeDisabled();
+    // The game-start action must be disabled until identity is established. (The old
+    // "Create Game" / "Join Game" human-game buttons were removed this run — multiplayer
+    // is disabled, AC-14 — so only "Play vs Computer" remains as an identity-gated action.)
     await expect(page.getByRole('button', { name: /play vs computer/i })).toBeDisabled();
-    await expect(page.getByRole('button', { name: /join game/i })).toBeDisabled();
   });
 
   test('AC-06: entering valid name calls POST /players, writes localStorage, enables buttons', async ({ page }) => {
@@ -216,10 +216,8 @@ test.describe('Flow 1 — First visit (no localStorage)', () => {
     const requestBody = JSON.parse(playerRequest.postData() ?? '{}') as { displayName?: string };
     expect(requestBody.displayName).toBe('TestPlayer');
 
-    // After identity resolves, game-start buttons must be enabled.
-    await expect(page.getByRole('button', { name: /create game/i })).toBeEnabled({ timeout: 8000 });
-    await expect(page.getByRole('button', { name: /play vs computer/i })).toBeEnabled();
-    await expect(page.getByRole('button', { name: /join game/i })).toBeEnabled();
+    // After identity resolves, the game-start button must be enabled.
+    await expect(page.getByRole('button', { name: /play vs computer/i })).toBeEnabled({ timeout: 8000 });
 
     // AC-06: localStorage must contain a valid UUID player ID.
     // useLocalStorage stores via JSON.stringify, so read with JSON.parse.
@@ -237,8 +235,8 @@ test.describe('Flow 1 — First visit (no localStorage)', () => {
     // Expect inline error — either the backend 400 message or the code-mapped string.
     await expect(page.getByRole('alert')).toContainText(/display name is required/i, { timeout: 5000 });
 
-    // Buttons must still be disabled.
-    await expect(page.getByRole('button', { name: /create game/i })).toBeDisabled();
+    // The game-start button must still be disabled.
+    await expect(page.getByRole('button', { name: /play vs computer/i })).toBeDisabled();
   });
 
   test('AC-04: name with invalid chars shows inline error', async ({ page }) => {
@@ -251,30 +249,14 @@ test.describe('Flow 1 — First visit (no localStorage)', () => {
       /letters, numbers, spaces, hyphens, and underscores/i,
       { timeout: 5000 },
     );
-    await expect(page.getByRole('button', { name: /create game/i })).toBeDisabled();
+    await expect(page.getByRole('button', { name: /play vs computer/i })).toBeDisabled();
   });
 
-  test('empty room-code join shows validation error after player is identified', async ({ page, request }) => {
-    // This covers the scenario removed from smoke.spec.ts: buttons are now identity-gated,
-    // so empty-code validation can only be tested after establishing identity.
-    const { playerId } = await createPlayerViaApi(request, 'JoinTester');
-
-    await page.goto('/');
-    await seedPlayerId(page, playerId);
-    await page.goto('/');
-
-    // Wait for the identity to resolve (welcome banner appears).
-    await expect(page.locator('.welcome-banner')).toBeVisible({ timeout: 10000 });
-
-    // Leave room-code empty and click Join Game.
-    await page.getByRole('button', { name: /join game/i }).click();
-
-    // The frontend validates that room code is non-empty and shows an error.
-    await expect(page.getByText(/please enter a room code/i)).toBeVisible({ timeout: 3000 });
-
-    // We must stay on the home page — no navigation occurred.
-    await expect(page).toHaveURL('/');
-  });
+  // NOTE: the former "empty room-code join shows validation error" test was removed this
+  // run — the human-game Join UI ("Join Game" button + room-code input) was replaced by the
+  // restore-by-code flow (multiplayer disabled, AC-14). Empty-code validation for the new
+  // restore input is covered by frontend Vitest unit tests; the restore happy/not-found
+  // paths are covered by navigation-recovery-exit.spec.ts (AC-7/8/9/10).
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -299,10 +281,8 @@ test.describe('Flow 2 — Returning visit', () => {
     await expect(page.locator('.welcome-banner')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('.welcome-banner__name')).toContainText(displayName);
 
-    // Game-start buttons are enabled once identity resolves.
-    await expect(page.getByRole('button', { name: /create game/i })).toBeEnabled({ timeout: 10000 });
-    await expect(page.getByRole('button', { name: /play vs computer/i })).toBeEnabled();
-    await expect(page.getByRole('button', { name: /join game/i })).toBeEnabled();
+    // The game-start button is enabled once identity resolves.
+    await expect(page.getByRole('button', { name: /play vs computer/i })).toBeEnabled({ timeout: 10000 });
   });
 
   test('AC-08: stale ID (unknown to backend) → localStorage cleared, name-entry shown', async ({ page }) => {
@@ -330,8 +310,8 @@ test.describe('Flow 2 — Returning visit', () => {
     const storedId = await readStoredPlayerId(page);
     expect(storedId).toBeNull();
 
-    // All game-start buttons must remain disabled.
-    await expect(page.getByRole('button', { name: /create game/i })).toBeDisabled();
+    // The game-start button must remain disabled.
+    await expect(page.getByRole('button', { name: /play vs computer/i })).toBeDisabled();
   });
 });
 
@@ -357,6 +337,8 @@ test.describe('AC-11 — vs Computer with player identity', () => {
     );
 
     await page.getByRole('button', { name: /play vs computer/i }).click();
+    // Acknowledge the start-of-game code popup (AC-5) before entering the game.
+    await page.getByRole('button', { name: /got it, start playing/i }).click();
     await page.waitForURL(/\/lobby/, { timeout: 15000 });
 
     const createGameRequest = await createGameRequestPromise;
@@ -403,90 +385,13 @@ test.describe('AC-11 — vs Computer with player identity', () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// AC-13 — Human join with identity (two-player flow with identity)
-// ─────────────────────────────────────────────────────────────────────────────
-
-test.describe('AC-13 — Human game join with player identity', () => {
-  test('Player A creates game with identity; Player B joins with identity; both arrive at lobby', async ({ browser, request }) => {
-    // Create two separate player profiles.
-    const playerA = await createPlayerViaApi(request, 'PlayerAlpha');
-    const playerB = await createPlayerViaApi(request, 'PlayerBeta');
-
-    // Player A context.
-    const contextA = await browser.newContext();
-    const pageA = await contextA.newPage();
-
-    // Player B context (separate, isolated).
-    const contextB = await browser.newContext();
-    const pageB = await contextB.newPage();
-
-    try {
-      // ── Player A: establish identity and create a human game ──────────────
-      await pageA.goto('/');
-      await seedPlayerId(pageA, playerA.playerId);
-      await pageA.goto('/');
-
-      await expect(pageA.locator('.welcome-banner')).toBeVisible({ timeout: 12000 });
-      await expect(pageA.locator('.welcome-banner__name')).toContainText(playerA.displayName);
-
-      // Intercept POST /games to verify playerId sent.
-      const createRequestPromise = pageA.waitForRequest(
-        (req) => req.url().includes('/api/v1/games') && req.method() === 'POST' && !req.url().includes('/join'),
-      );
-
-      await pageA.getByRole('button', { name: /create game/i }).click();
-      await pageA.waitForURL(/\/lobby/, { timeout: 15000 });
-
-      const createRequest = await createRequestPromise;
-      const createBody = JSON.parse(createRequest.postData() ?? '{}') as { playerId?: string };
-      // AC-12: playerId included in POST /games body.
-      expect(createBody.playerId).toBe(playerA.playerId);
-
-      // Get the room code (gameId) from the localStorage active-game pointer.
-      const pointerA = await readActivePointer(pageA);
-      const gameId = pointerA?.gameId ?? null;
-      expect(gameId).toBeTruthy();
-
-      // Player A pointer playerId must equal the persistent identity.
-      expect(pointerA?.playerId).toBe(playerA.playerId);
-
-      // ── Player B: establish identity and join the game ────────────────────
-      await pageB.goto('/');
-      await seedPlayerId(pageB, playerB.playerId);
-      await pageB.goto('/');
-
-      await expect(pageB.locator('.welcome-banner')).toBeVisible({ timeout: 12000 });
-      await expect(pageB.locator('.welcome-banner__name')).toContainText(playerB.displayName);
-
-      // Intercept POST /games/{gameId}/join to verify playerId sent.
-      const joinRequestPromise = pageB.waitForRequest(
-        (req) => req.url().includes('/join') && req.method() === 'POST',
-      );
-
-      // Fill in the room code.
-      await pageB.getByLabel('Room code').fill(gameId!);
-      await pageB.getByRole('button', { name: /join game/i }).click();
-      await pageB.waitForURL(/\/lobby/, { timeout: 15000 });
-
-      const joinRequest = await joinRequestPromise;
-      const joinBody = JSON.parse(joinRequest.postData() ?? '{}') as { playerId?: string; gameId?: string };
-      // AC-13: Player B's playerId included in the join body.
-      expect(joinBody.playerId).toBe(playerB.playerId);
-
-      // Player B pointer playerId echoed back matches their persistent identity.
-      const pointerB = await readActivePointer(pageB);
-      expect(pointerB?.playerId).toBe(playerB.playerId);
-
-      // Both players are in the lobby.
-      await expect(pageA).toHaveURL(/\/lobby/);
-      await expect(pageB).toHaveURL(/\/lobby/);
-    } finally {
-      await contextA.close();
-      await contextB.close();
-    }
-  });
-});
+// NOTE: the former "AC-13 — Human game join with player identity" describe block was
+// removed this run. The human-vs-human create/join UI ("Create Game" / "Join Game" +
+// room-code input) no longer exists — multiplayer is disabled and surfaced only as the
+// disabled "Play Against Another User (Coming Soon)" button (AC-14). The backend join
+// contract itself is unchanged and still covered by backend tests; there is simply no UI
+// path to exercise it end-to-end, so the browser-level human-join flow is intentionally
+// dropped from E2E. The vs-Computer identity flow above retains full coverage.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AC-22/AC-23 — Backward compatibility

@@ -192,6 +192,10 @@ test('Play vs Computer navigates to lobby and shows vs-computer banner without r
   await expect(page.getByRole('button', { name: /play vs computer/i })).toBeEnabled({ timeout: 10000 });
   await page.getByRole('button', { name: /play vs computer/i }).click();
 
+  // Starting a computer game now shows a code popup first (AC-5). Acknowledge it to
+  // proceed into the game.
+  await page.getByRole('button', { name: /got it, start playing/i }).click();
+
   // Wait for navigation to /lobby (AC-3)
   await page.waitForURL(/\/lobby/, { timeout: 15000 });
 
@@ -220,6 +224,8 @@ test('full vs-computer flow: place ships, ready up, fire until human wins, see V
 
   // ── Step 1: create the vs-computer game ──────────────────────────────────
   await page.getByRole('button', { name: /play vs computer/i }).click();
+  // Acknowledge the start-of-game code popup (AC-5) to proceed into the game.
+  await page.getByRole('button', { name: /got it, start playing/i }).click();
 
   // ── Step 2: read gameId / playerId from the localStorage active-game pointer ──
   await page.waitForURL(/\/lobby/, { timeout: 15000 });

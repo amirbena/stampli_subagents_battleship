@@ -476,6 +476,39 @@ public class GameService {
     }
 
     /**
+     * Resolves a saved COMPUTER game from its code (the gameId, also used as the room code)
+     * so the client can rehydrate its session pointer after a refresh or fresh device.
+     * <p>
+     * Read-only — no mutation, no synchronization. Returns only the session pointer fields
+     * ({@code gameId}, the human owner's {@code playerId} = playerA, {@code gameMode},
+     * {@code status}); it returns NO board or ship data, so the existing hidden-data boundary
+     * on {@code getGameState} remains the single source of visibility rules.
+     * <p>
+     * A non-existent code AND a code that maps to a non-COMPUTER game both yield the same
+     * uniform 404 GAME_NOT_FOUND — restore-by-code is computer-only, and reporting human
+     * games as plain not-found avoids disclosing the existence/type of other games.
+     *
+     * @param code the existing game identifier used as the room code
+     * @return the session pointer for the resolved COMPUTER game
+     * @throws GameException 404 GAME_NOT_FOUND if the game does not exist or is not a COMPUTER game
+     */
+    public RestoreGameResponse restoreGame(String code) {
+        Game game = findGameOrThrow(code);
+        // Computer-only restore: a human game is reported as plain not-found so we do not
+        // disclose that a game with this code exists or what type it is.
+        if (game.getGameMode() != GameMode.COMPUTER) {
+            // Identical message to the missing-game path so the two 404s are indistinguishable.
+            throw new GameException("Game not found: " + code, "GAME_NOT_FOUND", HttpStatus.NOT_FOUND);
+        }
+        // For a COMPUTER game the human is deterministically stored as playerA.
+        return new RestoreGameResponse(
+                game.getId(),
+                game.getPlayerA().getId(),
+                game.getGameMode().name(),
+                game.getStatus().name());
+    }
+
+    /**
      * Pauses an active game on behalf of a participant.
      * <p>
      * Records the pre-pause phase so {@link #resumeGame} can restore it exactly.

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fireShot, pauseGame, stopGame } from '../../api/gameApi';
 import { useGamePolling } from '../../hooks/useGamePolling';
@@ -13,6 +13,7 @@ import { FiringIndicator } from '../../components/game/FiringIndicator/FiringInd
 import { YourTurnToast } from '../../components/game/YourTurnToast/YourTurnToast';
 import { ErrorMessage } from '../../components/common/ErrorMessage/ErrorMessage';
 import { LoadingSpinner } from '../../components/common/LoadingSpinner/LoadingSpinner';
+import { LeaveConfirmModal } from '../../components/common/LeaveConfirmModal/LeaveConfirmModal';
 import { computeOwnBoardCells, computeOpponentBoardCells, getSunkShipTypes } from '../../utils/boardHelpers';
 import { playShotSound } from '../../utils/sound';
 import type { ShotResult, ShipType, CellState, Coordinate } from '../../types/game';
@@ -36,13 +37,85 @@ export function Game(): React.ReactElement {
   // Optimistic overlay for computer's shot on my board before next poll
   const [computerShotOverlay, setComputerShotOverlay] = useState<{ row: number; col: number; state: CellState } | null>(null);
 
-  const { gameState, isLoading, refresh } = useGamePolling(gameId, playerId, true);
+  const { gameState, isLoading, gameGone, refresh } = useGamePolling(gameId, playerId, true);
+
+  // True while the Stay/Leave confirmation dialog is open (AC-11).
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  // True while the Leave (stop) request is in flight, so the modal disables both actions.
+  const [leaveBusy, setLeaveBusy] = useState(false);
 
   // Defense-in-depth self-guard reading the SAME active-game pointer the route guard reads
   // (never sessionStorage). Only fires if the pointer is cleared while mounted (e.g. Stop).
   useEffect(() => {
     if (!gameId || !playerId) navigate('/');
   }, [gameId, playerId, navigate]);
+
+  // Recovery on unloadable game data (AC-3/AC-4). `gameGone` is set ONLY on an authoritative
+  // 404 (server restart / released / missing game) — never on a transient blip. Clear the
+  // stale pointer first so the route guard cannot re-admit the dead session (no redirect
+  // loop, AC-4), then redirect to the main screen instead of rendering a broken board.
+  useEffect(() => {
+    if (gameGone) {
+      clearActiveGame();
+      navigate('/', { replace: true });
+    }
+  }, [gameGone, clearActiveGame, navigate]);
+
+  // Back-button interception (AC-11). We want the browser Back button to trigger the
+  // Stay/Leave confirmation instead of silently exiting. Strategy: push a sentinel history
+  // entry on mount so a Back press pops to it; intercept that pop, re-push the sentinel
+  // (so the user stays put), and open the confirmation dialog. A ref lets the Leave path
+  // disarm the guard so the actual navigation isn't re-intercepted into a loop.
+  const leavingRef = useRef(false);
+  useEffect(() => {
+    // Only arm the guard for an active session. A cleared pointer means recovery/Stop is
+    // already navigating away — don't fight it.
+    if (!gameId || !playerId) return;
+
+    // Push a sentinel entry so the first Back press has something to pop to (and lands a
+    // popstate we can intercept) rather than leaving the game view immediately.
+    window.history.pushState({ battleshipGuard: true }, '');
+
+    const onPopState = (): void => {
+      // The Leave path disarmed the guard; allow the real navigation through.
+      if (leavingRef.current) return;
+      // Re-push the sentinel so Back keeps the player in the game (no state loss, AC-12)
+      // and can be intercepted again on a subsequent press (edge case: repeated Back).
+      window.history.pushState({ battleshipGuard: true }, '');
+      setShowLeaveConfirm(true);
+    };
+
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [gameId, playerId]);
+
+  // Stay (AC-12): close the dialog and remain in the game. The sentinel was already
+  // re-pushed in the popstate handler, so Back can be intercepted again.
+  const handleStay = useCallback(() => {
+    setShowLeaveConfirm(false);
+  }, []);
+
+  // Leave (AC-13): release the game via the existing Stop teardown, clear the pointer, and
+  // return to the main screen. Disarm the Back guard first so navigation isn't re-trapped.
+  const handleLeave = useCallback(async () => {
+    setLeaveBusy(true);
+    setError(null);
+    try {
+      await stopGame(gameId, playerId);
+    } catch (e) {
+      // Backend is source of truth: if Stop genuinely failed, surface it and keep the
+      // player in the game rather than navigating to a possibly-still-live game (no double
+      // release). Stop is idempotent (absent → success) so a stale game won't throw.
+      setError(e instanceof Error ? e.message : 'Could not leave the game. Please try again.');
+      setLeaveBusy(false);
+      return;
+    }
+    leavingRef.current = true;
+    clearActiveGame();
+    setShowLeaveConfirm(false);
+    setLeaveBusy(false);
+    navigate('/', { replace: true });
+  }, [gameId, playerId, clearActiveGame, navigate]);
 
   // On FINISHED, clear the active-game pointer BEFORE navigating to game-over so a
   // finished game never re-triggers the resume modal on a later Home visit (AC-14).
@@ -161,8 +234,24 @@ export function Game(): React.ReactElement {
     return <LoadingSpinner label="Loading game…" />;
   }
 
+  // Recovery in progress (AC-3): the game is gone and the effect above is redirecting to
+  // Home. Render a neutral spinner instead of an empty/broken board to avoid a flash of a
+  // broken board before the redirect completes (UX Expectation: smooth recovery).
+  if (gameGone) {
+    return <LoadingSpinner label="Returning to the main screen…" />;
+  }
+
   return (
     <main className="game-page">
+      {/* Stay/Leave confirmation (AC-11/12/13) — shown when the player attempts to leave,
+          including via the browser Back button. */}
+      {showLeaveConfirm && (
+        <LeaveConfirmModal
+          onStay={handleStay}
+          onLeave={() => { void handleLeave(); }}
+          busy={leaveBusy}
+        />
+      )}
       <header className="game-header">
         <h1>Battleship</h1>
         {gameState && (

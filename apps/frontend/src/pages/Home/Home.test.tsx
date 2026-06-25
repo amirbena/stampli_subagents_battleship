@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { Home } from './Home';
 import type { Player } from '../../types/game';
@@ -7,13 +8,29 @@ import type { Player } from '../../types/game';
 // Mock the API layer — this is the UI agent's boundary (no HTTP in component tests).
 vi.mock('../../api/gameApi', () => ({
   createGame: vi.fn().mockResolvedValue({ gameId: 'ABC123', playerId: 'p1', status: 'PLACING_SHIPS' }),
-  joinGame: vi.fn().mockResolvedValue({ gameId: 'ABC123', playerId: 'p2', status: 'PLACING_SHIPS' }),
+  stopGame: vi.fn().mockResolvedValue(undefined),
+  restoreGameByCode: vi.fn(),
+  GameNotFoundError: class GameNotFoundError extends Error {},
 }));
 
+const navigateMock = vi.fn();
 vi.mock('react-router-dom', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router-dom')>();
-  return { ...actual, useNavigate: () => vi.fn() };
+  return { ...actual, useNavigate: () => navigateMock };
 });
+
+// Restore-by-code hook (data layer) is mocked — the UI agent owns nav/pointer wiring only.
+const restoreSubmitMock = vi.fn();
+const restoreState = {
+  submit: restoreSubmitMock,
+  data: null as unknown,
+  isLoading: false,
+  notFound: false,
+  error: null as string | null,
+};
+vi.mock('../../hooks/useRestoreGame', () => ({
+  useRestoreGame: vi.fn(() => restoreState),
+}));
 
 // ---- usePlayerIdentity mock ----
 type IdentityStatus = 'loading' | 'identified' | 'needs-name';
@@ -46,57 +63,66 @@ function renderHome() {
 
 beforeEach(() => {
   sessionStorage.clear();
+  localStorage.clear();
+  navigateMock.mockClear();
+  restoreSubmitMock.mockReset();
+  restoreState.notFound = false;
+  restoreState.error = null;
+  restoreState.isLoading = false;
   vi.mocked(usePlayerIdentity).mockReturnValue({ ...defaultReturn });
 });
 
 describe('Home — renders required elements', () => {
-  it('renders Create Game button', () => {
-    renderHome();
-    expect(screen.getByRole('button', { name: /create game/i })).toBeInTheDocument();
-  });
-
   it('renders Play vs Computer button', () => {
     renderHome();
     expect(screen.getByRole('button', { name: /play vs computer/i })).toBeInTheDocument();
   });
 
-  it('renders Join Game submit button', () => {
+  it('renders the Restore Game submit button and code input (AC-7)', () => {
     renderHome();
-    expect(screen.getByRole('button', { name: /join game/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /restore game/i })).toBeInTheDocument();
+    expect(screen.getByLabelText('Game code')).toBeInTheDocument();
+  });
+
+  it('renders the disabled Coming Soon multiplayer button (AC-14)', () => {
+    renderHome();
+    const btn = screen.getByRole('button', { name: /play against another user/i });
+    expect(btn).toBeDisabled();
+    expect(btn).toHaveTextContent(/coming soon/i);
   });
 });
 
 describe('Home — identity gate (AC-01, AC-15)', () => {
-  it('disables Create Game, Play vs Computer, and Join Game buttons when status is needs-name', () => {
+  it('disables Play vs Computer when status is needs-name', () => {
     mockIdentity({ status: 'needs-name' });
     renderHome();
-
-    expect(screen.getByRole('button', { name: /create game/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /play vs computer/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /join game/i })).toBeDisabled();
   });
 
-  it('enables game-start buttons when status is identified (AC-01)', () => {
+  it('enables Play vs Computer when status is identified (AC-01)', () => {
     mockIdentity({
       status: 'identified',
       player: { playerId: 'uuid-123', displayName: 'Alex', createdAt: '2026-01-01T00:00:00Z' },
     });
     renderHome();
-
-    expect(screen.getByRole('button', { name: /create game/i })).not.toBeDisabled();
     expect(screen.getByRole('button', { name: /play vs computer/i })).not.toBeDisabled();
-    expect(screen.getByRole('button', { name: /join game/i })).not.toBeDisabled();
   });
 
-  it('enables game-start buttons optimistically when status is loading (UX Expectations)', () => {
+  it('enables Play vs Computer optimistically when status is loading (UX Expectations)', () => {
     // While background GET /players runs, buttons stay enabled — only downgrade to
     // disabled if the backend returns 404 (needs-name). Loading is not a blocking state.
     mockIdentity({ status: 'loading' });
     renderHome();
-
-    expect(screen.getByRole('button', { name: /create game/i })).not.toBeDisabled();
     expect(screen.getByRole('button', { name: /play vs computer/i })).not.toBeDisabled();
-    expect(screen.getByRole('button', { name: /join game/i })).not.toBeDisabled();
+  });
+
+  it('keeps the multiplayer button disabled regardless of identity (AC-14)', () => {
+    mockIdentity({
+      status: 'identified',
+      player: { playerId: 'uuid-123', displayName: 'Alex', createdAt: '2026-01-01T00:00:00Z' },
+    });
+    renderHome();
+    expect(screen.getByRole('button', { name: /play against another user/i })).toBeDisabled();
   });
 });
 
@@ -166,5 +192,98 @@ describe('Home — inline validation errors passed through PlayerNameEntry (AC-0
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Display name may only contain letters, numbers, spaces, hyphens, and underscores',
     );
+  });
+});
+
+describe('Home — restore-by-code (AC-7/8/9/10)', () => {
+  function identified() {
+    mockIdentity({
+      status: 'identified',
+      player: { playerId: 'uuid-123', displayName: 'Alex', createdAt: '2026-01-01T00:00:00Z' },
+    });
+  }
+
+  it('empty submit shows a gentle validation hint and does not navigate (empty-code edge case)', async () => {
+    identified();
+    renderHome();
+    await userEvent.click(screen.getByRole('button', { name: /restore game/i }));
+    expect(screen.getByText(/please enter a game code/i)).toBeInTheDocument();
+    expect(restoreSubmitMock).not.toHaveBeenCalled();
+    expect(navigateMock).not.toHaveBeenCalled();
+  });
+
+  it('trims whitespace before calling submit (AC-8 whitespace edge case)', async () => {
+    identified();
+    restoreSubmitMock.mockResolvedValue({
+      gameId: 'ABC123', playerId: 'p1', gameMode: 'COMPUTER', status: 'IN_PROGRESS',
+    });
+    renderHome();
+    // Input is capped at 6 chars; type surrounding spaces that survive the cap so trimming
+    // is exercised (' ab12 ' → 'ab12').
+    await userEvent.type(screen.getByLabelText('Game code'), ' ab12 ');
+    await userEvent.click(screen.getByRole('button', { name: /restore game/i }));
+    expect(restoreSubmitMock).toHaveBeenCalledWith('ab12');
+  });
+
+  it('valid IN_PROGRESS code navigates to /game (AC-8)', async () => {
+    identified();
+    restoreSubmitMock.mockResolvedValue({
+      gameId: 'ABC123', playerId: 'p1', gameMode: 'COMPUTER', status: 'IN_PROGRESS',
+    });
+    renderHome();
+    await userEvent.type(screen.getByLabelText('Game code'), 'ABC123');
+    await userEvent.click(screen.getByRole('button', { name: /restore game/i }));
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/game'));
+  });
+
+  it('valid PLACING_SHIPS code navigates to /lobby (AC-8)', async () => {
+    identified();
+    restoreSubmitMock.mockResolvedValue({
+      gameId: 'ABC123', playerId: 'p1', gameMode: 'COMPUTER', status: 'PLACING_SHIPS',
+    });
+    renderHome();
+    await userEvent.type(screen.getByLabelText('Game code'), 'ABC123');
+    await userEvent.click(screen.getByRole('button', { name: /restore game/i }));
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/lobby'));
+  });
+
+  it('not-found code shows the inline message and stays on Home — no nav (AC-9/AC-10)', async () => {
+    identified();
+    // useRestoreGame resolves null and sets notFound on a 404 (does not throw).
+    restoreSubmitMock.mockResolvedValue(null);
+    restoreState.notFound = true;
+    renderHome();
+    await userEvent.type(screen.getByLabelText('Game code'), 'NOPE12');
+    await userEvent.click(screen.getByRole('button', { name: /restore game/i }));
+    expect(await screen.findByText(/game not found or no longer available/i)).toBeInTheDocument();
+    expect(navigateMock).not.toHaveBeenCalled();
+  });
+
+  it('transient error message renders inline and stays on Home', async () => {
+    identified();
+    restoreSubmitMock.mockRejectedValue(new Error('Network down'));
+    restoreState.error = 'Network down';
+    renderHome();
+    await userEvent.type(screen.getByLabelText('Game code'), 'ABC123');
+    await userEvent.click(screen.getByRole('button', { name: /restore game/i }));
+    expect(await screen.findByText(/network down/i)).toBeInTheDocument();
+    expect(navigateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('Home — code popup on computer-game start (AC-5/AC-6)', () => {
+  it('shows the code popup after creating a computer game, then proceeds on acknowledge', async () => {
+    mockIdentity({
+      status: 'identified',
+      player: { playerId: 'uuid-123', displayName: 'Alex', createdAt: '2026-01-01T00:00:00Z' },
+    });
+    renderHome();
+    await userEvent.click(screen.getByRole('button', { name: /play vs computer/i }));
+    // Popup appears with the code (createGame mock returns gameId 'ABC123').
+    expect(await screen.findByText(/save your game code/i)).toBeInTheDocument();
+    expect(screen.getByText('ABC123')).toBeInTheDocument();
+    // Acknowledging proceeds into the game (computer game starts in the lobby).
+    await userEvent.click(screen.getByRole('button', { name: /got it, start playing/i }));
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/lobby'));
   });
 });

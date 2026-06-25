@@ -3,6 +3,7 @@ package com.stampli.battleship.service;
 import com.stampli.battleship.domain.*;
 import com.stampli.battleship.dto.GameStateResponse;
 import com.stampli.battleship.dto.PlaceShipResponse;
+import com.stampli.battleship.dto.RestoreGameResponse;
 import com.stampli.battleship.repository.GameRepository;
 import com.stampli.battleship.repository.MoveRepository;
 import com.stampli.battleship.repository.PlayerRepository;
@@ -253,5 +254,49 @@ class GameServiceTest {
 
         // Own-board hits flow via ships[].hits, so the flat myBoard.hits array is always empty
         assertThat(state.getMyBoard().getHits()).isEmpty();
+    }
+
+    // -------------------------------------------------------------------------
+    // restoreGame — restore-by-code (COMPUTER games only)
+    // -------------------------------------------------------------------------
+
+    @Test
+    void restoreGame_returnsPlayerAAndComputerModeForExistingComputerGame() {
+        Player human = new Player(PLAYER_A_ID, GAME_ID);
+        Game computerGame = new Game(GAME_ID, human, GameMode.COMPUTER);
+        computerGame.addPlayerB(new Player("COMPUTER-xyz", GAME_ID));
+        computerGame.startGame();
+        when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(computerGame));
+
+        RestoreGameResponse response = gameService.restoreGame(GAME_ID);
+
+        assertThat(response.getGameId()).isEqualTo(GAME_ID);
+        assertThat(response.getPlayerId()).isEqualTo(PLAYER_A_ID);
+        assertThat(response.getGameMode()).isEqualTo("COMPUTER");
+        assertThat(response.getStatus()).isEqualTo("IN_PROGRESS");
+    }
+
+    @Test
+    void restoreGame_throws404ForUnknownCode() {
+        when(gameRepository.findById("NOPE99")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> gameService.restoreGame("NOPE99"))
+                .isInstanceOf(GameException.class)
+                .extracting(e -> ((GameException) e).getErrorCode())
+                .isEqualTo("GAME_NOT_FOUND");
+    }
+
+    @Test
+    void restoreGame_throws404ForExistingHumanGame() {
+        // A HUMAN game must be reported as plain not-found — restore-by-code is computer-only
+        // and we do not disclose the existence/type of human games.
+        Player human = new Player(PLAYER_A_ID, GAME_ID);
+        Game humanGame = new Game(GAME_ID, human, GameMode.HUMAN);
+        when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(humanGame));
+
+        assertThatThrownBy(() -> gameService.restoreGame(GAME_ID))
+                .isInstanceOf(GameException.class)
+                .extracting(e -> ((GameException) e).getErrorCode())
+                .isEqualTo("GAME_NOT_FOUND");
     }
 }

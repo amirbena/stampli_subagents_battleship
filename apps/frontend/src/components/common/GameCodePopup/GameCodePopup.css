@@ -1,0 +1,16 @@
+/* Start-of-game code popup. Reuses the .resume-modal overlay/dialog shell; only the
+   code block and hint need extra layout. Import the shared shell so the overlay/dialog
+   classes are present even when ResumeGameModal is not also mounted. */
+@import '../ResumeGameModal/ResumeGameModal.css';
+
+.game-code-popup-hint {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.game-code-popup-code {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}

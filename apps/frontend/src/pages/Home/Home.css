@@ -49,3 +49,7 @@
   text-align: center;
   font-weight: 700;
 }
+
+/* Inline restore-by-code feedback shown directly under the code input (AC-9). */
+.restore-hint { color: var(--color-text-muted); font-size: 0.9rem; text-align: center; }
+.restore-error { color: var(--color-danger, #e5484d); font-size: 0.9rem; text-align: center; }

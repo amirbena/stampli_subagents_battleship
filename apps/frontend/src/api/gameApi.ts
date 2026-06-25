@@ -8,6 +8,7 @@ import type {
   FireShotResponse,
   GameStateResponse,
   PauseResumeResponse,
+  RestoreGameResponse,
   ShipType,
   Orientation,
   GameMode,
@@ -409,6 +410,40 @@ export async function stopGame(gameId: string, playerId: string): Promise<void> 
     // treated as a successful Stop (idempotent). 403/5xx/network still reject.
     validateStatus: (status) => (status >= 200 && status < 300) || status === 404,
   });
+}
+
+/**
+ * Restores a COMPUTER game by its room code so a fresh browser (no stored playerId)
+ * can rehydrate its session pointer.
+ * GET /games/{code}/restore
+ *
+ * Resolves the human player (playerA) for an existing COMPUTER game. Restore returns
+ * NO board data — the caller writes the {gameId, playerId, gameMode} pointer and then
+ * re-polls the existing GET /games/{gameId}/state to render the saved board (the single
+ * hidden-data-safe path). A missing, released, or non-COMPUTER code returns a uniform
+ * 404 GAME_NOT_FOUND, mapped here to the typed GameNotFoundError so the UI can show the
+ * friendly inline "not found or no longer available" message (AC-9). Other 4xx/5xx and
+ * network errors surface as a plain Error via the global response interceptor.
+ *
+ * The code is encoded as a single path segment defensively — trimming is the UI's job.
+ *
+ * @param code the room code entered by the user (already trimmed by the UI)
+ * @returns { gameId, playerId, gameMode, status } — no board data
+ * @throws GameNotFoundError when the backend returns 404 GAME_NOT_FOUND
+ */
+export async function restoreGameByCode(code: string): Promise<RestoreGameResponse> {
+  const response = await api.get<RestoreGameResponse>(
+    `/games/${encodeURIComponent(code)}/restore`,
+    {
+      // Accept 404 as a resolved response so we can throw the typed sentinel below;
+      // 5xx/network still reject and surface as a plain Error via the interceptor.
+      validateStatus: (status) => status === 200 || status === 404,
+    },
+  );
+  if (response.status === 404) {
+    throw new GameNotFoundError(code);
+  }
+  return response.data;
 }
 
 export type { PlaceShipRequest, Orientation };
