@@ -1,75 +1,45 @@
 # Gen4 Battleship
 
-A multiplayer Battleship game built using a Gen4 multi-agent development workflow.
+A multiplayer Battleship game built with a Gen4 multi-agent development workflow.
+Requirements flow through an autonomous agent pipeline (planning → implementation → testing → review → PR) with no manual steps between intake and merge.
 
-The purpose of this project is not only to deliver a working game, but to demonstrate how a multi-agent software factory converts requirements into production-like software through planning, architecture, implementation, testing, security review, code review, and PR creation.
+- **Frontend:** React + TypeScript + Vite
+- **Backend:** Java 17 + Spring Boot 3
+- **Tests:** JUnit 5 + Vitest + Playwright
+- **Storage:** In-memory by default (PostgreSQL-ready via repository interface)
+
+> Pipeline details: [ARCHITECTURE.md](ARCHITECTURE.md) · Agent policies: [CLAUDE.md](CLAUDE.md)
+
+---
 
 ## Prerequisites
 
-Everything below must be installed and verified before running `/requirement`. The pipeline will fail silently if any of these are missing.
+| Tool | Min version | Check |
+|------|-------------|-------|
+| Java | 17 | `java -version` |
+| Node.js | 18 | `node -v` |
+| npm | 9 | `npm -v` |
+| Docker | 20 | `docker -v` (optional — only for `docker compose`) |
+| Claude Code CLI | — | `claude -v` |
+| GitHub CLI | — | `gh --version` |
 
-### Project Bootstrap (one-time, before `/requirement`)
-
-These steps are performed **once** when you first clone the repository. They are not run automatically by any script or agent.
-
-#### 1a. Frontend — install Node dependencies
-
-**macOS / Linux**
+**First-time setup:**
 ```bash
-cd apps/frontend
-npm install
+# Backend — make Maven wrapper executable (macOS/Linux, once after clone)
+chmod +x apps/backend/mvnw
+
+# Frontend — install dependencies (once after clone or package.json change)
+cd apps/frontend && npm install && cd ../..
+
+# Backend — resolve Maven dependencies
+cd apps/backend && ./mvnw clean install && cd ../..
+
+# Playwright browsers (for E2E tests)
+cd apps/frontend && npx playwright install --with-deps && cd ../..
 ```
 
-**Windows (PowerShell or cmd)**
-```bash
-cd apps\frontend
-npm install
-```
-
-> `npm install` is only required the first time (or after a `package.json` change).
-> Subsequent runs via `npm run dev` or the fast-local scripts reuse the existing `node_modules`.
-
-#### 1b. Backend — install Maven dependencies
-
-**macOS / Linux**
-```bash
-cd apps/backend
-
-# Make the Maven Wrapper executable (required once after cloning on macOS/Linux)
-chmod +x mvnw
-
-# Then run the install (choose one):
-./mvnw clean install      # Maven Wrapper — no global Maven needed
-# mvn clean install       # alternative if you have Maven installed globally
-```
-
-**Windows (PowerShell or cmd)**
-```bash
-cd apps\backend
-mvnw.cmd clean install
-```
-
-> The Maven install resolves all dependencies into your local `.m2` cache and compiles
-> the project. This prevents slow cold-start downloads when agents later call the wrapper
-> to run tests or start the backend.
->
-> **macOS/Linux note:** After cloning, `mvnw` may not be executable. Run `chmod +x mvnw`
-> once inside `apps/backend/` before using `./mvnw`. This is not needed on Windows
-> (`mvnw.cmd` has no permission bit).
-
-#### 2. Create `.claude/settings.json`
-
-This file does **not** exist in the repository (only a minimal `.claude/settings.local.json` is
-checked in). You must create it manually before running `/requirement`.
-
-Placing this file pre-approves the routine tool permissions the agents use, so the autonomous
-pipeline does **not** prompt for confirmation on every file read, bash command, or git operation.
-Without it, each agent invocation will pause and wait for your approval, breaking the hands-free
-flow.
-
-Create `.claude/settings.json` at the project root with **exactly** this content:
-
-> Optionally add `"theme": "light"` (or `"dark"` or `"system"`) as a top-level key in the object if you want to pin Claude Code's colour theme. It is intentionally omitted here so each developer keeps their own preference. If omitted, Claude Code uses its default.
+**Claude Code settings** — create `.claude/settings.json` at the project root before running `/requirement`.
+Without it, agents pause for confirmation on every file read, shell command, and git operation.
 
 ```json
 {
@@ -78,481 +48,208 @@ Create `.claude/settings.json` at the project root with **exactly** this content
   },
   "permissions": {
     "allow": [
-      "Read",
-      "Glob",
-      "Grep",
-      "Edit",
-      "Write",
-      "Agent",
-      "Skill(*)",
-      "Skill(claude-api)",
-      "Skill(claude-api:*)",
-
+      "Read", "Glob", "Grep", "Edit", "Write", "Agent",
+      "Skill(*)", "Skill(claude-api)", "Skill(claude-api:*)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
-
-      "Bash(git status*)",
-      "Bash(git log*)",
-      "Bash(git diff*)",
-      "Bash(git show*)",
-      "Bash(git fetch*)",
-      "Bash(git pull*)",
-      "Bash(git push*)",
-      "Bash(git add*)",
-      "Bash(git commit*)",
-      "Bash(git checkout*)",
-      "Bash(git switch*)",
-      "Bash(git branch*)",
-      "Bash(git stash*)",
-      "Bash(git rebase*)",
-      "Bash(git merge*)",
-      "Bash(git tag*)",
-      "Bash(git rev-parse*)",
-      "Bash(git config*)",
-      "Bash(git remote*)",
-      "Bash(git reset*)",
-      "Bash(git restore*)",
-      "Bash(git ls-files*)",
-      "Bash(git grep*)",
-      "Bash(git blame*)",
-
-      "Bash(npm*)",
-      "Bash(npx*)",
-      "Bash(node*)",
-
-      "Bash(./mvnw*)",
-      "Bash(mvn*)",
-
-      "Bash(ls*)",
-      "Bash(cat*)",
-      "Bash(echo*)",
-      "Bash(pwd*)",
-      "Bash(find*)",
-      "Bash(grep*)",
-      "Bash(xargs*)",
-      "Bash(which*)",
-      "Bash(jq*)",
-      "Bash(test*)",
-      "Bash(true)",
-      "Bash(false)",
-      "Bash(chmod*)",
-      "Bash(mkdir*)",
-
-      "Bash(curl*)",
-
-      "Bash(gh pr*)",
-      "Bash(gh --version*)",
-      "Bash(gh auth*)",
-      "Bash(gh repo*)",
-      "Bash(gh issue*)",
-      "Bash(gh api*)",
-
-      "mcp__visualize__read_me",
-      "mcp__visualize__show_widget"
+      "Bash(git status*)", "Bash(git log*)", "Bash(git diff*)",
+      "Bash(git show*)", "Bash(git fetch*)", "Bash(git pull*)",
+      "Bash(git push*)", "Bash(git add*)", "Bash(git commit*)",
+      "Bash(git checkout*)", "Bash(git switch*)", "Bash(git branch*)",
+      "Bash(git stash*)", "Bash(git rebase*)", "Bash(git merge*)",
+      "Bash(git tag*)", "Bash(git rev-parse*)", "Bash(git config*)",
+      "Bash(git remote*)", "Bash(git reset*)", "Bash(git restore*)",
+      "Bash(git ls-files*)", "Bash(git grep*)", "Bash(git blame*)",
+      "Bash(npm*)", "Bash(npx*)", "Bash(node*)",
+      "Bash(./mvnw*)", "Bash(mvn*)",
+      "Bash(ls*)", "Bash(cat*)", "Bash(echo*)", "Bash(pwd*)",
+      "Bash(find*)", "Bash(grep*)", "Bash(xargs*)", "Bash(which*)",
+      "Bash(jq*)", "Bash(test*)", "Bash(true)", "Bash(false)",
+      "Bash(chmod*)", "Bash(mkdir*)", "Bash(curl*)",
+      "Bash(gh pr*)", "Bash(gh --version*)", "Bash(gh auth*)",
+      "Bash(gh repo*)", "Bash(gh issue*)", "Bash(gh api*)",
+      "mcp__visualize__read_me", "mcp__visualize__show_widget"
     ],
     "ask": [
-      "Bash(git push --force*)",
-      "Bash(git push -f*)",
-      "Bash(git reset --hard*)",
-      "Bash(git reset -n*)",
-      "Bash(git branch -D*)",
-      "Bash(git clean*)",
-      "Bash(rm *)",
-      "Bash(rm -r*)",
-      "Bash(rm -f*)",
-      "Bash(del *)"
+      "Bash(git push --force*)", "Bash(git push -f*)",
+      "Bash(git reset --hard*)", "Bash(git branch -D*)",
+      "Bash(git clean*)", "Bash(rm *)", "Bash(rm -r*)",
+      "Bash(rm -f*)", "Bash(del *)"
     ]
   }
 }
 ```
 
-> **Destructive operations remain in the `ask` list by design.** Force-push
-> (`git push --force`, `git push -f`), hard reset (`git reset --hard`), branch deletion
-> (`git branch -D`), `git clean`, and `rm …` will **still prompt for confirmation** before
-> running. Pre-approval covers routine read/write/git/build tools only — not irreversible
-> actions.
+> Destructive operations (`git push --force`, `git reset --hard`, `rm`) stay in `ask` and always prompt.
 
-### Runtime tools
-
-| Tool | Min version | Verify | Install |
-|------|-------------|--------|---------|
-| Java | 17 | `java -version` | [adoptium.net](https://adoptium.net) |
-| Maven wrapper | — | `./mvnw -version` (in `apps/backend/`) | bundled — no install needed |
-| Node.js | 18 (20 or 22 recommended for E2E) | `node -v` | [nodejs.org](https://nodejs.org) |
-| npm | 9 | `npm -v` | bundled with Node.js |
-| Docker | 20 | `docker -v` | [docker.com](https://docker.com) — optional, only needed for `docker compose up` |
-
-### Claude Code agents
-
-| Tool | Purpose | Verify | Install |
-|------|---------|--------|---------|
-| Claude Code CLI | Runs all skills and agents | `claude -v` | `npm install -g @anthropic-ai/claude-code` |
-| Anthropic API key | Powers every agent | `echo $ANTHROPIC_API_KEY` | [console.anthropic.com](https://console.anthropic.com) |
-
-Set your key:
+**API key:**
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-### GitHub CLI (required for the release phase)
-
+**GitHub CLI auth** (required for the release phase):
 ```bash
-# Verify
-gh --version
-
-# Install (Windows)
-winget install --id GitHub.cli
-
-# Install (macOS)
-brew install gh
-
-# Install (Linux)
-sudo apt install gh
-
-# Authenticate
 gh auth login
 gh auth status   # must show: Logged in
 ```
 
-The release-pr-agent will not run if `gh auth status` fails.
-
-### Playwright browsers (required for E2E tests)
-
-```bash
-cd apps/frontend
-npx playwright install --with-deps
-```
-
-### Quick preflight check
-
-Run this before starting the factory to confirm everything is in place:
-
-```bash
-java -version && \
-node -v && \
-npm -v && \
-gh auth status && \
-claude -v && \
-echo "All checks passed"
-```
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React + TypeScript + Vite |
-| Backend | Java 17 + Spring Boot 3 |
-| Unit Tests | JUnit 5 + Mockito (backend) · Vitest + React Testing Library (frontend) |
-| E2E Tests | Playwright |
-| Storage | In-memory (Redis-ready via repository interface) |
-| Release | GitHub CLI (`gh`) |
-
-## How To Run
-
-There are two valid, interchangeable ways to run the full app locally:
-
-- **Fast local run — scripts** (recommended for development): Postgres + Redis run as containers; the backend and frontend run **natively** with live reload. No heavy image rebuild, so the dev inner loop is much faster than `docker compose up --build` (~1.5 min).
-- **Docker Compose**: the full stack (frontend, backend, Postgres, Redis) runs as containers. Closest to the deployed shape.
-
-Pick whichever you prefer — both are supported and documented below.
-
 ---
 
-### Fast local run — scripts (recommended for dev)
+## Backend Environment Setup
 
-One command per OS brings up **only** Postgres + Redis as containers, then runs the Spring Boot backend and the Vite frontend **natively** in real time. App images are **not** built.
+Copy the example file before running locally or via Docker Compose:
 
-```bash
-# macOS / Linux
-./.run/run.sh
-
-# Windows (PowerShell)
-.\.run\run.ps1
-
-# Windows (cmd / double-click) — shim that calls run.ps1
-.run\run.cmd
-```
-
-**What the script does:**
-1. **Preflight** — verifies Docker is installed *and the daemon is reachable*, Java 17+, and Node 18+ / npm. On any missing prerequisite it prints a clear message naming the tool and exits non-zero before starting anything.
-2. Starts **only** the `postgres` and `redis` containers (`docker compose --env-file apps/backend/.env up -d postgres redis`) and waits until both report **healthy**.
-3. Runs the backend natively via the Maven wrapper (`./mvnw spring-boot:run`) with the `postgres` Spring profile, its datasource pointed at `localhost:5432`, Redis at `localhost:6379`, and `CORS_ALLOWED_ORIGIN=http://localhost:3001`. DB creds are read from `apps/backend/.env` (falling back to the demo defaults `battleship` / `battleship` / `battleship_dev`). Game state is held in-memory (`InMemoryGameRepository` is the only repository implementation, active under every profile); the `postgres` profile simply provides the Postgres/Redis connections the backend requires at startup.
-4. **Waits for the backend to be ready** — polls port 8080 every 3 s (up to 120 s) before starting the frontend. Spring Boot typically takes ~30 s on first run; polling avoids a hard-coded sleep and ensures the frontend never starts against an unresponsive API.
-5. Runs the frontend natively via `npm run dev` (Vite HMR) on port 3001 with `VITE_API_BASE_URL=http://localhost:8080`. Runs `npm install` first only if `node_modules` is missing.
-6. **Streams logs** from both processes to the terminal in real time (the bash script prefixes them `[backend]` / `[frontend]`).
-
-| Service | URL |
-|---------|-----|
-| Frontend (Vite dev) | http://localhost:3001 |
-| Backend API | http://localhost:8080/api/v1 |
-| PostgreSQL | localhost:5432 |
-| Redis | localhost:6379 |
-
-**Preflight requirements:** Docker (daemon running), Java 17+, Node 18+ and npm. The fast path still needs Docker — it runs Postgres + Redis as containers.
-
-**How to stop:** press **Ctrl+C**. The script cleanly terminates the native backend and frontend (no orphaned processes on 8080 / 3001), then asks **`Also stop the Postgres + Redis containers? [y/N]`**:
-
-- Answer **`y`** → the containers are torn down with `docker compose --env-file apps/backend/.env down` (data volumes are preserved).
-- Press **Enter** / answer anything else (the default) → the **Postgres + Redis containers are left running** for a faster next boot.
-
-When the script runs non-interactively (CI, piped output, no terminal), the prompt is skipped and the containers are left running. You can always stop them manually with:
-
-```bash
-docker compose --env-file apps/backend/.env down
-```
-
-> First-time setup: if `apps/backend/.env` does not exist, copy it first
-> (`cp apps/backend/.env.example apps/backend/.env`). The script falls back to demo
-> defaults if it's missing, but creating it keeps both run paths consistent.
-
----
-
-### Docker (full stack)
-
-One command starts the full stack — frontend, backend, PostgreSQL, and Redis.
-
-**First time setup:**
 ```bash
 cp apps/backend/.env.example apps/backend/.env
 ```
 
-**Foreground** (logs stream to terminal):
-```bash
-docker compose --env-file apps/backend/.env up --build
+`apps/backend/.env` is gitignored and must never be committed. Contents of `.env.example`:
+
+```env
+# Backend — PostgreSQL credentials
+# Copy this file to .env and fill in real values before running docker compose.
+# Never commit .env to version control.
+#
+# NOTE: We know this is unsecured locally.
+# In real production the pipeline (CI/CD) injects the .env / properties.yaml
+# from a secret manager (e.g. Vault, AWS Secrets Manager, GitHub Actions secrets)
+# and writes it into the container at deploy time — credentials never touch the repo.
+
+POSTGRES_DB=battleship
+POSTGRES_USER=battleship
+POSTGRES_PASSWORD=battleship_dev
+
+# Spring profile — controls which repository implementation the backend uses
+# Options: default (in-memory, no DB needed), postgres, redis
+SPRING_PROFILES_ACTIVE=default
 ```
 
-**Background** (returns to prompt immediately):
+> `SPRING_PROFILES_ACTIVE=default` uses in-memory storage — no database needed for local dev.
+
+---
+
+## Quick Start
+
+**macOS / Linux** — runs Postgres + Redis as containers, backend and frontend natively:
 ```bash
-docker compose --env-file apps/backend/.env up --build -d
+chmod +x ./.run/run.sh
+./.run/run.sh
+```
+
+**Windows (PowerShell):**
+```powershell
+.\.run\run.ps1
+```
+
+**Windows (cmd):**
+```cmd
+.run\run.cmd
 ```
 
 | Service | URL |
 |---------|-----|
-| Frontend (docker) | http://localhost:3000 |
+| Frontend | http://localhost:3001 |
+| Backend API | http://localhost:8080/api/v1 |
+
+Stop with **Ctrl+C**. The script prompts whether to also stop the Postgres/Redis containers.
+
+---
+
+## Docker Compose (full stack)
+
+```bash
+cp apps/backend/.env.example apps/backend/.env   # first time only
+docker compose --env-file apps/backend/.env up --build
+```
+
+| Service | URL |
+|---------|-----|
+| Frontend (built image) | http://localhost:3000 |
 | Frontend (dev server) | http://localhost:3001 |
 | Backend API | http://localhost:8080/api/v1 |
-| PostgreSQL | localhost:5432 |
-| Redis | localhost:6379 |
 
-View logs when running in background:
 ```bash
+# Background
+docker compose --env-file apps/backend/.env up --build -d
+
+# Logs
 docker compose logs -f
-docker compose logs -f backend   # backend only
-```
 
-Stop everything:
-```bash
+# Stop
 docker compose --env-file apps/backend/.env down
-```
 
-Stop and wipe all data volumes:
-```bash
+# Stop and wipe data volumes
 docker compose --env-file apps/backend/.env down -v
-```
-
-Rebuild a single service after a code change:
-```bash
-docker compose --env-file apps/backend/.env up --build backend -d
-docker compose --env-file apps/backend/.env up --build frontend -d
-```
-
-> The backend starts with `SPRING_PROFILES_ACTIVE=default` (in-memory storage).
-> PostgreSQL and Redis are running and wired — switch profiles in `apps/backend/.env` to activate them.
-
-**Backend only** (from `apps/backend/`, foreground or background):
-```bash
-cd apps/backend
-docker compose up --build          # foreground
-docker compose up --build -d       # background
 ```
 
 ---
 
-### Without Docker
+## Run Without Docker
 
-**Backend**
+**Backend:**
 ```bash
 cd apps/backend
 ./mvnw spring-boot:run
-# API available at http://localhost:8080/api/v1
+# http://localhost:8080/api/v1
 ```
 
-**Frontend**
+**Frontend:**
 ```bash
 cd apps/frontend
-npm install
 npm run dev
-# UI available at http://localhost:3001
+# http://localhost:3001
 ```
 
-> Port 3001 is intentional — docker-compose uses 3000 for the built frontend image so the dev server gets its own port.
+---
 
-**Backend unit tests**
+## Testing
+
+**Backend unit tests:**
 ```bash
-cd apps/backend
-./mvnw test
+cd apps/backend && ./mvnw test
 ```
 
-**Frontend unit + integration tests** (Vitest + React Testing Library — no server needed)
-```bash
-cd apps/frontend
-npm test          # one-shot — includes *.integration.test.tsx
-npm run test:watch  # interactive watch mode
-```
-
-**Playwright E2E tests**
+**Frontend unit + integration tests:**
 ```bash
 cd apps/frontend
-
-# Against dev server (auto-starts npm run dev on port 3001):
-npm run test:e2e
-
-# Against docker-compose (must be running on port 3000):
-E2E_BASE_URL=http://localhost:3000 npm run test:e2e
+npm test              # one-shot
+npm run test:watch    # watch mode
 ```
+
+**Playwright E2E:**
+```bash
+cd apps/frontend
+npm run test:e2e                                   # against dev server (auto-starts)
+E2E_BASE_URL=http://localhost:3000 npm run test:e2e  # against docker-compose
+```
+
+---
 
 ## Using the Factory
 
-### Start here — describe what you want to build
-
-```
-/requirement
-```
-
-The skill captures your requirement and hands off autonomously. If you attach screenshots or files, it reads them first and writes a `## Visual Analysis` section into `requirements.md` — concrete defects, expected behavior, and inferred acceptance criteria derived from visual evidence. This feeds every downstream agent and enables the fast-path to skip Product Agent for pure visual fixes.
-
-You can also pass your idea inline:
-
+Describe what you want to build:
 ```
 /requirement A multiplayer Battleship game where two players take turns firing at each other's hidden fleet
 ```
 
-### What happens after you confirm
+The pipeline runs autonomously: requirement intake → product spec → architecture → implementation → tests → security + code review → PR. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full phase breakdown and agent roles.
 
-```
-Phase 0.5 fast-path check            Team Lead reads requirements.md first.
-                                      Skips Product Agent when change is:
-                                      (1) pure infra, (2) pure internal refactor,
-                                      (3) bug fix restoring documented behavior, OR
-                                      (4) visual fix — Visual Analysis present with
-                                      concrete defects + inferred criteria, UI-only,
-                                      no UX ambiguity, no backend/API change.
-                                      Writes inline acceptance checklist and continues.
+---
 
-                                      UX Interaction Risk Check (runs when fast-path
-                                      would otherwise skip Product entirely):
-                                      If the requirement involves user actions whose
-                                      result must feel immediate — shot feedback,
-                                      placement, turn transition, loading/stale state,
-                                      optimistic UI — Product Agent runs in Light Mode
-                                      instead of being skipped. Light Mode writes only
-                                      UX acceptance criteria and returns control to
-                                      Team Lead; no routing or scope decisions.
+## Troubleshooting
 
-Phase 1   product-agent (conditional) → reports/runs/<id>/product-spec.md
-                                        Full:  new feature, API change, multiplayer flow
-                                        Light: UX interaction clarification only
-                                        Skip:  fast-path with no UX interaction risk
+| Problem | Fix |
+|---------|-----|
+| `mvnw: Permission denied` | `chmod +x apps/backend/mvnw` |
+| Backend won't start — port 8080 in use | `lsof -i :8080` then kill the process |
+| Frontend won't start — port 3001 in use | `lsof -i :3001` then kill the process |
+| Docker containers unhealthy | `docker compose logs postgres` — check DB creds in `.env` |
+| Agents pause on every tool call | Create `.claude/settings.json` with the `permissions` block (see [CLAUDE.md](CLAUDE.md)) |
+| `gh` not authenticated | `gh auth login` then `gh auth status` |
+| Playwright browsers missing | `cd apps/frontend && npx playwright install --with-deps` |
 
-Phase 2   architect-agent             → reports/runs/<id>/architecture.md  (only if contract changed)
-
-Phase 3   ── selected agents may run in parallel when safe ─────────────────────────┐
-          java-backend-agent    → apps/backend/src/main/java/                        │
-          frontend-ui-agent     → apps/frontend/src/components/, pages/, utils/, CSS │ Team Lead
-          frontend-api-agent    → apps/frontend/src/api/, hooks/, types/             │ decides scope
-          ─────────────────────────────────────────────────────────────────────────────┘
-          frontend-ui-agent is the default frontend path.
-          frontend-api-agent is optional: alone for API/hook/type-only changes,
-          or alongside ui-agent only when workstreams are clearly independent.
-          Team Lead pre-writes types/game.ts before spawning both frontend agents.
-
-Phase 4a — UNIT + INTEGRATION TESTS (parallel, cheapest first)
-          java-backend-agent          → ./mvnw test                        (if backend touched)
-
-          Single-agent frontend path (default):
-          frontend-ui-agent           → npm run test + npm run build       (agent owns full gate)
-                                        agent selects its own tests: unit for isolated DOM/
-                                        state/class issues; integration for seam/timing/
-                                        wiring/async-ordering risks; Playwright smoke for
-                                        real-browser layout confidence.
-                                        *.integration.test.tsx written BEFORE the fix when
-                                        per-layer unit tests pass but runtime behavior fails.
-
-          Split frontend path (both agents ran in parallel):
-          frontend-ui-agent           → npx vitest run src/components …    (co-located slice)
-          frontend-api-agent          → npx vitest run src/api src/hooks …  (co-located slice)
-          Team Lead waits for BOTH    → npm run test + npm run build        (cross-agent contract check)
-                                        neither agent knows the other finished — Team Lead
-                                        is the synchronization point (fan-out / fan-in).
-                                        npm run build catches silent consumer breaks:
-                                        hook shape changed in api-agent, component broke
-                                        in ui-agent without either slice test failing.
-
-          ── gate: all green → next relevant phase (scope routing below) ──
-
-Phase 4b — INTEGRATION TESTS (exception-only — cross-layer flow or profile-specific wiring)
-          backend-integration-tests   → ./mvnw test *IntegrationTest
-          Skipped for most changes (controller tests covered by @WebMvcTest in java-backend-agent).
-          ── gate: must be green before E2E starts ──
-
-Phase 5   playwright-e2e-agent        → apps/frontend/tests/e2e/
-          • Full mode  — all specs + live backend (when API contract changed)
-          • Smoke mode — smoke.spec.ts only, no backend (user-visible frontend change, no contract change)
-          • None       — skipped (backend-only change)
-
-Phase 6   security-agent  ──┐         → reports/runs/<id>/security-report.md    (parallel)
-          code-review-agent ┘         → reports/runs/<id>/code-review-report.md
-          ── Team Lead drafts release-summary.md in parallel with Phase 6 ──
-
-Phase 7   release-pr-agent            → finalizes release-summary.md + GitHub PR
-```
-
-Selected Phase 3 agents run in parallel when workstreams are independent — Team Lead decides. Phase 4 tests run in parallel and gate Phase 5 (frontend-only changes skip Phase 4b).
-On the split frontend path, Team Lead is the synchronization point: it waits for both agents to report done, then runs the full gate as the cross-agent contract check before advancing.
-If E2E fails, Team Lead routes by data flow (not visible symptom) and always runs npm run build after any frontend-api-agent fix before re-triggering E2E.
-Security and code review (Phase 6) run in parallel after all tests pass.
-Team Lead writes the release summary draft while Phase 6 runs — release agent only finalizes and creates the PR.
-The pipeline stops only when the PR URL is printed.
-
-### Agent definitions
-
-Each agent is a skill in [`.claude/skills/`](.claude/skills/) with a `model:` field controlling which provider runs it.
-
-| Agent | Model | Role |
-|-------|-------|------|
-| requirement | claude-opus-4-8 | Captures requirement, creates workflow run, branch setup, image analysis |
-| team-lead | claude-opus-4-8 | Orchestrates all phases |
-| product-agent | claude-sonnet-4-6 | User stories + acceptance criteria |
-| architect-agent | claude-opus-4-8 | API contract + domain model |
-| java-backend-agent | claude-sonnet-4-6 | Game logic + REST API + JUnit unit tests (domain, service, @WebMvcTest controller tests) |
-| frontend-api-agent | claude-sonnet-4-6 | API wrappers, hooks, TypeScript types + Vitest unit tests |
-| frontend-ui-agent | claude-sonnet-4-6 | React components, pages, CSS (mobile-first) + Vitest component tests |
-| backend-integration-tests-agent | claude-sonnet-4-6 | @SpringBootTest exception-only: cross-layer flows and profile-specific wiring (controller tests use @WebMvcTest, owned by java-backend-agent) |
-| playwright-e2e-agent | claude-sonnet-4-6 | Browser E2E tests |
-| security-agent | claude-opus-4-8 | Security + integrity review |
-| code-review-agent | claude-opus-4-8 | Engineering review |
-| infrastructure-agent | claude-sonnet-4-6 | Docker + env setup + cross-platform startup scripts |
-| release-pr-agent | claude-haiku-4-5-20251001 | PR creation |
-
-To swap an agent to a different model or provider, edit the `model:` line in its `SKILL.md`.
-
-## Scalability Notes
-
-- **Storage**: `GameRepository` is an interface. Swapping to Redis requires only adding `RedisGameRepository` — no domain code changes.
-- **Real-time**: Frontend currently polls the backend. WebSocket can replace polling by changing only `useGameState.ts` and adding `GameWebSocketHandler.java`.
-- **New features**: Adding chat, spectators, or leaderboard maps to new services/controllers without touching `Game.java`.
-
-## Agent Definitions
-See [`.claude/skills/`](.claude/skills/) for all agent skill files.
+---
 
 ## Reports
-All pipeline artifacts live in `reports/` — gitignored so they never end up in a PR. Reports are evidence, not truth: agents write diagnostics, run summaries, and gate reports here, but permanent decisions live in tracked source files. The `release-pr-agent` runs a pre-commit compliance gate to block any staged file under `reports/`; the `code-review-agent` checks for tracked `reports/` files as its first review step.
 
-| File | Written by |
-|------|-----------|
-| `reports/runs/<id>/requirements.md` | `/requirement` skill (you) |
-| `reports/runs/<id>/product-spec.md` | product-agent |
-| `reports/runs/<id>/architecture.md` | architect-agent |
-| `reports/runs/<id>/security-report.md` | security-agent |
-| `reports/runs/<id>/code-review-report.md` | code-review-agent |
-| `reports/runs/<id>/release-summary.md` | release-pr-agent |
+Pipeline artifacts write to `reports/` (gitignored — never committed). Each run produces `reports/runs/<id>/` with product spec, architecture, security report, code review, and release summary.
