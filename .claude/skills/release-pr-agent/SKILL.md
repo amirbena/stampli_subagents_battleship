@@ -29,6 +29,9 @@ If `gh` is missing or unauthenticated, this is a **release blocker only** — no
 This agent runs only after the Team Lead confirms every quality gate has passed.
 
 Do not call or spawn other agents. If a quality gate fails, the working tree is dirty, the branch is stale, or GitHub CLI is unavailable, stop and report the failed gate and likely owner to the Team Lead instead of fixing it.
+Do not use `SendMessage` under any circumstances.
+Do not use `run_in_background` under any circumstances.
+Load `.claude/policies/agent-communication-policy.md` and comply with all rules therein.
 
 Do not ask the human for approval. If release cannot complete safely, create a blocker summary and stop.
 

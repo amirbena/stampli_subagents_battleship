@@ -50,6 +50,8 @@ If evidence is missing, write `Evidence not found.` Do not invent files, scripts
 
 ## Step 0.5 — Fast-Path Pre-Classification (before spawning product-agent)
 
+**Documentation parity check:** If this requirement modifies any file under `.claude/skills/`, `.claude/policies/`, `.claude/metadata/`, `.claude/templates/`, `CLAUDE.md`, or changes agent ownership, a route, an execution mode, or a quality gate — load `.claude/policies/documentation-parity-policy.md` and identify which documentation must be updated in this run. Record required updates and their severity in `reports/runs/<workflow-run-id>/team-lead-classification.md` under `## Documentation Parity Impact`. Skip this check (and record "No parity impact") for application-only changes.
+
 **First: classify the requirement intent.** Load `.claude/policies/requirement-intent-classification-policy.md` to determine whether the requirement is a WHAT-change (new behavior → standard path) or HOW-change (same outcome, different mechanism → refactor candidate). Record the intent classification in `team-lead-classification.md` before applying fast-path triggers. A HOW-change that also changes an API contract must still run Architecture Agent — scope classification does not bypass contract-change gates.
 
 Read `reports/runs/<workflow-run-id>/requirements.md`. Evaluate whether the requirement is **infra-only or docs-only** using the checklist below. This pre-classification takes ~30 s and can save ~1.5 min by eliminating the product-agent entirely on routes where it adds no value.
@@ -382,6 +384,8 @@ Reason: <one sentence>
 ---
 
 ## Step 6 — Developer Agents
+
+Load `.claude/policies/background-agent-policy.md` before using `run_in_background` on any agent invocation. If any agent is spawned with `run_in_background: true`, record the agent name and expected output path in `team-lead-plan.md`. No gate may be marked complete while a background agent result is outstanding — collect and confirm every background result before advancing.
 
 Assign only agents listed in `team-lead-plan.md`. Each agent runs with:
 - Current workflow-run-id
@@ -1021,6 +1025,7 @@ Before routing to Release PR Agent, confirm:
 - Working tree is clean
 - Branch is not `main`
 - `origin/main` freshness checked
+- Documentation parity gate: load `.claude/policies/documentation-parity-policy.md`. Verify all High-severity parity items from `team-lead-classification.md` were applied. High-severity items block release. Low-severity items are documented in release summary and deferred.
 
 If non-critical unresolved findings remain, document them in PR summary. Do not block for non-critical findings. Validation gaps with Risk: Low are documented in PR summary and do not block release.
 
@@ -1125,6 +1130,8 @@ Release summary/PR body must be written to `reports/runs/<workflow-run-id>/relea
 
 Load `.claude/templates/pr-summary-template.md` when writing. Keep it short and review-focused — full evidence stays in `reports/runs/<workflow-run-id>/`. Only add sections beyond the template when actually relevant to the reviewer (demo config changes, unresolved findings, security notes, architecture decisions).
 
+If documentation parity updates were required in this run, include a `## Documentation Parity` section in the release summary listing which files were updated and whether any Low-severity items were deferred with reason. Omit this section when no parity impact was identified.
+
 ---
 
 ## Stop Conditions
@@ -1181,3 +1188,4 @@ Safe next command:
 - QA rejects return to Team Lead — not directly to developers.
 - Backend is Java/Spring Boot. No NestJS assumptions.
 - Visible demo/local config is acceptable. Only obvious real leaked credentials block.
+- Load `.claude/policies/agent-communication-policy.md`. Strict tree topology: no execution agent may use `SendMessage`, `run_in_background`, or contact peer agents. `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is enabled for background progress tracking only — it does not authorize named persistent agents, lateral messaging, or any communication that bypasses Team Lead. Team Lead is the only entity permitted to spawn, message, or background-execute agents.

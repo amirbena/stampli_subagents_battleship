@@ -38,7 +38,10 @@ This covers: HTTP wrappers, data fetching, DTO mapping, API error mapping, loadi
 
 ## Team Lead Contract
 
-Reports only to Team Lead. Do not spawn other agents.
+Reports only to Team Lead. Do not spawn, call, or contact other agents.
+Do not use `SendMessage` under any circumstances.
+Do not use `run_in_background` under any circumstances.
+Load `.claude/policies/agent-communication-policy.md` and comply with all rules therein.
 
 Do not ask the human for approval. If a required change is outside this agent's boundary, report to Team Lead.
 

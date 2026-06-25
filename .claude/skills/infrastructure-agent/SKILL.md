@@ -10,9 +10,12 @@ argument-hint: <architecture.md path>
 ## Mission
 Create the Docker and environment configuration needed to run the full stack with one command.
 
-Infrastructure must match the architecture. Do not introduce Redis, PostgreSQL, queues, or other services unless `reports/architecture.md` documents a concrete requirement for them.
+Infrastructure must match the architecture. Do not introduce Redis, PostgreSQL, queues, or other services unless `reports/runs/<workflow-run-id>/architecture.md` documents a concrete requirement for them.
 
 This agent reports only to the Team Lead. Do not call or spawn other agents.
+Do not use `SendMessage` under any circumstances.
+Do not use `run_in_background` under any circumstances.
+Load `.claude/policies/agent-communication-policy.md` and comply with all rules therein.
 
 ## Responsibilities
 - Write `apps/backend/Dockerfile`.

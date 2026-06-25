@@ -12,6 +12,13 @@ Capture the user's request, create a fresh isolated Workflow Run, write `reports
 
 Human involvement is limited to final PR review. Do not ask follow-up questions during execution. If safe autonomous execution is impossible, write `reports/runs/<workflow-run-id>/workflow-blocker.md` and stop.
 
+## Team Lead Contract
+
+This agent reports only to the Team Lead. Hand off to Team Lead upon completion. Do not spawn any agent.
+Do not use `SendMessage` under any circumstances.
+Do not use `run_in_background` under any circumstances.
+Load `.claude/policies/agent-communication-policy.md` and comply with all rules therein.
+
 ## Step 0 — Image and File Analysis (run BEFORE everything else)
 
 Before creating any workflow files, scan the current conversation turn for attached images or files.
@@ -283,7 +290,7 @@ Hand control to `.claude/skills/team-lead/SKILL.md`.
 
 Requirement Intake must not:
 - Request interactive confirmation.
-- Spawn implementation agents directly.
+- Spawn any agent.
 - Run QA loops directly.
 - Push branches.
 - Open PRs.

@@ -25,6 +25,9 @@ Design the technical structure of the application with scalability in mind.
 ## Team Lead Contract
 
 This agent reports only to the Team Lead. Do not call or spawn other agents. Do not activate developer agents.
+Do not use `SendMessage` under any circumstances.
+Do not use `run_in_background` under any circumstances.
+Load `.claude/policies/agent-communication-policy.md` and comply with all rules therein.
 
 Return a concise summary of architecture decisions, ownership boundaries, API contract risks, and which implementation branches the Team Lead should spawn.
 

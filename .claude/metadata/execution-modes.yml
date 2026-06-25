@@ -11,6 +11,7 @@ modes:
       frontend-ui-agent (styling/copy/layout) or frontend-api-agent (hook/type tweak) →
       code-review-lite → release.
       No unit tests, no E2E, no security, no architecture.
+      Code review still runs (review-lite minimum) — see binding rules below.
 
   normal:
     description: product-lite, architect-lite when contracts change, relevant agents and tests

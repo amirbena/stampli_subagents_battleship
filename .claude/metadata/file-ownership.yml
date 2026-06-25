@@ -45,7 +45,8 @@ agents:
 
   infrastructure-agent:
     owns:
-      - Dockerfile
+      - apps/backend/Dockerfile
+      - apps/frontend/Dockerfile
       - docker-compose.yml
       - docker-compose.*
       - .env.example
