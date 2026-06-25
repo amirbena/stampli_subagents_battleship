@@ -66,8 +66,18 @@ Stash Created: Yes / No
 Stash Ref: <ref> or N/A
 Stash Message: <message> or N/A
 Recovery Report: reports/runs/<id>/interrupted-run-detection.md or N/A
-Note: Semantic similarity detection (same/extension/related/unrelated) is deferred to PR 2.
-      Auto-pop of stash is deferred to PR 2. Check stash ref manually if prior work is needed.
+
+## Requirement Similarity Detection
+
+Triggered: Yes / No
+Classification: same | extension | related | unrelated | unclear | N/A
+Confidence: high | medium | low | N/A
+Report: reports/runs/<id>/requirement-similarity-detection.md or N/A
+Branch Outcome: <what was decided, e.g. "continue on feature/cors-multi-port-origins" / "new branch from main">
+Stash Outcome: leave — ref recorded / N/A
+PR Outcome: continue existing #<N> / new PR / N/A
+Note: Stash pop and stash drop are not performed by similarity detection. Stash contents
+      are left in place for human or agent inspection via the ref above.
 
 ## Workflow Metadata
 

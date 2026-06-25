@@ -246,15 +246,30 @@ Requirement Intake Step 0.5 already handled the stale lock before Team Lead runs
 - If the dirty tree was non-empty, it has been stashed with a labeled message.
 - `reports/runs/<prior-id>/interrupted-run-detection.md` has been written.
 
-Team Lead's branch decision proceeds via **Cases A–I as normal**, using current git state (which is now clean). The only addition is recording that recovery occurred.
+**Team Lead runs Step 5.5 — Requirement Similarity Detection before choosing a Case.**
 
-**Read the detection report** to note what was stashed:
+Read the detection report to gather inputs for similarity detection:
 
 ```bash
 cat reports/runs/<prior-run-id>/interrupted-run-detection.md 2>/dev/null || true
 ```
 
-Include the recovery context in the Branch Decision Log:
+Then load `.claude/policies/requirement-similarity-policy.md` and collect all five signals (branch slug alignment, requirement area overlap, AC inheritance, dirty file scope match, prior PR alignment). Classify the new requirement as `same | extension | related | unrelated | unclear`.
+
+**The similarity classification drives which Case (A–I) applies:**
+
+| Classification | Confidence | Prior branch merged? | → Case |
+|---|---|---|---|
+| `same` | `high` | No | A or C — continue on prior branch |
+| `same` | `high` | Yes | G — new branch from main |
+| `same` | `medium` or `low` | Any | D/B — new branch (treat as unclear) |
+| `extension` | `high` or `medium` | No | C or I — continue on prior branch |
+| `extension` | Any | Yes | G — new branch from main |
+| `related` | Any | Any | B or H — new branch from main |
+| `unrelated` | Any | Any | B or H — new branch from main |
+| `unclear` | Any | Any | D/B — new branch from main |
+
+After applying the chosen Case, include all recovery and similarity context in the Branch Decision Log:
 
 ```md
 ## Branch Decision
@@ -263,14 +278,15 @@ Include the recovery context in the Branch Decision Log:
 Prior Run Recovery: Yes — see reports/runs/<prior-id>/interrupted-run-detection.md
 Stash Ref: <ref or N/A>
 Stash Message: <message or N/A>
+Similarity Classification Applied: same / extension / related / unrelated / unclear
 ```
 
-**What Team Lead does NOT do in Case J (deferred to PR 2):**
-- Assess whether the new requirement is the same as the interrupted one.
-- Automatically continue on the prior branch based on semantic similarity.
-- Auto-pop the stash onto the current branch.
+**Stash rules in Case J:**
+- Never run `git stash pop`, `git stash apply`, or `git stash drop`.
+- Run `git stash show --name-only <stash-ref>` to inspect files and record what was stashed.
+- Leave stash contents in place. Record ref in the Branch Decision Log and similarity report.
 
-Case J is a recording and annotation step, not a routing change. All routing decisions remain with Cases A–I based on the current branch and requirement.
+**Hard override:** if prior branch is merged, never continue on it regardless of similarity classification.
 
 ---
 

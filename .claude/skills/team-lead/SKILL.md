@@ -284,6 +284,23 @@ Determine: current branch name, clean or dirty, on `main` or feature branch, rel
 
 No implementation may start before the branch decision is written to `reports/runs/<workflow-run-id>/team-lead-classification.md`.
 
+### Step 5.5 — Requirement Similarity Detection (conditional)
+
+**Trigger:** run this step only when `team-lead-classification.md` contains `Prior Run Detected: Yes` (set by Requirement Intake Step 0.5 when a stale lock was recovered).
+
+**Skip entirely** when no interrupted run was detected. Record `Triggered: No` in the classification file and proceed directly to the Branch Decision Matrix.
+
+When triggered:
+
+1. Load `.claude/policies/requirement-similarity-policy.md`.
+2. Collect all five signals defined in the policy: branch slug alignment, requirement area overlap, acceptance criteria inheritance, dirty file scope match, prior PR alignment.
+3. Classify: `same | extension | related | unrelated | unclear`. Apply confidence rules. Reclassify to `unclear` if confidence is `low` or signals conflict.
+4. Load `.claude/templates/requirement-similarity-detection-template.md` and write the filled result to `reports/runs/<workflow-run-id>/requirement-similarity-detection.md`.
+5. Write the `## Requirement Similarity Detection` block into `team-lead-classification.md`.
+6. Use the classification to determine which Case (A–I) in the Branch Decision Matrix applies. The policy's branch decision table maps each classification × branch state to the correct Case.
+
+**Stash rule (absolute):** do not run `git stash pop`, `git stash apply`, or `git stash drop` in this step or anywhere in this run as a result of similarity detection. Inspect stash files with `git stash show --name-only <ref>` and record the ref. Leave stash contents in place.
+
 ### Branch Decision Matrix
 
 | Case | Situation | Action |
@@ -311,7 +328,7 @@ Write to `reports/runs/<workflow-run-id>/team-lead-classification.md`:
 
 Starting branch: <name>
 Final branch: <name>
-Case: A / B / C / D / E / F / G / H / I
+Case: A / B / C / D / E / F / G / H / I / J
 Was on main: Yes / No
 Main dirty: Yes / No
 Working tree was dirty: Yes / No
@@ -321,6 +338,8 @@ New branch created: Yes / No
 Existing PR updated: Yes / No
 Stash used: Yes / No
 Conflicts encountered: Yes / No
+Prior Run Recovery: Yes — see reports/runs/<prior-id>/interrupted-run-detection.md / No
+Similarity Classification Applied: same / extension / related / unrelated / unclear / N/A
 Result: Clean / Blocker
 Reason: <one sentence>
 ```
