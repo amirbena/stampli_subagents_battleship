@@ -57,6 +57,21 @@ Is human setup required?
 
 ## Risk Notes
 
+## Runtime Environment
+
+Repository root:
+Current working directory:
+Current branch:
+OS (uname -s):
+Shell:
+Frontend directory: <repo-root>/apps/frontend
+Backend directory: <repo-root>/apps/backend
+Maven wrapper (macOS/Linux): OK / MISSING
+Maven wrapper (Windows): OK / MISSING
+Frontend package.json: OK / MISSING
+Default E2E frontend port: 3010
+Backend E2E port: 8081
+
 ## Interrupted Run Recovery
 
 Prior Run Detected: Yes / No

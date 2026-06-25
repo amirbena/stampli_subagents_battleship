@@ -238,6 +238,26 @@ When Architecture runs, it writes `reports/runs/<workflow-run-id>/architecture.m
 
 Architecture's output **must include** an `## AC-to-Test Coverage Matrix` section (load `.claude/templates/ac-coverage-matrix-template.md` for format). Team Lead reads this matrix in Step 4 to determine which test types to spawn, and in Step 14 to drive the Validation Gap Check. If the matrix is absent, send Architecture Agent back to produce it before continuing.
 
+### Architecture → Product REQUIRES_CHANGES Routing
+
+When Architecture returns `REQUIRES_CHANGES` with a product-semantic gap (behavior Product did not define):
+
+1. **Stop** Architecture finalization immediately.
+2. **Reopen Product Agent** with the specific missing product question from the finding.
+3. **Require** Product to update `product-spec.md` with the missing decision.
+4. **Block** backend and frontend implementation agents until Architecture is finalized.
+5. **Resume Architecture** only after the refreshed `product-spec.md` is available.
+
+Document this as a Product Reopen in `team-lead-classification.md` (counts against the 3-reopen limit per Step 10).
+
+Examples that must trigger this path (from Architecture's REQUIRES_CHANGES finding):
+- Product did not define opponent-facing behavior in HUMAN vs HUMAN mode
+- Pause/Stop semantics have multiplayer consequences Product did not address
+- Architecture cannot choose between two valid designs without a product decision
+- Architecture would otherwise need to invent user-facing behavior
+
+See `.claude/policies/agent-responsibility-boundaries-policy.md` for the full responsibility boundary definitions.
+
 ---
 
 ## Step 4 — Execution Plan
@@ -281,6 +301,41 @@ git log --oneline -5
 ```
 
 Determine: current branch name, clean or dirty, on `main` or feature branch, related or unrelated to requirement, existing open or merged PR.
+
+### Runtime Environment Detection (record in team-lead-classification.md)
+
+After pre-flight checks, detect and record the runtime environment. This evidence is used by E2E agents
+and guards against OS/path inference errors:
+
+```bash
+git rev-parse --show-toplevel
+pwd
+uname -s
+echo "$SHELL"
+test -f apps/backend/mvnw && echo "mvnw: OK" || echo "mvnw: MISSING"
+test -f apps/backend/mvnw.cmd && echo "mvnw.cmd: OK" || echo "mvnw.cmd: MISSING"
+test -f apps/frontend/package.json && echo "frontend package.json: OK" || echo "MISSING"
+```
+
+Record under `## Runtime Environment` in `team-lead-classification.md`:
+```md
+## Runtime Environment
+
+Repository root: <git rev-parse --show-toplevel>
+Current working directory: <pwd>
+Current branch: <git branch --show-current>
+OS: <uname -s>
+Shell: <echo "$SHELL">
+Frontend directory: <repo-root>/apps/frontend
+Backend directory: <repo-root>/apps/backend
+Maven wrapper (macOS/Linux): OK / MISSING
+Maven wrapper (Windows): OK / MISSING
+Frontend package.json: OK / MISSING
+Default E2E frontend port: 3010
+Backend E2E port: 8081
+```
+
+Do not infer OS from prior conversation or reports. Always detect fresh from the current shell.
 
 No implementation may start before the branch decision is written to `reports/runs/<workflow-run-id>/team-lead-classification.md`.
 

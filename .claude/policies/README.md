@@ -7,6 +7,14 @@ Team Lead remains the orchestrator.
 
 ## Policy Index
 
+### Responsibility Boundaries and E2E
+
+| Policy | Purpose | Primary loader |
+|---|---|---|
+| `agent-responsibility-boundaries-policy.md` | Defines what each agent (Requirement, Product, Architecture, Team Lead) may and must not decide; includes Architecture → Product REQUIRES_CHANGES routing | Requirement Intake, Product Agent, Architect Agent, Team Lead |
+| `os-path-aware-execution-policy.md` | Rules for OS detection, path resolution from repo root, forbidden static paths, worktree isolation, runtime environment evidence | Team Lead (Step 5 pre-flight), Playwright E2E Agent |
+| `e2e-dependency-preflight-policy.md` | E2E port conventions (frontend 3010, backend 8081), Chromium pre-gate with auto-install, E2E script verification, preflight checklist | Playwright E2E Agent, Team Lead (E2E pre-gate) |
+
 ### Governance
 
 | Policy | Purpose | Primary loader |

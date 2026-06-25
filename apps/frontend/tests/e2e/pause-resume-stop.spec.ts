@@ -3,7 +3,7 @@
  *
  * Workflow Run ID: 20260625-204451-fa7a8b3
  * Mode: Full E2E (live backend on 8081 — API contract changed: new PAUSED status +
- *       POST pause/resume/stop endpoints). Frontend auto-started on 3001 by
+ *       POST pause/resume/stop endpoints). Frontend auto-started on E2E port 3010 by
  *       playwright.config.ts with VITE_API_BASE_URL=http://localhost:8081.
  *
  * Coverage (Architecture §AC-to-Test matrix — playwright-e2e-agent rows):

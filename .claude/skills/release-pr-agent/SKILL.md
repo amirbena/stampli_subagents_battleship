@@ -105,7 +105,7 @@ Read current run ID from `reports/current-run.json`. All gate reports must be re
 - [ ] Backend unit tests: `./mvnw test` exits 0 (if backend was in scope)
 - [ ] Frontend build: `npm run build` exits 0 (if frontend was in scope)
 - [ ] Frontend unit tests: `npm run test` exits 0 (if frontend was in scope)
-- [ ] Playwright E2E: `npm run e2e:ci` exits 0 (if E2E was required)
+- [ ] Playwright E2E: `npm run test:e2e` exits 0 (if E2E was required — verify script name in `apps/frontend/package.json`)
 - [ ] README.md exists and documents how to run the app
 
 For gates that were skipped by Team Lead (e.g. security not required for docs-only route), note them as "Skipped by Team Lead — not required for this route" rather than failing. Only run gates that Team Lead required.

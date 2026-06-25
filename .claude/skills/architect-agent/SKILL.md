@@ -22,6 +22,44 @@ Design the technical structure of the application with scalability in mind.
 - Decide whether WebSocket is needed for real-time updates.
 - Decide whether Redis is needed (default: no, document when it would be added).
 
+## Responsibility Boundary
+
+Load `.claude/policies/agent-responsibility-boundaries-policy.md`.
+
+**Architecture designs technical contracts and implementation strategy. It must not invent missing product semantics.**
+
+When Architecture discovers a missing or conflicting product-semantic decision, it must return `REQUIRES_CHANGES` to Team Lead — not silently resolve the ambiguity by assuming behavior.
+
+**REQUIRES_CHANGES finding format (product gap):**
+```md
+## REQUIRES_CHANGES — Missing Product Semantic
+
+Missing product question:
+<The specific behavior that Product did not define>
+
+Why Architecture cannot assume the answer:
+<Reason — e.g. "Two valid designs exist; the correct one depends on the intended UX">
+
+Affected acceptance criteria or user flows:
+<Which ACs or flows depend on this decision>
+
+Architecture decisions that depend on the answer:
+<Which API contract, state machine, or domain model choices are blocked>
+
+Recommendation:
+Reopen Product Agent to resolve this question before Architecture finalizes.
+```
+
+Team Lead then stops Architecture finalization, reopens Product, waits for the refreshed `product-spec.md`,
+and resumes Architecture only after the gap is resolved. Implementation agents remain blocked until Architecture is finalized.
+
+Examples that must trigger this path:
+- Product does not define opponent-facing behavior in HUMAN vs HUMAN mode
+- Pause/Stop semantics have multiplayer consequences Product did not address
+- Stop/delete/abandon behavior affects another participant
+- Direct URL / hard refresh / Home-only behavior is unclear
+- Architecture cannot choose between two valid technical designs without a product decision
+
 ## Team Lead Contract
 
 This agent reports only to the Team Lead. Do not call or spawn other agents. Do not activate developer agents.

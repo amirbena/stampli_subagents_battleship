@@ -304,7 +304,7 @@ For layout/alignment/responsive acceptance criteria that smoke cannot verify (sm
 - React 18 + TypeScript, Vite
 - Axios for REST
 - Playwright for E2E, Vitest + RTL for unit tests
-- Port 5173 (dev) / 3001 (E2E)
+- Port 3001 (dev) / 3010 (E2E, default — override via `E2E_FRONTEND_PORT`)
 
 ### Infrastructure
 - Two local run models, both valid (see README → How To Run):

@@ -144,12 +144,12 @@ Document:
 - Running the full stack with Docker.
 - Running backend tests.
 - Running frontend build.
-- Running Playwright E2E tests through `npm run e2e:ci`.
+- Running Playwright E2E tests through `npm run test:e2e` (verify script name in `apps/frontend/package.json` — may be `test:e2e` or `e2e:ci`).
 - Required environment variables and defaults.
 
 ## E2E CI Script
 
-If the project does not already provide `npm run e2e:ci`, inspect existing scripts. Create or document deterministic startup only when Team Lead routes the shared `package.json` change autonomously; otherwise document E2E setup as missing.
+Inspect `apps/frontend/package.json` to find the actual E2E script name (`test:e2e` or `e2e:ci`). Create or document deterministic startup only when Team Lead routes the shared `package.json` change autonomously; otherwise document E2E setup as missing.
 
 The E2E CI path must:
 - Install/build if needed.
@@ -223,7 +223,7 @@ if ($errs.Count -eq 0) { "PARSE OK" } else { $errs }
 - No PostgreSQL unless architecture explicitly requires persistence for v1.
 - `.env.example` may contain placeholders only, never real secrets.
 - README commands must match actual project scripts.
-- Playwright instructions must use `npm run e2e:ci`; do not rely on manually started services.
+- Playwright instructions must use `npm run test:e2e` (or the actual script name from `apps/frontend/package.json`); do not rely on manually started services.
 - If a command cannot be verified locally, state that clearly in the return summary.
 
 ## Platform Verification Rule
