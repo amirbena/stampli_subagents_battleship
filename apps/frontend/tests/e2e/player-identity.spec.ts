@@ -17,7 +17,7 @@
  * (scenario removed from smoke.spec.ts because buttons are identity-gated).
  *
  * Mode: Full E2E (live backend on 8081 required — API contract changed).
- * Both frontend (port 3001) and backend (port 8081) are auto-started by playwright.config.ts.
+ * Both frontend (E2E port 3010) and backend (port 8081) are auto-started by playwright.config.ts.
  *
  * Strategy:
  *  - Never hardcode player IDs or game IDs; always derive from API responses.

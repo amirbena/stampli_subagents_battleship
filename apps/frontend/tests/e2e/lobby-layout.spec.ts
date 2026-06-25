@@ -2,11 +2,17 @@
  * Targeted layout test for the "Place Your Ships" (Lobby) screen.
  *
  * Uses page.route() to mock all backend API calls — no real backend needed.
- * Requires the frontend dev server to be running on port 3001.
+ * Playwright starts the frontend automatically on the E2E port (default: 3010).
  *
- * Run:
- *   $env:E2E_BASE_URL='http://localhost:3001'
- *   npx playwright test tests/e2e/lobby-layout.spec.ts --project=chromium
+ * Run (macOS/Linux):
+ *   cd apps/frontend && npx playwright test tests/e2e/lobby-layout.spec.ts --project=chromium
+ *
+ * Run with custom port (macOS/Linux):
+ *   E2E_FRONTEND_PORT=3010 npx playwright test tests/e2e/lobby-layout.spec.ts --project=chromium
+ *
+ * Run (Windows PowerShell):
+ *   $env:E2E_FRONTEND_PORT='3010'
+ *   cd apps/frontend; npx playwright test tests/e2e/lobby-layout.spec.ts --project=chromium
  *
  * If this test FAILS: capture the assertion error + screenshot from playwright-report/,
  * then route to frontend-ui-agent with the exact failing assertion and screenshot path.

@@ -1,6 +1,12 @@
 # Requirements Template
 # Used by: requirement agent (Step 5)
 # Load when writing reports/runs/<workflow-run-id>/requirements.md.
+#
+# BOUNDARY RULE: Expand user intent; do not design the solution.
+# May define: user-visible behavior, user journey, product-level scope and risks.
+# Must NOT mention: storage technology, API paths, backend enums, test types,
+# E2E mode, `Architecture Required`, or agent routing decisions.
+# See .claude/policies/agent-responsibility-boundaries-policy.md.
 
 ---
 
