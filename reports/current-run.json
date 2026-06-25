@@ -1,0 +1,9 @@
+{
+  "workflowRunId": "20260625-152016-60daef6",
+  "runDirectory": "reports/runs/20260625-152016-60daef6",
+  "branch": "feature/readme-bootstrap-claude-settings",
+  "baseBranch": "main",
+  "baseCommit": "60daef625357333e2978e49834c2fed975f2f6dc",
+  "createdAt": "2026-06-25T15:20:16Z",
+  "status": "completed"
+}

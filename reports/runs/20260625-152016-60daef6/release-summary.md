@@ -47,9 +47,14 @@ Validation by inspection of the README diff against the 7-item acceptance checkl
 - **CR-001 (Low):** Minor overlap between the new manual `npm install` step and the existing fast-local script's auto-install note. Already partially reconciled by the existing "subsequent runs reuse node_modules" blockquote. No change made.
 - **CR-002 (Low):** The `"Bash(git reset -n*)"` entry in the `ask` list appears to be a possible typo in the user-provided JSON (likely intended `git reset --hard`, which is already listed separately). The README intentionally reproduces the user's requested settings **verbatim**, so no change was made. Flagged to the user for a decision.
 
+## PR Status
+- **PR opened:** https://github.com/amirbena/stampli_subagents_battleship/pull/33
+- **Commit SHA:** 211918058b614028d395d0711cec7a03a4c90499
+- **Branch:** feature/readme-bootstrap-claude-settings → main
+
 ## Done Criteria
 - [x] README satisfies acceptance checklist items 1–7
 - [x] Only README.md changed
 - [x] Code review APPROVED
 - [x] Release summary written
-- [ ] PR opened (release-pr-agent)
+- [x] PR opened (release-pr-agent) — https://github.com/amirbena/stampli_subagents_battleship/pull/33
