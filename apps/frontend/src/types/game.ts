@@ -64,6 +64,21 @@ export interface JoinGameResponse {
   status: GameStatus;
 }
 
+/**
+ * Response body for GET /games/{code}/restore — restore a computer game by code.
+ * Resolves the human player (playerA) for an existing COMPUTER game so a fresh
+ * browser (no stored playerId) can rehydrate its session pointer and then re-poll
+ * GET /games/{gameId}/state. A missing, released, or non-computer code returns
+ * 404 GAME_NOT_FOUND (mapped to GameNotFoundError by the api wrapper). Restore
+ * returns NO board data — board rendering stays on the hidden-data-safe state call.
+ */
+export interface RestoreGameResponse {
+  gameId: string;
+  playerId: string;
+  gameMode: GameMode;
+  status: GameStatus;
+}
+
 export interface PlaceShipRequest {
   shipType: ShipType;
   row: number;

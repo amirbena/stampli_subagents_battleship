@@ -1,0 +1,10 @@
+/* Stay/Leave confirmation. Reuses the .resume-modal overlay/dialog shell; only the
+   hint line needs extra spacing here. Import the shared shell so the overlay/dialog
+   classes are present even when ResumeGameModal is not also mounted. */
+@import '../ResumeGameModal/ResumeGameModal.css';
+
+.leave-modal-hint {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
+}

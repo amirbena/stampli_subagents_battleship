@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { getGameState } from '../api/gameApi';
+import { getGameState, GameNotFoundError } from '../api/gameApi';
 import type { GameStateResponse } from '../types/game';
 
 const POLL_INTERVAL_MS = 2000;
@@ -7,6 +7,14 @@ const POLL_INTERVAL_MS = 2000;
 interface UseGamePollingResult {
   gameState: GameStateResponse | null;
   error: string | null;
+  /**
+   * Authoritative "game gone" flag (AC-3/AC-4). True ONLY when the backend returned
+   * 404 GAME_NOT_FOUND (server restart, prior Stop, or released game) — never on a
+   * transient 5xx/network blip. The Game page consumes this to clear the active-session
+   * pointer and redirect to '/'. Transient errors set `error` but leave this false, so a
+   * connectivity blip never triggers recovery. The hook itself never navigates.
+   */
+  gameGone: boolean;
   isLoading: boolean;
   refresh: () => Promise<void>;
 }
@@ -32,6 +40,8 @@ export function useGamePolling(
 ): UseGamePollingResult {
   const [gameState, setGameState] = useState<GameStateResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Sticky once the backend authoritatively 404s — distinct from transient `error`.
+  const [gameGone, setGameGone] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   // Use a ref so the cleanup function always cancels the correct interval
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -46,7 +56,15 @@ export function useGamePolling(
       setGameState(state);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load game state');
+      // An authoritative 404 (GameNotFoundError) is the "game gone" signal the page
+      // uses to clear the pointer + redirect (AC-3/AC-4). Transient 5xx/network errors
+      // only set `error` and leave `gameGone` false so a blip never triggers recovery.
+      if (e instanceof GameNotFoundError) {
+        setGameGone(true);
+        setError(e.message);
+      } else {
+        setError(e instanceof Error ? e.message : 'Failed to load game state');
+      }
     }
   }, [gameId, playerId]);
 
@@ -79,5 +97,5 @@ export function useGamePolling(
     };
   }, [enabled, gameId, playerId, fetchState]);
 
-  return { gameState, error, isLoading, refresh };
+  return { gameState, error, gameGone, isLoading, refresh };
 }

@@ -2,6 +2,7 @@ package com.stampli.battleship.controller;
 
 import com.stampli.battleship.domain.GameStatus;
 import com.stampli.battleship.dto.PauseResumeResponse;
+import com.stampli.battleship.dto.RestoreGameResponse;
 import com.stampli.battleship.service.GameException;
 import com.stampli.battleship.service.GameService;
 import org.junit.jupiter.api.Test;
@@ -16,6 +17,7 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -144,5 +146,41 @@ class GameControllerTest {
         mockMvc.perform(post("/games/{gameId}/players/{playerId}/stop", GAME_ID, PLAYER_ID))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("PLAYER_NOT_IN_GAME"));
+    }
+
+    // --- restore-by-code ---
+
+    @Test
+    void restoreReturns200WithSessionPointerJsonShape() throws Exception {
+        when(gameService.restoreGame(GAME_ID))
+                .thenReturn(new RestoreGameResponse(GAME_ID, PLAYER_ID, "COMPUTER", "IN_PROGRESS"));
+
+        mockMvc.perform(get("/games/{code}/restore", GAME_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.gameId").value(GAME_ID))
+                .andExpect(jsonPath("$.playerId").value(PLAYER_ID))
+                .andExpect(jsonPath("$.gameMode").value("COMPUTER"))
+                .andExpect(jsonPath("$.status").value("IN_PROGRESS"));
+    }
+
+    @Test
+    void restoreReturns404WhenCodeUnknown() throws Exception {
+        when(gameService.restoreGame("GONE99"))
+                .thenThrow(new GameException("Game not found", "GAME_NOT_FOUND", HttpStatus.NOT_FOUND));
+
+        mockMvc.perform(get("/games/{code}/restore", "GONE99"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("GAME_NOT_FOUND"));
+    }
+
+    @Test
+    void restoreReturns404WhenGameNotComputer() throws Exception {
+        // Non-computer (human) game is reported as the same uniform 404 — no type disclosure
+        when(gameService.restoreGame(GAME_ID))
+                .thenThrow(new GameException("Game not found: " + GAME_ID, "GAME_NOT_FOUND", HttpStatus.NOT_FOUND));
+
+        mockMvc.perform(get("/games/{code}/restore", GAME_ID))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("GAME_NOT_FOUND"));
     }
 }
