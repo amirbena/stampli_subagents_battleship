@@ -25,9 +25,6 @@ Requirements flow through an autonomous agent pipeline (planning → implementat
 
 **First-time setup:**
 ```bash
-# Backend — make Maven wrapper executable (macOS/Linux, once after clone)
-chmod +x apps/backend/mvnw
-
 # Frontend — install dependencies (once after clone or package.json change)
 cd apps/frontend && npm install && cd ../..
 
@@ -38,8 +35,9 @@ cd apps/backend && ./mvnw clean install && cd ../..
 cd apps/frontend && npx playwright install --with-deps && cd ../..
 ```
 
-**Claude Code settings** — create `.claude/settings.json` at the project root before running `/requirement`.
+**Claude Code settings** — add the block below to your local Claude Code user settings (`~/.claude/settings.json`) before running `/requirement`.
 Without it, agents pause for confirmation on every file read, shell command, and git operation.
+Do **not** create this as a project file — it belongs in your local Claude installation only.
 
 ```json
 {
@@ -241,6 +239,7 @@ The pipeline runs autonomously: requirement intake → product spec → architec
 | Problem | Fix |
 |---------|-----|
 | `mvnw: Permission denied` | `chmod +x apps/backend/mvnw` |
+| `no main manifest attribute` in `maven-wrapper.jar` | Run `mvn wrapper:wrapper -Dmaven=3.9.6` inside `apps/backend/` to regenerate the wrapper |
 | Backend won't start — port 8080 in use | `lsof -i :8080` then kill the process |
 | Frontend won't start — port 3001 in use | `lsof -i :3001` then kill the process |
 | Docker containers unhealthy | `docker compose logs postgres` — check DB creds in `.env` |
