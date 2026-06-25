@@ -57,6 +57,18 @@ Is human setup required?
 
 ## Risk Notes
 
+## Interrupted Run Recovery
+
+Prior Run Detected: Yes / No
+Prior Run ID: <id> or N/A
+Lock Age at Detection: <N minutes> or N/A
+Stash Created: Yes / No
+Stash Ref: <ref> or N/A
+Stash Message: <message> or N/A
+Recovery Report: reports/runs/<id>/interrupted-run-detection.md or N/A
+Note: Semantic similarity detection (same/extension/related/unrelated) is deferred to PR 2.
+      Auto-pop of stash is deferred to PR 2. Check stash ref manually if prior work is needed.
+
 ## Workflow Metadata
 
 Workflow Run ID:

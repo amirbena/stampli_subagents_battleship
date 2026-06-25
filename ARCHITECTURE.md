@@ -236,9 +236,21 @@ All agents in a run share one git working tree and one `reports/` directory. If 
 - Both write to `reports/current-run.json` → one run's agents read the other run's reports
 - Both commit and push simultaneously → history corruption or a PR that mixes two unrelated changes
 
-`.workflow.lock` is a simple JSON file written at the start of every run and deleted (or marked `"status": "completed"`) at the end. Before starting, Requirement Intake checks whether the lock exists with `"status": "running"`. If it does, the new run is rejected immediately with a clear message — no agents are spawned, no files are touched.
+`.workflow.lock` is a simple JSON file written at the start of every run and marked `"status": "complete"` at the end. Before starting, Requirement Intake runs **Step 0.5 — Interrupted Run Detection**, which distinguishes between a genuinely concurrent run and a stale lock left by a prior Ctrl+C or crash:
 
-This makes the pipeline **single-tenant by design**: one requirement in flight at a time per working tree.
+| Lock state | Action |
+|---|---|
+| No lock / `complete` / `blocked` / `interrupted` | Proceed normally |
+| `status = "running"`, `createdAt` < 10 min ago | Genuine concurrent run — hard stop |
+| `status = "running"`, `createdAt` ≥ 10 min ago | Likely interrupted — stale-lock recovery |
+| Unreadable / corrupt JSON | Treat as interrupted — stale-lock recovery |
+| Rebase in progress (`.git/rebase-merge` exists) | Hard blocker regardless of lock state |
+
+On stale-lock recovery, any dirty working tree is preserved via a labeled `git stash` before the new run begins. The lock status is updated to `"interrupted"` so the new run's Step 1 proceeds without a false concurrent-run block.
+
+Valid `status` values: `"running"`, `"blocked"`, `"interrupted"`, `"complete"`.
+
+This makes the pipeline **single-tenant by design**: one requirement in flight at a time per working tree, with safe automatic recovery from aborted runs.
 
 ### E2E Modes
 
