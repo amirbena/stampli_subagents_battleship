@@ -284,7 +284,9 @@ Run when the change affects user-visible behavior (routing, rendering, game inte
 cd apps/frontend && npx playwright test smoke.spec.ts
 ```
 
-Skip for: pure refactors, type-only changes, test-only changes, copy-only changes, isolated CSS tweaks already verified by unit tests and build. Record skip reason in Evidence.
+**Skip** when any of the following applies — record the reason in Evidence:
+- Pure refactors, type-only changes, test-only changes, copy-only changes, isolated CSS tweaks already verified by unit tests and build.
+- Team Lead's assignment specifies `E2E mode: Full`. Full E2E runs `smoke.spec.ts` plus all other specs against the live backend — the internal smoke check is a strict subset and running it twice wastes ~2–4 min. When Full E2E is confirmed, skip internal smoke and report done with `Internal smoke: skipped — Full E2E covers smoke.spec.ts` in Evidence.
 
 If smoke fails, self-heal (fix the component) up to 3 cycles before escalating to Team Lead. After smoke passes, report done to Team Lead — do not advance to review or PR directly.
 

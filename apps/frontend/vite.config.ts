@@ -15,6 +15,9 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
+    // vmThreads shares the Node.js runtime across workers, reducing per-worker
+    // jsdom initialization overhead compared to the default forks pool.
+    pool: 'vmThreads',
     setupFiles: ['./src/test/setup.ts'],
     minWorkers: 1,
     maxWorkers: 4,
