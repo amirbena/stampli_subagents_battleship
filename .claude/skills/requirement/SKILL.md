@@ -107,6 +107,185 @@ If evidence is missing, write `Evidence not found.`
 
 ---
 
+## Step 0.5 — Interrupted Run Detection
+
+Run this step **after** Step 0 (image analysis) and **before** Step 1 (concurrency lock).
+It ensures a stale lock from a prior Ctrl+C or crashed run never blocks the next invocation.
+
+### A. Rebase-in-progress check (always first — overrides everything)
+
+```bash
+test -d .git/rebase-merge || test -d .git/rebase-apply
+```
+
+If either directory exists, stop immediately. Write `reports/runs/rebase-blocker-<timestamp>/workflow-blocker.md`:
+
+```md
+## Blocker: Git Rebase In Progress
+
+Detected: .git/rebase-merge or .git/rebase-apply exists.
+
+The repository is mid-rebase. No lock replacement, stash, branch operation,
+or recovery logic can proceed safely.
+
+Action taken:
+No files modified.
+No stash created.
+No lock replaced.
+No continuation.
+
+Required human action:
+Run one of:
+  git rebase --continue    (if all conflicts are resolved)
+  git rebase --abort       (to cancel the interrupted rebase entirely)
+Then rerun the workflow.
+```
+
+Mark the lock `"status": "blocked"` if possible. Stop. Do NOT continue to Step 1.
+
+---
+
+### B. Stale lock detection
+
+```bash
+test -f reports/.workflow.lock && cat reports/.workflow.lock
+```
+
+Parse the result:
+
+| Lock state | Action |
+|---|---|
+| No lock file | Proceed to Step 1 normally. |
+| `status = "complete"` | Proceed to Step 1 normally. |
+| `status = "blocked"` | Proceed to Step 1 normally. |
+| `status = "interrupted"` | Proceed to Step 1 normally. |
+| Lock file unreadable or invalid JSON | Treat as stale. Proceed to Section C. |
+| `status = "running"` and `createdAt` < 10 minutes ago | Genuine concurrent run. Proceed to Step 1 — Step 1 will hard-stop. |
+| `status = "running"` and `createdAt` ≥ 10 minutes ago | Likely interrupted. Proceed to Section C. |
+
+Compute lock age in minutes:
+
+```bash
+LOCK_AGE_MINUTES=$(python3 -c "
+import json, datetime, sys
+try:
+    with open('reports/.workflow.lock') as f:
+        d = json.load(f)
+    ts = d.get('createdAt', '')
+    if not ts:
+        print(999)
+        sys.exit(0)
+    created = datetime.datetime.fromisoformat(ts.replace('Z', '+00:00'))
+    now = datetime.datetime.now(datetime.timezone.utc)
+    print(int((now - created).total_seconds() / 60))
+except Exception:
+    print(999)
+" 2>/dev/null || echo "999")
+```
+
+If output is `999` or empty: lock is corrupt — treat as stale. If output is a number ≥ 10: stale. If < 10: fresh — proceed to Step 1 without entering Section C.
+
+---
+
+### C. Stale lock recovery
+
+1. **Capture prior run data** from the lock:
+
+```bash
+PRIOR_RUN_ID=$(python3 -c "
+import json, sys
+try:
+    with open('reports/.workflow.lock') as f:
+        d = json.load(f)
+    print(d.get('workflowRunId', 'unknown'))
+except Exception:
+    print('unknown')
+" 2>/dev/null || echo "unknown")
+```
+
+2. **Check for dirty working tree:**
+
+```bash
+git status --porcelain
+```
+
+If dirty:
+```bash
+STASH_TIMESTAMP=$(date -u +%Y%m%dT%H%M%S)
+STASH_MSG="interrupted-run:${PRIOR_RUN_ID}:auto-stash:${STASH_TIMESTAMP}"
+git stash push -u -m "${STASH_MSG}"
+STASH_REF=$(git stash list | head -1 | cut -d: -f1)
+```
+
+Capture `STASH_REF` and `STASH_MSG` for the detection report.
+
+**Never run**: `git reset --hard`, `git clean -fd`, `git checkout .`, `git stash drop`, `git stash pop`.
+
+3. **Write the detection report:**
+
+Target path: `reports/runs/<prior-run-id>/interrupted-run-detection.md`.
+If the prior run ID is `"unknown"` or the run directory does not exist, create it:
+`reports/runs/recovery-<timestamp>/interrupted-run-detection.md`.
+
+```md
+# Interrupted Run Detection
+
+Prior Run ID: <PRIOR_RUN_ID>
+Detected At: <iso-timestamp>
+Lock Age: <LOCK_AGE_MINUTES> minutes (or "unreadable/corrupt")
+Lock Status Found: running
+
+## Git State at Detection
+
+Branch: <git branch --show-current>
+Dirty tree: Yes / No
+Files in dirty tree:
+- <git status --porcelain output, one per line, or "none">
+Rebase in progress: No (verified in Step A)
+Last commit: <git log -1 --oneline>
+
+## Recovery Action
+
+Dirty tree disposition: stashed / none
+Stash ref: <STASH_REF or N/A>
+Stash message: <STASH_MSG or N/A>
+
+## Deferred Items (not in this PR)
+
+- Semantic similarity detection (same / extension / related / unrelated): PR 2
+- Smart branch reuse based on requirement meaning: PR 2
+- current-run.json status sync: deferred
+- Heartbeat-based staleness detection: PR 1b (only if false-positive stale locks are observed)
+
+## Note
+
+This recovery is mechanical only. Whether the new requirement relates to
+the interrupted run has not been assessed. If uncommitted changes from
+the prior run are needed, find them via the stash ref above.
+```
+
+4. **Mark the prior lock as interrupted:**
+
+Rewrite `reports/.workflow.lock` with the prior run's fields preserved and `"status"` changed to `"interrupted"`:
+
+```bash
+python3 -c "
+import json, datetime
+try:
+    with open('reports/.workflow.lock') as f:
+        d = json.load(f)
+except Exception:
+    d = {}
+d['status'] = 'interrupted'
+with open('reports/.workflow.lock', 'w') as f:
+    json.dump(d, f, indent=2)
+"
+```
+
+5. **Proceed to Step 1.** The lock is now `"status": "interrupted"`, which is not `"running"`, so Step 1's concurrency check passes and creates a fresh lock for the new run.
+
+---
+
 ## Step 1 — Concurrency Lock
 
 Before creating a new run, check for an existing lock:

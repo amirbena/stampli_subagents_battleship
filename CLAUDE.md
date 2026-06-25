@@ -76,12 +76,28 @@ When `frontend-ui-agent` implements a change, it runs `smoke.spec.ts` as its own
 - Backend-only changes with zero frontend impact
 
 ## Git Branch Handling Policy
-Team Lead's branch decisions (Cases A–I) live in `.claude/skills/team-lead/SKILL.md` (Step 5). Operational bash sequences live in `.claude/policies/git-branch-policy.md` (lazy-loaded by Team Lead when a branch operation is needed). Key rules:
-- Team Lead owns all branch decisions (Cases A–I) before any implementation agent is spawned.
+Team Lead's branch decisions (Cases A–J) live in `.claude/skills/team-lead/SKILL.md` (Step 5). Operational bash sequences live in `.claude/policies/git-branch-policy.md` (lazy-loaded by Team Lead when a branch operation is needed). Key rules:
+- Team Lead owns all branch decisions (Cases A–J) before any implementation agent is spawned.
 - Implementation agents (frontend, backend) only confirm they are on the branch Team Lead assigned — they never run branch operations themselves.
 - Never implement directly on `main`. Dirty `main` is always a hard stop.
 - New branches are verified free on local and remote before creation (multi-team safety guard).
 - Feature branches always sync via `git fetch origin && git rebase origin/main`, never `git pull origin main`.
+
+## Interrupted Run Recovery
+
+When a workflow run is aborted (Ctrl+C or crash), `reports/.workflow.lock` may remain with `status = "running"`. Requirement Intake Step 0.5 handles recovery automatically:
+
+- **Rebase-in-progress** (`.git/rebase-merge` or `.git/rebase-apply` exists): always a hard blocker. No recovery proceeds until the human resolves the rebase.
+- **Stale running lock** (`status = "running"` and `createdAt` ≥ 10 minutes old): treated as interrupted. Recovery proceeds.
+- **Fresh running lock** (`createdAt` < 10 minutes old): treated as a genuine concurrent run. Hard stop as before.
+- **Unreadable/corrupt lock**: treated as interrupted. Recovery proceeds.
+
+On stale lock detection:
+1. Dirty working tree is preserved via `git stash push -u -m "interrupted-run:<prior-id>:auto-stash:<timestamp>"`. Work is never discarded.
+2. Detection report written to `reports/runs/<prior-id>/interrupted-run-detection.md`.
+3. Lock status updated to `"interrupted"`. New run proceeds normally.
+
+**Deferred to future PRs:** Semantic similarity detection (same/extension/related/unrelated classification), smart branch reuse based on requirement meaning, and heartbeat-based staleness (only if false-positive stale locks are observed in practice).
 
 ## Requirement Intent Classification
 
