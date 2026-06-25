@@ -50,6 +50,8 @@ If evidence is missing, write `Evidence not found.` Do not invent files, scripts
 
 ## Step 0.5 — Fast-Path Pre-Classification (before spawning product-agent)
 
+**First: classify the requirement intent.** Load `.claude/policies/requirement-intent-classification-policy.md` to determine whether the requirement is a WHAT-change (new behavior → standard path) or HOW-change (same outcome, different mechanism → refactor candidate). Record the intent classification in `team-lead-classification.md` before applying fast-path triggers. A HOW-change that also changes an API contract must still run Architecture Agent — scope classification does not bypass contract-change gates.
+
 Read `reports/runs/<workflow-run-id>/requirements.md`. Evaluate whether the requirement is **infra-only or docs-only** using the checklist below. This pre-classification takes ~30 s and can save ~1.5 min by eliminating the product-agent entirely on routes where it adds no value.
 
 ### Fast-path triggers — skip Product only when the change fits exactly one of these four categories
@@ -467,30 +469,9 @@ Do not spawn `playwright-e2e-agent` until all four checks pass.
 
 #### Full E2E Backend Warmup — Start Backend Before Spawning Playwright Agent
 
-Once all four infrastructure checks pass, start the E2E backend in the background **before** spawning `playwright-e2e-agent`. `playwright.config.ts` sets `reuseExistingServer: true` — if the backend is already responding on port 8081, Playwright will not restart it, eliminating the cold-start wait from the critical path.
+Once all four infrastructure checks pass, start the E2E backend in the background **before** spawning `playwright-e2e-agent`. `playwright.config.ts` sets `reuseExistingServer: true` — a pre-warmed backend eliminates the cold-start wait from the critical path.
 
-```bash
-# Run in apps/backend/
-cd apps/backend
-
-# Start E2E backend in background
-./mvnw spring-boot:run -Pe2e -Dspring-boot.run.profiles=e2e > /tmp/e2e-backend.log 2>&1 &
-echo $! > /tmp/e2e-backend.pid
-echo "E2E backend starting (PID: $(cat /tmp/e2e-backend.pid))"
-
-# Poll until backend accepts connections on port 8081 (max 120s)
-for i in $(seq 1 40); do
-  if curl -s --connect-timeout 2 http://localhost:8081/api/v1/ > /dev/null 2>&1; then
-    echo "E2E backend ready on port 8081 ($((i * 3))s elapsed)"
-    break
-  fi
-  [ $i -eq 40 ] && echo "ERROR: E2E backend did not start within 120s" && cat /tmp/e2e-backend.log && exit 1
-  echo "Waiting for backend... $((i * 3))s elapsed"
-  sleep 3
-done
-```
-
-After the backend is confirmed ready, spawn `playwright-e2e-agent`. Playwright will find the backend already running and skip its own `webServer` startup.
+Load `.claude/runbooks/e2e-warmup.md` for the full bash sequence and poll timing. Run it from `apps/backend/` and wait for the "ready" confirmation before spawning the agent.
 
 **Skip this step** when E2E mode is Smoke or None — no backend is needed.
 
@@ -860,20 +841,12 @@ If two consecutive attempts repeat the same hypothesis without new evidence, Tea
 
 ### Failure Type Routing Table
 
-| Failure Type | Route To |
-|---|---|
-| java-backend-build | java-backend-agent |
-| java-backend-runtime | java-backend-agent |
-| java-backend-test | java-backend-agent |
-| frontend-build | `frontend-api-agent` or `frontend-ui-agent` (read failing file path to route) |
-| frontend-runtime | same file-path routing |
-| frontend-test | same file-path routing |
-| qa-acceptance | Team Lead classifies owner from evidence |
-| security | security-agent |
-| demo-config | relevant agent; demo/placeholder values are not blockers |
-| git-state | hard blocker if unsafe |
-| infra-required | infrastructure-agent only if explicitly allowed; otherwise document as recommendation |
-| unknown | Team Lead investigates, assigns smallest likely owner |
+Load `.claude/policies/qa-failure-routing-policy.md` for the complete routing table, file-path routing rules, and escalation conditions. Key routing summary:
+- Java backend failures → `java-backend-agent`
+- Frontend failures → read file path (`api/hooks/types` → `frontend-api-agent`; `components/pages/utils/CSS` → `frontend-ui-agent`)
+- Security findings → `security-agent`
+- Git state failures → hard blocker if unsafe
+- Unknown → Team Lead investigates, assigns smallest likely owner
 
 A failed run becomes workflow failure only if: classified as Critical, routed to relevant agent, allowed fix attempts exhausted, and feature is unsafe/impossible/unreleasable.
 
@@ -994,101 +967,13 @@ Write `reports/runs/<workflow-run-id>/demo-config-check.md` when config changes 
 
 Choose the cheapest sufficient level. Do not run all tests by default. Run only commands that exist.
 
-```
-Level 0:   smoke test — real browser, mocked backend, sanity check for any UI-visible change
-Level 0.5: targeted UI validation — real browser, mocked backend, layout/alignment assertions
-Level 1:   unit tests — Vitest/jsdom, isolated component/hook/util, cheapest
-Level 2:   frontend integration tests — Vitest/jsdom, real frontend layers, mocked network boundary
-Level 3:   backend integration tests — SpringBootTest/MockMvc, HTTP layer
-Level 4:   full E2E — real browser + real backend, only when Team Lead explicitly routes it
-```
-
----
-
-### Frontend Test Type Definitions
-
-These definitions are binding for routing decisions. Use them to decide which test type to require.
-
-**Frontend unit tests** — Vitest/jsdom, one isolated unit. Catches: conditional rendering, wrong text/class, missing section, button visibility, disabled/enabled state. Owned by: component/util → `frontend-ui-agent`; hook → `frontend-api-agent`.
-
-**Frontend integration tests** — Vitest/jsdom, multiple real frontend layers, network boundary mocked. Use when: per-layer unit tests pass but runtime behavior fails due to timing/ordering, provider wiring, shared state, or async side-effect interaction. Do not use for simple CSS/layout fixes.
-
-**Playwright UI smoke** — real browser, mocked backend/auth/session. Use for: CSS/layout, responsive/mobile, authenticated screen rendering at viewport sizes. Catches what jsdom cannot. Does not replace unit or integration tests.
-
-**Full E2E** — real browser + real backend on port 8081. Only when Team Lead explicitly routes it. Never triggered by frontend agents.
-
----
-
-### Simple UI / CSS / Layout Change Routing
-
-When a requirement is purely visual — layout fix, alignment, responsive tweak, copy change, color change, CSS class fix, missing section in a page — route as follows:
-
-- Agent: `frontend-ui-agent` only. Do not spawn `frontend-api-agent`, backend agent, or architect.
-- Tests: component/unit tests for DOM structure and CSS class assertions where possible. Then `npm run test` + `npm run build`.
-- Smoke: Playwright UI smoke with mocked backend if visible browser behavior changed.
-- Integration tests: only if the root cause turns out to be a real frontend seam/timing/wiring issue — not by default for visual bugs.
-- Full E2E: only if Team Lead discovers an actual API or backend contract issue during the fix cycle.
-
-For screenshot-like layout bugs (placement screen misaligned, mobile layout broken, button/section missing):
-1. `frontend-ui-agent` fixes component/CSS.
-2. Adds/updates unit tests for structural DOM expectations (section present, CSS class applied, element visible).
-3. Runs `npm run test` + `npm run build`.
-4. Runs Playwright UI smoke with mocked data/auth at relevant desktop and mobile viewports.
-5. Does **not** write a frontend integration test unless the root cause is a seam/timing/wiring issue between component and hook/store/interceptors.
-6. Reports done to Team Lead. Does not advance to review or PR directly.
-
----
-
-### Smoke Test Gate (Level 0) — Sanity Check For Any UI-Visible Change
-
-For routes that include frontend changes (`frontend-only`, `backend-and-frontend`, `full-stack-complex`), run the smoke gate when the change affects user-visible behavior: routing, page rendering, game interaction, placement flow, validation, navigation, or visible UI state.
-
-```bash
-cd apps/frontend && npx playwright test smoke.spec.ts
-```
-
-- No backend required — the Playwright `webServer` config starts `npm run dev` automatically.
-- Must pass before routing to code review or release.
-- If it fails after a frontend change, route back to `frontend-ui-agent` as a `frontend-runtime` finding (smoke tests rendering and navigation).
-- **Skip** for purely internal refactors, type-only changes, test-only changes, copy-only changes, or isolated CSS tweaks already covered by build/unit tests. When skipped, the owning frontend agent records the reason in its Evidence section and Team Lead records it in `test-results.md`.
-
----
-
-### Targeted UI Validation Test (Level 0.5) — For Layout / Render Changes
-
-Smoke tests only verify navigation and page boot — they do **not** render authenticated screens (e.g. the lobby with ships placed) and cannot catch visual layout regressions. For any UI change where the acceptance criteria include layout, alignment, overflow, or visual positioning, Team Lead must run or write a targeted Playwright test after smoke passes.
-
-#### When to write a new targeted test
-
-Write a new test when **all** of the following are true:
-1. The change is `frontend-only` or `frontend-and-backend` and affects a user-visible layout or render state.
-2. No existing targeted test covers the affected page/component (check `apps/frontend/tests/e2e/` for a matching `*-layout.spec.ts` or `*-render.spec.ts`).
-3. The acceptance criteria include at least one of: element alignment, overflow prevention, responsive stacking, visibility of specific elements on specific viewports.
-
-**Skip** for: pure copy changes, color-only changes, icon swaps, test-only changes, or when an existing targeted test already covers the affected area.
-
-#### How to write the test
-
-Owned by `playwright-e2e-agent` — see that agent's SKILL for implementation details (`page.route()`, `boundingBox`, `sessionStorage`, spec location, run command).
-
-#### If the targeted test fails
-
-1. Capture the **full failure output** — error message, failing assertion, and the auto-saved screenshot path from `playwright-report/` or `test-results/`.
-2. Add a finding to the finding registry:
-   - Type: `ui-layout`
-   - Severity: `High`
-   - Suspected Owner: `frontend-ui-agent`
-   - Last Evidence: paste the exact failing assertion line + screenshot path
-3. Route to `frontend-ui-agent` with:
-   - The exact failing assertion (e.g. `Expected fleet panel left (58px) to equal h1 left (24px) ± 5px`)
-   - The screenshot path so the agent can read it with the `Read` tool
-   - What the test expected vs what it measured
-4. After the fix, re-run the targeted test. If it passes, re-run smoke. Then proceed to code review.
-5. The `frontend-ui-agent` must not re-run E2E from scratch — only the targeted test, then smoke.
-
-#### Visual Analysis from requirements.md
-
-If `requirements.md` contains a `## Visual Analysis` section (populated from attached screenshots during requirement intake), `frontend-ui-agent` must read it before making any CSS changes. The visual defect table and inferred acceptance criteria in that section are the primary specification — they are more precise than text-only criteria.
+Load `.claude/policies/frontend-test-routing-policy.md` for:
+- Testing Strategy levels (Level 0–4 definitions and when to use each)
+- Frontend test type definitions (unit / integration / smoke / full E2E)
+- Simple UI/CSS/layout change routing
+- Smoke Test Gate (Level 0) command and skip conditions
+- Targeted UI Validation Test (Level 0.5) — when to write, how to write, how to route failures
+- Visual Analysis consumption rules from `requirements.md`
 
 If a test command does not exist:
 - Do not block by default
