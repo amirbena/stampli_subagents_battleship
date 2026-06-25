@@ -34,7 +34,7 @@ To extend an agent, edit its `SKILL.md` — do not create parallel files.
 | Frontend API Agent | `.claude/skills/frontend-api-agent` | claude-sonnet-4-6 | `apps/frontend/src/api/`, `hooks/`, `types/` — HTTP wrappers, hooks, TypeScript types + Vitest unit tests |
 | Frontend UI Agent | `.claude/skills/frontend-ui-agent` | claude-sonnet-4-6 | `apps/frontend/src/components/`, `pages/`, `utils/`, CSS — render layer + Vitest component tests + cross-layer `*.integration.test.tsx` (self-diagnosed: seam/timing/wiring/async-ordering issues where per-layer unit tests pass but runtime behavior fails) |
 | Backend Integration Tests Agent | `.claude/skills/backend-integration-tests-agent` | claude-sonnet-4-6 | `apps/backend/src/test/**/*IntegrationTest.java` — `@SpringBootTest` + MockMvc, **exception-only** for cross-layer flows and profile-specific wiring; `@WebMvcTest` tests belong to `java-backend-agent` |
-| Playwright E2E Agent | `.claude/skills/playwright-e2e-agent` | claude-sonnet-4-6 | `apps/frontend/tests/e2e/` — all browser tests; never assumes servers are running |
+| Playwright E2E Agent | `.claude/skills/playwright-e2e-agent` | claude-sonnet-4-6 | `apps/frontend/tests/e2e/`, `apps/frontend/playwright.config.*` — all browser tests; never assumes servers are running |
 | Security Agent | `.claude/skills/security-agent` | claude-opus-4-8 | `reports/runs/<id>/security-report.md` |
 | Code Review Agent | `.claude/skills/code-review-agent` | claude-opus-4-8 | `reports/runs/<id>/code-review-report.md` |
 | Infrastructure Agent | `.claude/skills/infrastructure-agent` | claude-sonnet-4-6 | `docker-compose.yml`, env documentation, run instructions, cross-platform startup scripts |

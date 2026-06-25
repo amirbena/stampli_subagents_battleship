@@ -383,6 +383,8 @@ Reason: <one sentence>
 
 ## Step 6 — Developer Agents
 
+Load `.claude/policies/background-agent-policy.md` before using `run_in_background` on any agent invocation. If any agent is spawned with `run_in_background: true`, record the agent name and expected output path in `team-lead-plan.md`. No gate may be marked complete while a background agent result is outstanding — collect and confirm every background result before advancing.
+
 Assign only agents listed in `team-lead-plan.md`. Each agent runs with:
 - Current workflow-run-id
 - Their specific assignment
