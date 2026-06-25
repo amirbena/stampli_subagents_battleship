@@ -360,27 +360,6 @@ Load `.claude/policies/frontend-split-decision-policy.md` for the full split cri
 **Shared boundary types (required when splitting):**
 `types/game.ts` is the contract boundary. Before spawning either frontend agent, Team Lead writes any required changes to `types/game.ts` directly (always a small, architecture-driven edit). Neither agent may independently modify shared boundary types unless Team Lead explicitly assigns the edit to one agent and tells the other to treat it as read-only.
 
-#### E2E Infrastructure Pre-Gate — Required Only When E2E Mode Is Full
-
-Skip this gate entirely when E2E mode is **Smoke** or **None**.
-
-When mode is **Full**, verify E2E infrastructure readiness before spawning `playwright-e2e-agent`. The exact shell checks are in `playwright-e2e-agent/SKILL.md` under "Infrastructure Pre-Gate."
-
-If any check fails, route to the owning agent:
-- `application-e2e.yml` missing → `java-backend-agent`
-- Maven `e2e` profile missing → `java-backend-agent`
-- `playwright.config.ts` missing backend webServer → `playwright-e2e-agent` with explicit instruction to add it
-- `VITE_API_BASE_URL` missing → `playwright-e2e-agent` with explicit instruction to add it
-
-Do not spawn `playwright-e2e-agent` until all four checks pass.
-
-#### Full E2E Backend Warmup — Start Backend Before Spawning Playwright Agent
-
-Once all four infrastructure checks pass, start the E2E backend in the background **before** spawning `playwright-e2e-agent`. `playwright.config.ts` sets `reuseExistingServer: true` — a pre-warmed backend eliminates the cold-start wait from the critical path.
-
-Load `.claude/runbooks/e2e-warmup.md` for the full bash sequence and poll timing. Run it from `apps/backend/` and wait for the "ready" confirmation before spawning the agent.
-
-**Skip this step** when E2E mode is Smoke or None — no backend is needed.
 
 #### Backend Integration Tests Decision
 
@@ -447,19 +426,54 @@ The next phase depends on the scope of the change — use this table to determin
 
 If any test fails, route the fix to the owning agent (by file path: `api/hooks/types` → `frontend-api-agent`; `components/pages/utils/CSS` → `frontend-ui-agent`). Do not advance the gate until all tests pass.
 
+**After Step 2 gate — Full E2E mode: run infrastructure pre-gate and start backend warmup in background**
+
+If E2E mode is **Full**, immediately after the Step 2 gate passes:
+1. Run the E2E infrastructure pre-gate checks (file existence only — fast). The exact checks are in `playwright-e2e-agent/SKILL.md` → "Infrastructure Pre-Gate."
+   If any check fails, route to the owning agent before starting the warmup:
+   - `application-e2e.yml` missing → `java-backend-agent`
+   - Maven `e2e` profile missing → `java-backend-agent`
+   - `playwright.config.ts` missing backend webServer → `playwright-e2e-agent` with explicit instruction to add it
+   - `VITE_API_BASE_URL` missing → `playwright-e2e-agent` with explicit instruction to add it
+   Do not start the warmup until all four checks pass.
+2. If all four checks pass, load `.claude/runbooks/e2e-warmup.md` and start the backend warmup **in the background** (non-blocking). Record the PID file path (`/tmp/e2e-backend.pid`) in `team-lead-plan.md`.
+3. Continue immediately to Step 3 (integration tests). The warmup runs concurrently.
+
+This moves 40–120s of warmup off the serial critical path.
+
+Skip this block entirely when E2E mode is **Smoke** or **None** — no backend needed.
+
 **Step 3 — Integration tests (when HTTP layer changed):**
 
 Spawn `backend-integration-tests-agent` only if any of the five HTTP-layer triggers are true (see above). Skip entirely for frontend-only changes.
 
 **Step 4 — Gate: integration tests must be green before E2E starts.**
 
+**Before Step 5 — Collect warmup result (Full E2E mode only):**
+
+If a background warmup was started after the Step 2 gate:
+1. Verify the warmup completed successfully (check `/tmp/e2e-backend.pid` and `/tmp/e2e-backend.log`).
+2. If the warmup failed: run cleanup (see below), add a finding to the finding registry (Type: `java-backend-runtime`, Severity: `High`, Owner: `java-backend-agent`), and route to `java-backend-agent` before proceeding. Do not spawn `playwright-e2e-agent`.
+3. No gate may advance while the warmup result is outstanding.
+
+Only after warmup is confirmed ready: proceed to Step 5.
+
 **Step 5 — Spawn `playwright-e2e-agent` (if E2E mode is not None):**
 
-- E2E mode **Full** → backend already running on port 8081 (warmed up in E2E Infrastructure Pre-Gate); spawn playwright-e2e-agent with `E2E mode: Full` in assignment; Playwright reuses the existing server
+- E2E mode **Full** → backend already running on port 8081 (warmed up in background); spawn playwright-e2e-agent with `E2E mode: Full` in assignment; Playwright reuses the existing server
 - E2E mode **Smoke** → spawn with `E2E mode: Smoke`; no backend needed
 - E2E mode **None** → skip entirely; proceed directly to Review
 
-This order minimises cost: unit tests catch obvious breaks cheaply, integration tests catch HTTP-layer issues before the expensive E2E run. Frontend-only changes skip Steps 3–4 entirely.
+**Cleanup — mandatory on success, failure, or early stop:**
+
+After `playwright-e2e-agent` finishes (pass or fail), and on any early stop (pre-gate failure, warmup failure, integration test failure that prevents E2E):
+```bash
+kill $(cat /tmp/e2e-backend.pid) 2>/dev/null || true
+rm -f /tmp/e2e-backend.pid /tmp/e2e-backend.log
+```
+Skip cleanup when no warmup was started (Smoke or None mode).
+
+This order minimises cost: unit tests catch obvious breaks cheaply, integration tests catch HTTP-layer issues before the expensive E2E run. The background warmup runs concurrently with integration tests, eliminating 40–120s from the serial critical path. Frontend-only changes skip Steps 3–4 entirely.
 
 All unit test _scenarios_ within a single agent run must also be parallelized — see java-backend-agent for JUnit 5 parallel config.
 
@@ -486,14 +500,23 @@ This overlaps ~1.5 min of release report writing with the code-review window, so
 #### Release phase
 - After code review (and security if required) return APPROVED, spawn `release-pr-agent` with the pre-written draft path so it can finalize and create the PR immediately.
 
-#### Critical Path Recording (optional — after PR URL confirmed)
+#### Critical Path Recording (standard practice)
 
-After `release-pr-agent` returns the PR URL, Team Lead may write `reports/runs/<workflow-run-id>/critical-path.md` by loading `.claude/templates/critical-path-report-template.md` and filling in the phase timings from timestamps recorded throughout the run.
+After `release-pr-agent` returns the PR URL, Team Lead writes `reports/runs/<workflow-run-id>/critical-path.md` by loading `.claude/templates/critical-path-report-template.md` and filling in the phase timings from timestamps recorded throughout the run.
 
-Record timestamps at each phase boundary using:
+Record a timestamp at each of these checkpoints using:
 ```bash
 date -u +"%H:%M UTC"
 ```
+
+| Checkpoint | When to record |
+|---|---|
+| Unit/build gates pass | Immediately after Step 2 gate is green |
+| Integration tests complete | Immediately after Step 4 gate is green |
+| Review returns | When both `code-review-agent` and `security-agent` (if spawned) report back |
+| E2E starts | Immediately before spawning `playwright-e2e-agent` |
+| E2E completes | Immediately after `playwright-e2e-agent` reports back |
+| Release readiness | Immediately before spawning `release-pr-agent` |
 
 **Only record timestamps that were actually observed during the run.** Do not estimate or back-fill missing durations. Leave Duration blank rather than guess. The report is informational and does not block release.
 
@@ -512,7 +535,7 @@ backend-contract-changed: yes/no
 E2E mode: Full | Smoke | None
 ```
 
-The `E2E mode` field is read by `frontend-ui-agent` to decide whether to skip the internal smoke gate (skip when Full — Full E2E covers smoke.spec.ts as a subset).
+The `E2E mode` field is read by `frontend-ui-agent` to decide whether to skip the internal smoke gate: skip when Full or Smoke (Team Lead's official E2E gate covers smoke.spec.ts in both cases); run only when None.
 
 The `branch` field tells the implementation agent exactly which branch to confirm they are on. Team Lead has already run the full Git Branch Handling Policy (Cases A–I) in Step 5 and left the repo in a clean, correct state. Implementation agents must not re-run branch decisions — they only confirm the branch matches what Team Lead passed.
 
