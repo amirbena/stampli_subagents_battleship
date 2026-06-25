@@ -204,6 +204,62 @@ Install/authenticate gh and rerun release.
 
 4. Print the PR URL returned by `gh pr create`.
 
+## Forbidden Staging Paths
+
+These paths must **never** appear in staged files or the commit diff. Load `.claude/policies/gitignore-compliance-policy.md` for the enforcement rules.
+
+```
+reports/**
+package-lock.json
+**/package-lock.json
+.env
+.env.*
+*.log
+```
+
+`package-lock.json` may remain tracked and changed locally after `npm install`. Agents must not stage, commit, or push it unless the user explicitly requests dependency lockfile changes.
+
+PR descriptions may summarise `reports/` content, but report files themselves must never be committed.
+
+## Pre-Commit Gitignore Compliance Gate
+
+Run this gate **after staging and before any `git push` or PR update**. If any output is produced, the commit is forbidden.
+
+```bash
+# Check every staged file against .gitignore
+git diff --cached --name-only | while read -r file; do
+  if git check-ignore -q "$file"; then
+    echo "$file"
+  fi
+done
+```
+
+Also explicitly check for forbidden paths regardless of `.gitignore`:
+```bash
+git diff --cached --name-only | grep -E '^reports/|^package-lock\.json$|.*/package-lock\.json$'
+```
+
+If either command produces output:
+1. Stop immediately. Do not push. Do not create or update the PR.
+2. Run `git restore --staged <file>` for each forbidden staged file.
+3. Return to Team Lead with this structured evidence:
+
+```
+Pre-Commit Gate: FAILED
+
+Forbidden staged files found:
+- <list from command output>
+
+Action taken:
+- Unstaged the above files (git restore --staged)
+- Did not push
+- Did not create/update PR
+
+Required Team Lead action:
+- Route remediation to release-pr-agent / git governance path
+- Confirm staging is clean before re-running release
+```
+
 ## Security Rules
 
 Never commit:
@@ -211,3 +267,5 @@ Never commit:
 - SSH private keys (`id_ed25519`, `id_rsa`)
 - `.env` files with real secrets
 - `application.yml` with credentials
+- Any file under `reports/`
+- `package-lock.json` or `**/package-lock.json` unless explicitly requested

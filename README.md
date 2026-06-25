@@ -546,7 +546,7 @@ To swap an agent to a different model or provider, edit the `model:` line in its
 See [`.claude/skills/`](.claude/skills/) for all agent skill files.
 
 ## Reports
-All pipeline artifacts live in [`reports/`](reports/) — gitignored so they never end up in a PR.
+All pipeline artifacts live in `reports/` — gitignored so they never end up in a PR. Reports are evidence, not truth: agents write diagnostics, run summaries, and gate reports here, but permanent decisions live in tracked source files. The `release-pr-agent` runs a pre-commit compliance gate to block any staged file under `reports/`; the `code-review-agent` checks for tracked `reports/` files as its first review step.
 
 | File | Written by |
 |------|-----------|

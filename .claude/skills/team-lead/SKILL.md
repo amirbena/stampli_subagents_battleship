@@ -642,6 +642,34 @@ Special cases:
 
 QA, security, and code review findings return to Team Lead. Team Lead classifies and routes. QA must not route directly to developers.
 
+### Code Review REQUIRES_CHANGES — Hard Stop and Routing
+
+When `code-review-agent` returns `REQUIRES_CHANGES`:
+
+1. **Stop the release flow immediately.** Do not call `release-pr-agent`. Do not commit. Do not push. Do not create or update the PR.
+2. Read the `Failure category` and `Required owner` fields from the structured output.
+3. Route the fix to the relevant owner agent using this table:
+
+```
+gitignore violation                    → release-pr-agent / git governance path
+reports/** tracked or staged           → release-pr-agent / git governance path
+package-lock.json staged or in PR      → release-pr-agent / git governance path
+local-artifact in staged/PR files      → release-pr-agent / git governance path
+README / install docs issue            → infrastructure-agent
+platform command verification issue   → infrastructure-agent
+frontend docs issue                    → frontend-ui-agent or infrastructure-agent
+backend docs issue                     → java-backend-agent or infrastructure-agent
+architecture contract issue            → architect-agent
+user-visible requirement issue         → product-agent
+security / config / secrets issue      → security-agent
+```
+
+4. Require correction evidence from the owner agent (files changed, verification command output).
+5. After the owner agent reports done, re-run `code-review-agent`.
+6. Continue to release only after `code-review-agent` returns `APPROVED`.
+
+**No Code Review bypass is allowed under any circumstances.**
+
 ### Post-Review Fix Severity Routing
 
 When code review or security review returns `REQUIRES CHANGES`, classify the fix by severity before routing. Load `.claude/metadata/review-validity-schema.md` for the full routing table per severity.
