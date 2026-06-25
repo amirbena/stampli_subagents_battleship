@@ -289,7 +289,9 @@ cd apps/frontend && npx playwright test smoke.spec.ts
 
 **Skip** when any of the following applies — record the reason in Evidence:
 - Pure refactors, type-only changes, test-only changes, copy-only changes, isolated CSS tweaks already verified by unit tests and build.
-- Team Lead's assignment specifies `E2E mode: Full`. Full E2E runs `smoke.spec.ts` plus all other specs against the live backend — the internal smoke check is a strict subset and running it twice wastes ~2–4 min. When Full E2E is confirmed, skip internal smoke and report done with `Internal smoke: skipped — Full E2E covers smoke.spec.ts` in Evidence.
+- Team Lead's assignment specifies `E2E mode: Full` or `E2E mode: Smoke`. In both cases Team Lead's official E2E gate runs `smoke.spec.ts` — the internal smoke check is a strict subset and running it twice wastes ~2–4 min. When Full or Smoke E2E is confirmed, skip internal smoke and report done with `Internal smoke: skipped — E2E mode is [Full|Smoke], official E2E covers smoke.spec.ts` in Evidence.
+
+Run internal smoke only when `E2E mode: None` — no official E2E will cover it.
 
 If smoke fails, self-heal (fix the component) up to 3 cycles before escalating to Team Lead. After smoke passes, report done to Team Lead — do not advance to review or PR directly.
 
