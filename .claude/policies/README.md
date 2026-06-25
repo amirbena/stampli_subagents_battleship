@@ -39,7 +39,8 @@ Team Lead remains the orchestrator.
 | Policy | Purpose | Primary loader |
 |---|---|---|
 | `git-preflight-policy.md` | Branch confirmation and Git Summary block required before any file edit | All implementation agents |
-| `git-branch-policy.md` | Branch creation, sync, and naming decisions (Cases A–J); Case J covers stale-lock recovery annotation after Requirement Intake Step 0.5 | Team Lead (Step 5) |
+| `git-branch-policy.md` | Branch creation, sync, and naming decisions (Cases A–J); Case J triggers Step 5.5 similarity detection and routes to Cases A–I based on classification | Team Lead (Step 5) |
+| `requirement-similarity-policy.md` | Defines same/extension/related/unrelated/unclear classifications, signal table, confidence rules, branch decision table, PR routing, and stash safety rules — loaded by Team Lead Step 5.5 only when a prior interrupted run was detected | Team Lead (Step 5.5, mandatory when Case J active) |
 | `demo-config-policy.md` | Classifies demo/local config vs real credentials; defines what security review must flag | infrastructure-agent, security-agent |
 
 ### Artifact and Git Compliance

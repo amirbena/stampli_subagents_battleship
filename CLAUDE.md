@@ -97,7 +97,37 @@ On stale lock detection:
 2. Detection report written to `reports/runs/<prior-id>/interrupted-run-detection.md`.
 3. Lock status updated to `"interrupted"`. New run proceeds normally.
 
-**Deferred to future PRs:** Semantic similarity detection (same/extension/related/unrelated classification), smart branch reuse based on requirement meaning, and heartbeat-based staleness (only if false-positive stale locks are observed in practice).
+**Deferred:** Heartbeat-based staleness (PR 1b — only if false-positive stale locks are observed in practice).
+
+## Requirement Similarity Detection
+
+When a new requirement arrives after an interrupted run, Team Lead Step 5.5 classifies whether the new requirement is the same as, an extension of, related to, or unrelated to the interrupted one. This guides safe branch and PR routing.
+
+**Trigger:** Step 5.5 runs only when `Interrupted Run Recovery → Prior Run Detected: Yes` in `team-lead-classification.md`. If no interrupted run was detected, Step 5.5 is skipped entirely.
+
+**Classification values:** `same | extension | related | unrelated | unclear`
+
+**Signals used:** branch slug alignment, requirement area overlap, acceptance criteria inheritance, dirty file scope match, prior PR title/body alignment.
+
+**Confidence:** `high` (3+ signals agree), `medium` (2 agree), `low` (1 or conflicting). Low confidence is reclassified to `unclear`.
+
+**Branch routing:**
+- `same + high confidence + prior branch not merged` → continue on prior branch (Cases A/C).
+- `extension + high/medium + prior branch not merged` → continue on prior branch (Cases C/I).
+- `related`, `unrelated`, or `unclear` → new branch from updated main (Cases B/D/H).
+- Prior branch merged → always new branch regardless of classification (Case G).
+
+**PR routing:**
+- `same` or `extension` with prior branch active and PR open → continue pushing; existing PR updates automatically. No duplicate PR opened.
+- All other cases → new PR at end of run.
+
+**Stash safety:** Step 5.5 never pops or drops stashes. Stash contents are always left in place. The stash ref is recorded in `requirement-similarity-detection.md` and in the Branch Decision Log for human or agent inspection.
+
+**Output artifacts:**
+- `reports/runs/<id>/requirement-similarity-detection.md` — signal table, classification, branch/PR/stash decision.
+- `## Requirement Similarity Detection` block in `team-lead-classification.md`.
+
+See `.claude/policies/requirement-similarity-policy.md` for full signal definitions, confidence rules, branch decision table, and stash safety rules.
 
 ## Requirement Intent Classification
 

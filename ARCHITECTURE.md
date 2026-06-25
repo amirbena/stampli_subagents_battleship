@@ -220,7 +220,9 @@ reports/
       product-spec.md
       team-lead-classification.md
       team-lead-plan.md
-      architecture.md     ← only if Architecture Required: Yes
+      architecture.md                        ← only if Architecture Required: Yes
+      interrupted-run-detection.md           ← only if stale lock was recovered (PR 1)
+      requirement-similarity-detection.md    ← only if prior interrupted run detected (PR 2)
       security-report.md
       code-review-report.md
       release-summary.md
@@ -250,7 +252,9 @@ On stale-lock recovery, any dirty working tree is preserved via a labeled `git s
 
 Valid `status` values: `"running"`, `"blocked"`, `"interrupted"`, `"complete"`.
 
-This makes the pipeline **single-tenant by design**: one requirement in flight at a time per working tree, with safe automatic recovery from aborted runs.
+**Step 5.5 — Requirement Similarity Detection** runs in Team Lead when a prior interrupted run was detected. It classifies the new requirement as `same | extension | related | unrelated | unclear` by comparing five signals (branch slug alignment, requirement area overlap, AC inheritance, stash file scope, prior PR title/body). The classification drives which branch Case (A–I) applies — `same/extension` may continue on the prior branch; `related/unrelated/unclear` always create a new branch from main. Stash contents are never popped or dropped automatically; the stash ref is recorded for human inspection. See `.claude/policies/requirement-similarity-policy.md`.
+
+This makes the pipeline **single-tenant by design**: one requirement in flight at a time per working tree, with safe automatic recovery from aborted runs and intelligent routing for continuation vs isolation.
 
 ### E2E Modes
 
