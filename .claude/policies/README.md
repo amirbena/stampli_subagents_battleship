@@ -16,6 +16,8 @@ Team Lead remains the orchestrator.
 | `documentation-parity-policy.md` | Change-trigger matrix for keeping agent tables, file-ownership, routes, and policy README in sync | Team Lead (Step 0.5 and Step 14) |
 | `requirement-intent-classification-policy.md` | WHAT-change vs HOW-change classification, refactor scope table, contract-change escalation rules | Team Lead (Step 0.5) |
 | `qa-failure-routing-policy.md` | Routes QA findings back to Team Lead — defines which failures go to which agent | Team Lead (QA loop) |
+| `test-failure-routing-policy.md` | Classification and routing table for all test failures (unit, integration, E2E, TypeScript compile) with self-heal rules and fix cycle limit | Team Lead (Step 7d) |
+| `frontend-split-decision-policy.md` | Criteria for splitting into two frontend agents vs single agent — conservative defaults, split conditions, ownership boundaries, routing table | Team Lead (Step 6) |
 
 ### Backend
 

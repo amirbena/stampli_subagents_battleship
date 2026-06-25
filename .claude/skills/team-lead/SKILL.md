@@ -190,63 +190,7 @@ Rules:
 
 ## Step 2 — Decision Tree Classification
 
-Classify the requirement immediately after reading Product Spec. Write `reports/runs/<workflow-run-id>/team-lead-classification.md`:
-
-```md
-# Team Lead Classification
-
-Workflow Run ID:
-Generated From Branch:
-Generated From Commit:
-Generated At:
-
-## Decision Tree Evaluation
-
-| Step | Question | Answer | Reason |
-|---|---|---|---|
-| 1 | Docs-only? | Yes/No | ... |
-| 2 | UI-only? | Yes/No | ... |
-| 3 | Java backend behavior affected? | Yes/No | ... |
-| 4 | API/shared contract affected? | Yes/No | ... |
-| 5 | Auth/session/user data affected? | Yes/No | ... |
-| 6 | Multiplayer/sync/hidden data affected? | Yes/No | ... |
-| 7 | Demo config / dotenv affected? | Yes/No | ... |
-| 8 | Infra/CI/deployment affected beyond allowed config? | Yes/No | ... |
-
-## Classification Route
-
-docs-only / frontend-only / java-backend-only / backend-and-frontend / config-aware / infra / auth-security / multiplayer-session / full-stack-complex
-
-## Architecture Required
-
-Yes / No
-
-## Architecture Decision Reason
-
-## Execution Mode
-
-cheap / normal / full
-
-## Agents To Run
-
-## Agents To Skip
-
-## Runtime / Build / Test Failure Routing Policy
-
-How failures should be routed if validation fails.
-
-## Demo Config Policy
-
-Does this requirement need visible config?
-Are values demo/local/placeholder?
-Is human setup required?
-
-## Risk Notes
-
-## Workflow Metadata
-
-Workflow Run ID:
-```
+Classify the requirement immediately after reading Product Spec. Load `.claude/templates/team-lead-classification-template.md` and write the filled result to `reports/runs/<workflow-run-id>/team-lead-classification.md`.
 
 ### Decision Rules
 
@@ -409,53 +353,12 @@ Team Lead MUST spawn all assigned developer agents automatically using the `Agen
 
 #### Implementation phase (parallel where independent)
 
-**Conservative frontend defaults — read before spawning any frontend agent:**
-
-| Rule | Detail |
-|---|---|
-| `frontend-ui-agent` is the default | Use it for any small, tightly-coupled, UI-only, or cross-layer change. Never split by default. |
-| `frontend-api-agent` is optional | Use it alone for hook/API/type-only changes, or in parallel when data-layer work is clearly independent of UI work. |
-| No `frontend-unit-test-agent` | Unit tests belong to the implementing agent. |
-| Single-agent: agent owns full gate | `npm run test` + `npm run build` run by the agent before reporting done. |
-| Split path: Team Lead owns full gate | Each agent runs its co-located slice; Team Lead waits for BOTH to report done, then runs `npm run test` + `npm run build` once. This is the cross-agent contract check — neither agent knows the other is done; Team Lead is the synchronization point. |
-| Only Team Lead spawns | No agent may spawn another agent or advance a gate without Team Lead instruction. |
-| Team Lead does not micromanage frontend test selection | `frontend-ui-agent` decides which unit tests, integration tests, and smoke checks to add within its scope. Team Lead may reject the result only if the agent skipped an obvious required gate, exceeded its file scope, or reported done without evidence. |
-
 **Frontend split decision — required before spawning any frontend agent:**
 
-Split into `frontend-api-agent` + `frontend-ui-agent` **only when ALL of the following are true:**
-1. The requirement contains independent API/data-layer work: new or changed hook, axios logic, type contract, loading counter, polling, retry, error mapping, DTO mapping, or data-fetching behavior.
-2. The requirement also contains independent UI/render-layer work: new or changed component, page, CSS, visual state, toast/modal, board rendering, or UX behavior.
-3. The two bodies of work do not tightly couple — the UI agent's work does not depend on a runtime value or intermediate state the API agent produces (beyond the shared types Team Lead pre-writes).
-
-**Keep as a single agent when:**
-- The change is small or touches both layers tightly (e.g., a one-file component that also needs a small API tweak — splitting creates more coordination overhead than it saves).
-- Only one layer is touched — use `frontend-ui-agent` for render/CSS/copy/layout; `frontend-api-agent` for hooks/API/types.
-
-**Ownership boundaries (when split):**
-
-| Agent | Owns |
-|---|---|
-| `frontend-api-agent` | `api/`, `hooks/`, data fetching, DTO mapping, API error mapping, loading counters, retries, React async state, and types needed for API contracts |
-| `frontend-ui-agent` | `components/`, `pages/`, board rendering, visual states, CSS, UX behavior, modals/toasts, and Playwright smoke verification for visible behavior |
-
-**Routing table:**
-
-| Scope of change | Agents to spawn |
-|---|---|
-| Independent API work AND independent UI work | `java-backend-agent` + `frontend-api-agent` + `frontend-ui-agent` (all parallel; pre-write types first) |
-| Small or tightly-coupled across both layers | `frontend-ui-agent` only (default single-agent path) |
-| `java-backend-only` | `java-backend-agent` only |
-| `frontend-only` — data/hook/API only, no component/CSS impact | `frontend-api-agent` only |
-| `frontend-only` — render/CSS/copy/layout only, no data-layer impact | `frontend-ui-agent` only |
+Load `.claude/policies/frontend-split-decision-policy.md` for the full split criteria, conservative defaults, ownership boundaries, and routing table. Team Lead makes the split decision — the policy defines the criteria.
 
 **Shared boundary types (required when splitting):**
 `types/game.ts` is the contract boundary. Before spawning either frontend agent, Team Lead writes any required changes to `types/game.ts` directly (always a small, architecture-driven edit). Neither agent may independently modify shared boundary types unless Team Lead explicitly assigns the edit to one agent and tells the other to treat it as read-only.
-
-**Routing after fixes:**
-- Hook/API/type failure → `frontend-api-agent` self-heals.
-- Component/page/CSS failure → `frontend-ui-agent` self-heals.
-- TypeScript compile error: read the failing file path — `api/hooks/types` → `frontend-api-agent`; `components/pages/utils/CSS` → `frontend-ui-agent`.
 
 #### E2E Infrastructure Pre-Gate — Required Only When E2E Mode Is Full
 
@@ -646,59 +549,11 @@ Write `reports/runs/<workflow-run-id>/infra-non-modification-check.md`. If forbi
 git diff --name-only
 ```
 
-Compare changed files against Team Lead assignments. Write `reports/runs/<workflow-run-id>/ownership-check.md`:
-
-```md
-# Ownership Check
-
-## Agent
-
-## Assignment
-
-## Allowed Paths
-
-## Actual Changed Files
-
-## Violations
-
-## Decision
-
-Pass / Escalate / Revert / Continue With Risk / Hard Block
-
-## Reason
-
-## Follow-up Action
-```
+Compare changed files against Team Lead assignments. Load `.claude/templates/scope-check-templates.md` → `## Ownership Check` section for the report format. Write the filled result to `reports/runs/<workflow-run-id>/ownership-check.md`.
 
 ### 7c — Diff Scope Check
 
-Write `reports/runs/<workflow-run-id>/diff-scope-check.md`:
-
-```md
-# Diff Scope Check
-
-## Expected Changed Areas
-
-## Actual Changed Files
-
-## Out-Of-Scope Files
-
-## Shared Files Changed
-
-## Route Still Valid
-Yes/No
-
-## Mode Still Valid
-Yes/No
-
-## Required Escalation
-None / Architecture / Security / Java Backend / Frontend / Config / Stronger Tests
-
-## Decision
-Continue / Escalate / Continue With Risk / Hard Block
-
-## Reason
-```
+Load `.claude/templates/scope-check-templates.md` → `## Diff Scope Check` section for the report format. Write the filled result to `reports/runs/<workflow-run-id>/diff-scope-check.md`.
 
 Prefer escalation over blocker when safe. Hard block only for unsafe Git state, forbidden infrastructure change, obvious real leaked credential, or unrecoverable repo state.
 
@@ -708,40 +563,7 @@ Prefer escalation over blocker when safe. Hard block only for unsafe Git state, 
 
 When any agent in the parallel test phase reports a failure, Team Lead is the sole decision-maker on who owns the fix. Never route blindly — read the failure output and classify it first.
 
-### Classification and routing table
-
-| Failure symptom | Routing | Action |
-|---|---|---|
-| JUnit unit test fails (production code wrong) | `java-backend-agent` **self-heals** — no Team Lead hop | Fix code; re-run `./mvnw test` |
-| JUnit unit test itself wrong (bad assertion/mock) | `java-backend-agent` **self-heals** — no Team Lead hop | Fix test; re-run `./mvnw test` |
-| `@SpringBootTest` / MockMvc fails (80% case) | `java-backend-agent` directly | Fix controller/DTO/exception handler; re-run `*IntegrationTest` |
-| `@SpringBootTest` / MockMvc fails after 2 java-backend cycles | Team Lead reads output → `backend-integration-tests-agent` | Fix the test setup/assertion; re-run `*IntegrationTest` |
-| Vitest / RTL test fails (hook, API, type logic) | `frontend-api-agent` **self-heals** — no Team Lead hop | Fix hook/API; re-run `npx vitest run src/api src/hooks src/types` |
-| Vitest / RTL test fails (component, page, render) | `frontend-ui-agent` **self-heals** — no Team Lead hop | Fix component; re-run `npx vitest run src/components src/pages src/utils` |
-| Vitest test itself wrong (bad assertion/mock) | owning frontend agent **self-heals** — no Team Lead hop | Fix test; re-run co-located tests only |
-| Frontend full gate fails (single-agent path) | Owning frontend agent **self-heals** | Fix code; re-run `npm run test` + `npm run build` |
-| Frontend Test Gate fails (split path, TL-run) | Team Lead diagnoses by file path, routes to owning agent | After fix, Team Lead re-runs `npm run test` + `npm run build` |
-| TypeScript compile error in frontend | read file path → route to owner (`api/hooks/types` → `frontend-api-agent`; `components/pages/utils` → `frontend-ui-agent`) **self-heals** | Fix type error; re-run `npm run build` |
-| Playwright test fails — backend returns unexpected response | `java-backend-agent` | Fix the backend; re-run `npm run test:e2e` |
-| Playwright test fails — UI behaves incorrectly | Before routing: check the data flow. If the component's hook returns the correct value → `frontend-ui-agent`. If the hook returns wrong/stale data → `frontend-api-agent`. Symptom is in the UI but root cause may be in the API layer — follow the data, not the visible layer. | Fix the real owner; re-run `npm run test:e2e` |
-| Playwright test fails — API/hook layer wrong | `frontend-api-agent` | Fix the hook/API; if `frontend-ui-agent` also changed files in this fix cycle, it must re-run its tests (unit + integration + smoke) and be green before E2E re-triggers |
-| Playwright test fails — both frontend agents changed files | `frontend-api-agent` + `frontend-ui-agent` | Both must re-run their tests and be green; only then re-trigger E2E. If only one agent changed files, the other does not re-verify. |
-| Playwright test fails — test is flaky or assertion is wrong | `playwright-e2e-agent` | Fix the test; re-run `npm run test:e2e` |
-
-### Routing rules
-
-1. **Unit test failures never route through Team Lead.** `java-backend-agent`, `frontend-api-agent`, and `frontend-ui-agent` own their tests and self-heal directly. Team Lead only steps in when the fix cycle limit is reached.
-2. **Integration test failures default to `java-backend-agent`** — wrong status code, missing exception handler, DTO serialization mismatch account for ~80% of cases. Only route to `backend-integration-tests-agent` if java-backend-agent fails to fix it after 2 cycles.
-3. **Read the failure output before routing** for Playwright failures — a backend bug can surface in a frontend test and vice versa.
-4. **Route to exactly one agent.** Do not spawn multiple fix agents for the same failure.
-5. **After the fix, re-run only the failing suite** — not all tests.
-6. **E2E does not start until all test gates are green.**
-7. **Before re-triggering E2E after a frontend fix** — check which agents changed files in this fix cycle. If both `frontend-api-agent` and `frontend-ui-agent` changed files, both must re-run their tests and be green. If only one changed files, only that agent re-verifies. Never re-trigger E2E when the sibling agent's tests are unknown.
-8. **After any `frontend-api-agent` fix** — always run `npm run build` before re-triggering E2E, even if `frontend-ui-agent` changed no files. TypeScript will catch shape mismatches where the hook's return type changed and the component silently broke as a consumer. Build failure → route to `frontend-ui-agent` to align the component. Build passes → safe to re-trigger E2E.
-
-### Fix cycle limit
-
-Maximum 5 fix cycles per test suite per run. If a suite is still failing after 5 cycles, write `reports/runs/<workflow-run-id>/workflow-blocker.md` and stop.
+Load `.claude/policies/test-failure-routing-policy.md` for the full classification table, routing rules, and fix cycle limit.
 
 ---
 
