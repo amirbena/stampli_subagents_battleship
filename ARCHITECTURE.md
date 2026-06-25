@@ -94,6 +94,14 @@ User Requirement
                                │    skipped when single agent ran (agent owns gate)    │
                                │  ── GATE: all green ──────────────────────────────────┘
                                │
+                               │  E2E mode = Full?  ──► E2E Infrastructure Pre-Gate (fast, file checks only)
+                               │  (immediately after unit/build gate)  • application-e2e.yml
+                               │                                       • Maven e2e profile
+                               │                                       • dual webServer
+                               │                                       • VITE_API_BASE_URL
+                               │  If pre-gate passes ──► Start backend warmup in BACKGROUND
+                               │  (non-blocking — 40–120s overlaps with integration tests below)
+                               │
                                │  ── STEP 2: INTEGRATION TESTS (after unit gate) ──────┐
                                ▼                                                        │
                   ┌────────────────────────────┐                                       │
@@ -104,15 +112,14 @@ User Requirement
                   └────────────┬───────────────┘                                       │
                                │  ── GATE: integration tests green ─────────────────────┘
                                │
-                               │  E2E mode = Full?  ──► E2E Infrastructure Pre-Gate
-                               │  (only when contract changed)  • application-e2e.yml
-                               │                                • Maven e2e profile
-                               │                                • dual webServer
-                               │                                • VITE_API_BASE_URL
+                               │  E2E mode = Full?  ──► Collect background warmup result
+                               │  (backend must be ready before spawning Playwright)
+                               │  Cleanup (kill PID + remove log) after Playwright finishes
+                               │  or on any early stop
                                │
                                ▼
                    ┌───────────────────────┐
-                   │  Playwright E2E       │  Full: all specs + live backend
+                   │  Playwright E2E       │  Full: all specs + live backend (pre-warmed)
                    │  Agent                │  Smoke: smoke.spec.ts only, no backend
                    │                       │  None: skipped
                    └───────────┬───────────┘
