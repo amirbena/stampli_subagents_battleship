@@ -8,6 +8,146 @@ The purpose of this project is not only to deliver a working game, but to demons
 
 Everything below must be installed and verified before running `/requirement`. The pipeline will fail silently if any of these are missing.
 
+### Project Bootstrap (one-time, before `/requirement`)
+
+These steps are performed **once** when you first clone the repository. They are not run automatically by any script or agent.
+
+#### 1. Install project dependencies
+
+Run each command from the directory shown:
+
+```bash
+# Frontend — install Node dependencies
+cd apps/frontend
+npm install
+
+# Backend — download Maven dependencies and compile
+cd apps/backend
+./mvnw clean install          # macOS / Linux (Maven Wrapper)
+# mvn clean install           # alternative if you have Maven installed globally
+```
+
+> `npm install` is only required the first time (or after a `package.json` change).
+> Subsequent runs via `npm run dev` or the fast-local scripts reuse the existing `node_modules`.
+>
+> `./mvnw clean install` resolves all Maven dependencies into your local `.m2` cache and compiles
+> the project. This prevents slow cold-start downloads when agents later call `./mvnw test` or
+> `./mvnw spring-boot:run`.
+
+#### 2. Create `.claude/settings.json`
+
+This file does **not** exist in the repository (only a minimal `.claude/settings.local.json` is
+checked in). You must create it manually before running `/requirement`.
+
+Placing this file pre-approves the routine tool permissions the agents use, so the autonomous
+pipeline does **not** prompt for confirmation on every file read, bash command, or git operation.
+Without it, each agent invocation will pause and wait for your approval, breaking the hands-free
+flow.
+
+Create `.claude/settings.json` at the project root with **exactly** this content:
+
+```json
+{
+  "theme": "dark",
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Edit",
+      "Write",
+      "Agent",
+      "Skill(*)",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)",
+
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+
+      "Bash(git status*)",
+      "Bash(git log*)",
+      "Bash(git diff*)",
+      "Bash(git show*)",
+      "Bash(git fetch*)",
+      "Bash(git pull*)",
+      "Bash(git push*)",
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(git checkout*)",
+      "Bash(git switch*)",
+      "Bash(git branch*)",
+      "Bash(git stash*)",
+      "Bash(git rebase*)",
+      "Bash(git merge*)",
+      "Bash(git tag*)",
+      "Bash(git rev-parse*)",
+      "Bash(git config*)",
+      "Bash(git remote*)",
+      "Bash(git reset*)",
+      "Bash(git restore*)",
+      "Bash(git ls-files*)",
+      "Bash(git grep*)",
+      "Bash(git blame*)",
+
+      "Bash(npm*)",
+      "Bash(npx*)",
+      "Bash(node*)",
+
+      "Bash(./mvnw*)",
+      "Bash(mvn*)",
+
+      "Bash(ls*)",
+      "Bash(cat*)",
+      "Bash(echo*)",
+      "Bash(pwd*)",
+      "Bash(find*)",
+      "Bash(grep*)",
+      "Bash(xargs*)",
+      "Bash(which*)",
+      "Bash(jq*)",
+      "Bash(test*)",
+      "Bash(true)",
+      "Bash(false)",
+      "Bash(chmod*)",
+      "Bash(mkdir*)",
+
+      "Bash(curl*)",
+
+      "Bash(gh pr*)",
+      "Bash(gh --version*)",
+      "Bash(gh auth*)",
+      "Bash(gh repo*)",
+      "Bash(gh issue*)",
+      "Bash(gh api*)",
+
+      "mcp__visualize__read_me",
+      "mcp__visualize__show_widget"
+    ],
+    "ask": [
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git reset --hard*)",
+      "Bash(git reset -n*)",
+      "Bash(git branch -D*)",
+      "Bash(git clean*)",
+      "Bash(rm *)",
+      "Bash(rm -r*)",
+      "Bash(rm -f*)",
+      "Bash(del *)"
+    ]
+  }
+}
+```
+
+> **Destructive operations remain in the `ask` list by design.** Force-push
+> (`git push --force`, `git push -f`), hard reset (`git reset --hard`), branch deletion
+> (`git branch -D`), `git clean`, and `rm …` will **still prompt for confirmation** before
+> running. Pre-approval covers routine read/write/git/build tools only — not irreversible
+> actions.
+
 ### Runtime tools
 
 | Tool | Min version | Verify | Install |
