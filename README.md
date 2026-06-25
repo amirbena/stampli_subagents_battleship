@@ -12,38 +12,50 @@ Everything below must be installed and verified before running `/requirement`. T
 
 These steps are performed **once** when you first clone the repository. They are not run automatically by any script or agent.
 
-#### 1. Install project dependencies
-
-Run each command from the directory shown:
+#### 1a. Frontend — install Node dependencies
 
 **macOS / Linux**
 ```bash
-# Frontend — install Node dependencies
 cd apps/frontend
 npm install
-
-# Backend — download Maven dependencies and compile
-cd apps/backend
-./mvnw clean install
 ```
 
 **Windows (PowerShell or cmd)**
 ```bash
-# Frontend — install Node dependencies
 cd apps\frontend
 npm install
-
-# Backend — download Maven dependencies and compile
-cd apps\backend
-mvnw.cmd clean install
 ```
 
 > `npm install` is only required the first time (or after a `package.json` change).
 > Subsequent runs via `npm run dev` or the fast-local scripts reuse the existing `node_modules`.
+
+#### 1b. Backend — install Maven dependencies
+
+**macOS / Linux**
+```bash
+cd apps/backend
+
+# Make the Maven Wrapper executable (required once after cloning on macOS/Linux)
+chmod +x mvnw
+
+# Then run the install (choose one):
+./mvnw clean install      # Maven Wrapper — no global Maven needed
+# mvn clean install       # alternative if you have Maven installed globally
+```
+
+**Windows (PowerShell or cmd)**
+```bash
+cd apps\backend
+mvnw.cmd clean install
+```
+
+> The Maven install resolves all dependencies into your local `.m2` cache and compiles
+> the project. This prevents slow cold-start downloads when agents later call the wrapper
+> to run tests or start the backend.
 >
-> The Maven Wrapper (`./mvnw` on macOS/Linux, `mvnw.cmd` on Windows) resolves all Maven
-> dependencies into your local `.m2` cache and compiles the project. This prevents slow
-> cold-start downloads when agents later call the wrapper to run tests or start the backend.
+> **macOS/Linux note:** After cloning, `mvnw` may not be executable. Run `chmod +x mvnw`
+> once inside `apps/backend/` before using `./mvnw`. This is not needed on Windows
+> (`mvnw.cmd` has no permission bit).
 
 #### 2. Create `.claude/settings.json`
 
