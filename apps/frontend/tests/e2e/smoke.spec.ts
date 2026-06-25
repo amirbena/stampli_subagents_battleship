@@ -9,10 +9,14 @@ test.describe('Home page smoke', () => {
     await expect(page.getByRole('button', { name: /join game/i })).toBeVisible();
   });
 
-  test('shows validation error when joining with empty code', async ({ page }) => {
+  test('shows name-entry form and disabled buttons on first visit (AC-01)', async ({ page }) => {
+    // First visit: no battleship_player_id in localStorage → name-entry gate shown,
+    // all game-start buttons disabled until the user enters a name.
     await page.goto('/');
-    await page.getByRole('button', { name: /join game/i }).click();
-    await expect(page.getByText(/please enter a room code/i)).toBeVisible();
+    await expect(page.getByRole('textbox', { name: /display name/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /create game/i })).toBeDisabled();
+    await expect(page.getByRole('button', { name: /play vs computer/i })).toBeDisabled();
+    await expect(page.getByRole('button', { name: /join game/i })).toBeDisabled();
   });
 
   test('shows Play vs Computer button alongside Create Game', async ({ page }) => {

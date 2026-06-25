@@ -1,0 +1,11 @@
+.welcome-banner {
+  font-size: 1rem;
+  color: var(--color-text-muted);
+  margin: 0;
+  text-align: center;
+}
+
+.welcome-banner__name {
+  color: var(--color-text);
+  font-weight: 700;
+}

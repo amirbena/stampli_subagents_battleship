@@ -6,6 +6,8 @@ import com.stampli.battleship.dto.ConfirmReadyResponse;
 import com.stampli.battleship.dto.FireShotResponse;
 import com.stampli.battleship.dto.GameStateResponse;
 import com.stampli.battleship.repository.GameRepository;
+import com.stampli.battleship.repository.MoveRepository;
+import com.stampli.battleship.repository.PlayerRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,6 +30,12 @@ class GameServiceComputerTest {
     @Mock
     private GameRepository gameRepository;
 
+    @Mock
+    private PlayerRepository playerRepository;
+
+    @Mock
+    private MoveRepository moveRepository;
+
     // Use real service instances for white-box coverage of AI integration
     private PlacementValidationService placementValidationService;
     private ComputerPlayerService computerPlayerService;
@@ -37,7 +45,8 @@ class GameServiceComputerTest {
     void setUp() {
         placementValidationService = new PlacementValidationService();
         computerPlayerService = new ComputerPlayerService(placementValidationService);
-        gameService = new GameService(gameRepository, placementValidationService, computerPlayerService);
+        gameService = new GameService(gameRepository, placementValidationService, computerPlayerService,
+                playerRepository, moveRepository);
 
         // save() is a void method — Mockito mocks it as no-op by default; no explicit stub needed.
     }

@@ -4,6 +4,8 @@ import com.stampli.battleship.domain.*;
 import com.stampli.battleship.dto.GameStateResponse;
 import com.stampli.battleship.dto.PlaceShipResponse;
 import com.stampli.battleship.repository.GameRepository;
+import com.stampli.battleship.repository.MoveRepository;
+import com.stampli.battleship.repository.PlayerRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,6 +28,15 @@ class GameServiceTest {
 
     @Mock
     private PlacementValidationService placementValidationService;
+
+    @Mock
+    private ComputerPlayerService computerPlayerService;
+
+    @Mock
+    private PlayerRepository playerRepository;
+
+    @Mock
+    private MoveRepository moveRepository;
 
     @InjectMocks
     private GameService gameService;

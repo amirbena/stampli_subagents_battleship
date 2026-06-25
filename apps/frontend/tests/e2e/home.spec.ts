@@ -7,5 +7,6 @@ test('home page loads and shows Create Game button', async ({ page }) => {
 
 test('home page shows Join Game input', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('textbox')).toBeVisible();
+  // The home page now has two textboxes (display-name + room-code); target room code specifically.
+  await expect(page.getByLabel('Room code')).toBeVisible();
 });
