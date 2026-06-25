@@ -6,6 +6,7 @@ export type GameStatus =
   | 'WAITING_FOR_PLAYERS'
   | 'PLACING_SHIPS'
   | 'IN_PROGRESS'
+  | 'PAUSED'
   | 'FINISHED';
 
 export interface Coordinate {
@@ -101,6 +102,26 @@ export interface FireShotResponse {
 export interface ApiError {
   error: string;
   code: string;
+}
+
+// --- Pause / Resume / Stop game-session lifecycle ---
+
+/**
+ * Active-game pointer persisted in localStorage under `battleship_active_game`.
+ * Single source of truth read by both the route guard and the Home resume modal.
+ * Distinct from `battleship_player_id` (persistent identity) — never collides with it.
+ */
+export interface ActiveGamePointer {
+  gameId: string;
+  playerId: string;
+  gameMode: GameMode;
+}
+
+/** Response body for POST .../pause and POST .../resume. (Stop returns 204 No Content.) */
+export interface PauseResumeResponse {
+  gameId: string;
+  status: GameStatus;
+  previousStatus: GameStatus;
 }
 
 // --- Player identity (Guest & Persistent Player Identity feature) ---

@@ -92,6 +92,13 @@ input:focus { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 
 .btn--secondary:hover:not(:disabled) { background: var(--color-border); }
 
+.btn--danger {
+  background: var(--color-danger);
+  color: #fff;
+}
+
+.btn--danger:hover:not(:disabled) { background: #d63d61; }
+
 /* ===== Shared animations =====
    Used by ShotResultToast and PlacementErrorToast. */
 @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) scale(0.8); } to { opacity: 1; transform: translateX(-50%) scale(1); } }

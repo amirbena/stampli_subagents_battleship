@@ -13,6 +13,8 @@ vi.mock('../../utils/sound', () => ({
 const fireShotMock = vi.fn();
 vi.mock('../../api/gameApi', () => ({
   fireShot: (...args: unknown[]) => fireShotMock(...args),
+  pauseGame: vi.fn(),
+  stopGame: vi.fn(),
 }));
 
 const refreshMock = vi.fn().mockResolvedValue(undefined);
@@ -61,8 +63,11 @@ function renderGame() {
 }
 
 beforeEach(() => {
-  sessionStorage.setItem('gameId', 'G1');
-  sessionStorage.setItem('playerId', 'me');
+  // Session context now lives in the localStorage active-game pointer (not sessionStorage).
+  localStorage.setItem(
+    'battleship_active_game',
+    JSON.stringify({ gameId: 'G1', playerId: 'me', gameMode: 'HUMAN' }),
+  );
   fireShotMock.mockReset();
   playShotSoundMock.mockReset();
   refreshMock.mockClear();
@@ -71,6 +76,7 @@ beforeEach(() => {
 
 afterEach(() => {
   sessionStorage.clear();
+  localStorage.clear();
 });
 
 describe('Game — shot responsiveness', () => {

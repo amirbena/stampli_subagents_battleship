@@ -86,6 +86,25 @@ async function readStoredPlayerId(page: Page): Promise<string | null> {
   });
 }
 
+/**
+ * Reads the localStorage active-game pointer ('battleship_active_game') written by
+ * Home on create/join. gameId/playerId/gameMode migrated OUT of sessionStorage into
+ * this single localStorage pointer (JSON.stringify of { gameId, playerId, gameMode }).
+ */
+async function readActivePointer(
+  page: Page,
+): Promise<{ gameId: string; playerId: string; gameMode: string } | null> {
+  return page.evaluate(() => {
+    const raw = localStorage.getItem('battleship_active_game');
+    if (raw === null) return null;
+    try {
+      return JSON.parse(raw) as { gameId: string; playerId: string; gameMode: string } | null;
+    } catch {
+      return null;
+    }
+  });
+}
+
 const SHIP_PLACEMENTS = [
   { shipType: 'CARRIER',    row: 0, col: 0, orientation: 'HORIZONTAL' },
   { shipType: 'BATTLESHIP', row: 1, col: 0, orientation: 'HORIZONTAL' },
@@ -347,9 +366,10 @@ test.describe('AC-11 — vs Computer with player identity', () => {
     expect(createBody.playerId).toBe(playerId);
 
     // AC-11: the response echoes back the SAME playerId (same UUID end-to-end, OQ-3).
-    const gameId  = await page.evaluate(() => sessionStorage.getItem('gameId'));
-    const sessionPlayerId = await page.evaluate(() => sessionStorage.getItem('playerId'));
-    expect(sessionPlayerId).toBe(playerId);
+    // gameId/playerId now live in the localStorage active-game pointer.
+    const pointer = await readActivePointer(page);
+    const gameId  = pointer?.gameId ?? null;
+    expect(pointer?.playerId).toBe(playerId);
     expect(gameId).toBeTruthy();
 
     // Place ships and mark ready via API to speed up the test.
@@ -423,13 +443,13 @@ test.describe('AC-13 — Human game join with player identity', () => {
       // AC-12: playerId included in POST /games body.
       expect(createBody.playerId).toBe(playerA.playerId);
 
-      // Get the room code from sessionStorage.
-      const gameId = await pageA.evaluate(() => sessionStorage.getItem('gameId'));
+      // Get the room code (gameId) from the localStorage active-game pointer.
+      const pointerA = await readActivePointer(pageA);
+      const gameId = pointerA?.gameId ?? null;
       expect(gameId).toBeTruthy();
 
-      // Player A sessionStorage playerId must equal the persistent identity.
-      const playerASession = await pageA.evaluate(() => sessionStorage.getItem('playerId'));
-      expect(playerASession).toBe(playerA.playerId);
+      // Player A pointer playerId must equal the persistent identity.
+      expect(pointerA?.playerId).toBe(playerA.playerId);
 
       // ── Player B: establish identity and join the game ────────────────────
       await pageB.goto('/');
@@ -454,9 +474,9 @@ test.describe('AC-13 — Human game join with player identity', () => {
       // AC-13: Player B's playerId included in the join body.
       expect(joinBody.playerId).toBe(playerB.playerId);
 
-      // Player B sessionStorage playerId echoed back matches their persistent identity.
-      const playerBSession = await pageB.evaluate(() => sessionStorage.getItem('playerId'));
-      expect(playerBSession).toBe(playerB.playerId);
+      // Player B pointer playerId echoed back matches their persistent identity.
+      const pointerB = await readActivePointer(pageB);
+      expect(pointerB?.playerId).toBe(playerB.playerId);
 
       // Both players are in the lobby.
       await expect(pageA).toHaveURL(/\/lobby/);

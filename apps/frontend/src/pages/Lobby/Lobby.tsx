@@ -1,8 +1,10 @@
 import React, { useEffect, useCallback, useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { placeShip, removeShip, setReady } from '../../api/gameApi';
+import { placeShip, removeShip, setReady, pauseGame, stopGame } from '../../api/gameApi';
 import { usePlacement } from '../../hooks/usePlacement';
 import { useGamePolling } from '../../hooks/useGamePolling';
+import { useActiveGame } from '../../hooks/useActiveGame';
+import { GameSessionControls } from '../../components/game/GameSessionControls/GameSessionControls';
 import { GameBoard } from '../../components/board/GameBoard/GameBoard';
 import { FleetListPanel } from '../../components/placement/FleetListPanel/FleetListPanel';
 import { RoomCodeDisplay } from '../../components/common/RoomCodeDisplay/RoomCodeDisplay';
@@ -19,34 +21,54 @@ function emptyGrid() {
 
 export function Lobby(): React.ReactElement {
   const navigate = useNavigate();
-  const gameId = sessionStorage.getItem('gameId') ?? '';
-  const playerId = sessionStorage.getItem('playerId') ?? '';
-  const gameMode = sessionStorage.getItem('gameMode') ?? 'HUMAN';
+  // Session context now comes from the single localStorage active-game pointer, not
+  // sessionStorage (so it survives refresh / tab close / restart — AC-1/2). The guard
+  // already ensures the pointer is non-null before this page renders.
+  const { pointer, clear: clearActiveGame } = useActiveGame();
+  const gameId = pointer?.gameId ?? '';
+  const playerId = pointer?.playerId ?? '';
+  const gameMode = pointer?.gameMode ?? 'HUMAN';
   const isVsComputer = gameMode === 'COMPUTER';
   const [placementToastError, setPlacementToastError] = useState<string | null>(null);
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // True while a Pause/Stop request is in flight, so the session controls disable.
+  const [sessionBusy, setSessionBusy] = useState(false);
 
   const placement = usePlacement(gameId);
   const { gameState, isLoading } = useGamePolling(gameId, playerId, true);
 
   // One-time guard so hydration runs exactly once per Lobby mount.
   const hydratedRef = useRef(false);
+  // Set true the moment the user makes a local optimistic place/remove this mount. Once set,
+  // backend hydration is suppressed so a later 2s poll can never clobber the user's in-progress
+  // placement (distinguishes "user is actively placing" from "fresh resume/refresh").
+  const userInteractedRef = useRef(false);
 
-  // Rehydrate local placement state from the persisted server board on refresh/reconnect.
-  // After a page refresh the backend still has the placed ships (gameState.myBoard.ships),
-  // but usePlacement resets to empty — so the Fleet List panel desyncs from the board.
-  // Conditions (ALL must hold) so we hydrate exactly once on the first server board carrying
-  // ships and NEVER clobber a freshly placed optimistic ship on a later 2s poll:
+  // Rehydrate local placement state from the persisted server board on refresh/RESUME (AC-11).
+  // Backend `myBoard.ships` is the source of truth. On resume into PLACING_SHIPS, the local
+  // `usePlacement` lazy-init may carry a STALE `placement_ships_<gameId>` sessionStorage blob —
+  // that scratch must NOT win over backend truth, or the board can render stuck/invalid cells.
+  //
+  // Hydrate exactly ONCE per mount on the first server board carrying ships, overwriting whatever
+  // local placement existed (stale sessionStorage or empty). We deliberately DROP the old
+  // "placedShips.length === 0" precondition — that precondition let a stale sessionStorage blob
+  // block backend hydration, which is the exact AC-11 bug.
+  //
+  // The clobber-safety that "placedShips.length === 0" used to provide is now carried by
+  // `userInteractedRef`: a freshly placed optimistic ship sets that flag, after which a later
+  // poll echoing the full fleet is ignored. So:
+  //   - Fresh resume/refresh (no interaction yet) → backend ships win over stale sessionStorage.
+  //   - Active local placement (user interacted)   → later polls never clobber it.
   //   1. !hydratedRef.current        — we have not already hydrated this mount
-  //   2. placedShips.length === 0    — local state is still empty (no optimistic placement yet)
+  //   2. !userInteractedRef.current  — the user has not placed/removed locally this mount
   //   3. myBoard.ships.length > 0    — the server is actually carrying placed ships
   // The selected tool is intentionally NOT restored (hydrate clears selection to null).
   useEffect(() => {
     const serverShips = gameState?.myBoard?.ships;
     if (
       !hydratedRef.current &&
-      placement.placedShips.length === 0 &&
+      !userInteractedRef.current &&
       serverShips &&
       serverShips.length > 0
     ) {
@@ -65,12 +87,23 @@ export function Lobby(): React.ReactElement {
     }
   }, [gameState?.status, navigate, gameId]);
 
-  // Redirect home if no session
+  // Defense-in-depth self-guard: reads the SAME active-game pointer the route guard reads
+  // (never sessionStorage). The route guard already blocks pointer-null entry, so this only
+  // fires if the pointer is cleared while the page is mounted (e.g. Stop).
   useEffect(() => {
     if (!gameId || !playerId) {
       navigate('/');
     }
   }, [gameId, playerId, navigate]);
+
+  // A game that reaches FINISHED is no longer an active session — clear the pointer so it
+  // never re-triggers the resume modal (AC-14). GameOver itself is reachable while the
+  // pointer is briefly still set; we clear here as soon as the lobby observes FINISHED.
+  useEffect(() => {
+    if (gameState?.status === 'FINISHED') {
+      clearActiveGame();
+    }
+  }, [gameState?.status, clearActiveGame]);
 
   // Keyboard shortcut: R to rotate
   useEffect(() => {
@@ -106,6 +139,8 @@ export function Lobby(): React.ReactElement {
 
   const handleCellClick = useCallback(async (row: number, col: number) => {
     if (!placement.selectedShipType) return;
+    // Mark local interaction so backend hydration cannot clobber the user's placement.
+    userInteractedRef.current = true;
     const anchor: Coordinate = { row, col };
     const placed = placement.placeShip(anchor);
     if (!placed) {
@@ -129,6 +164,7 @@ export function Lobby(): React.ReactElement {
   }, [placement, gameId, playerId]);
 
   const handleRemoveShip = useCallback(async (type: ShipType) => {
+    userInteractedRef.current = true;
     placement.removeShip(type);
     try {
       await removeShip(gameId, playerId, type);
@@ -136,6 +172,36 @@ export function Lobby(): React.ReactElement {
       setGeneralError(e instanceof Error ? e.message : 'Remove failed');
     }
   }, [placement, gameId, playerId]);
+
+  // Pause: backend marks PAUSED, the pointer is KEPT, and we return Home where the resume
+  // modal will appear (AC-8). Stop is NOT involved — pause never clears the pointer.
+  const handlePause = useCallback(async () => {
+    setSessionBusy(true);
+    setGeneralError(null);
+    try {
+      await pauseGame(gameId, playerId);
+      navigate('/');
+    } catch (e) {
+      setGeneralError(e instanceof Error ? e.message : 'Could not pause the game. Please try again.');
+      setSessionBusy(false);
+    }
+  }, [gameId, playerId, navigate]);
+
+  // Stop: backend deletes the session, we CLEAR the pointer, and return to a clean Home with
+  // no resume modal (AC-9, AC-14). Stop is idempotent on the backend (204 even when gone).
+  const handleStop = useCallback(async () => {
+    setSessionBusy(true);
+    setGeneralError(null);
+    try {
+      await stopGame(gameId, playerId);
+    } catch (e) {
+      setGeneralError(e instanceof Error ? e.message : 'Could not stop the game. Please try again.');
+      setSessionBusy(false);
+      return;
+    }
+    clearActiveGame();
+    navigate('/');
+  }, [gameId, playerId, navigate, clearActiveGame]);
 
   const handleConfirmReady = async () => {
     setSubmitting(true);
@@ -178,6 +244,11 @@ export function Lobby(): React.ReactElement {
       <header className="lobby-header">
         <h1>Place Your Ships</h1>
         {!isVsComputer && gameId && <RoomCodeDisplay gameId={gameId} />}
+        <GameSessionControls
+          onPause={() => { void handlePause(); }}
+          onStop={() => { void handleStop(); }}
+          busy={sessionBusy}
+        />
       </header>
 
       {isVsComputer && (

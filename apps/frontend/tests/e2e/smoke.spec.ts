@@ -29,9 +29,14 @@ test.describe('Home page smoke', () => {
 
 test.describe('Lobby redirect smoke', () => {
   test('redirects to home when session is missing', async ({ page }) => {
-    // Clear any leftover session storage
+    // Clear any leftover session — the route guard (RequireActiveSession) now reads
+    // the localStorage active-game pointer ('battleship_active_game'), not
+    // sessionStorage. With no pointer, deep-linking to /lobby must redirect to /.
     await page.goto('/');
-    await page.evaluate(() => sessionStorage.clear());
+    await page.evaluate(() => {
+      localStorage.removeItem('battleship_active_game');
+      sessionStorage.clear();
+    });
 
     await page.goto('/lobby');
     await expect(page).toHaveURL('/');

@@ -77,6 +77,25 @@ async function seedIdentity(page: import('@playwright/test').Page, playerId: str
 }
 
 /**
+ * Reads the localStorage active-game pointer ('battleship_active_game') written by
+ * Home on create/join/vs-computer. gameId/playerId/gameMode migrated OUT of
+ * sessionStorage into this single localStorage pointer (JSON.stringify shape).
+ */
+async function readActivePointer(
+  page: import('@playwright/test').Page,
+): Promise<{ gameId: string; playerId: string; gameMode: string } | null> {
+  return page.evaluate(() => {
+    const raw = localStorage.getItem('battleship_active_game');
+    if (raw === null) return null;
+    try {
+      return JSON.parse(raw) as { gameId: string; playerId: string; gameMode: string } | null;
+    } catch {
+      return null;
+    }
+  });
+}
+
+/**
  * Place all human ships via the backend API so the test doesn't have to
  * click through the placement UI.
  */
@@ -202,12 +221,13 @@ test('full vs-computer flow: place ships, ready up, fire until human wins, see V
   // ── Step 1: create the vs-computer game ──────────────────────────────────
   await page.getByRole('button', { name: /play vs computer/i }).click();
 
-  // ── Step 2: read gameId / playerId from sessionStorage ───────────────────
+  // ── Step 2: read gameId / playerId from the localStorage active-game pointer ──
   await page.waitForURL(/\/lobby/, { timeout: 15000 });
 
-  const gameId  = await page.evaluate(() => sessionStorage.getItem('gameId'));
-  const playerId = await page.evaluate(() => sessionStorage.getItem('playerId'));
-  const gameMode = await page.evaluate(() => sessionStorage.getItem('gameMode'));
+  const pointer = await readActivePointer(page);
+  const gameId  = pointer?.gameId ?? null;
+  const playerId = pointer?.playerId ?? null;
+  const gameMode = pointer?.gameMode ?? null;
 
   expect(gameId).toBeTruthy();
   expect(playerId).toBeTruthy();

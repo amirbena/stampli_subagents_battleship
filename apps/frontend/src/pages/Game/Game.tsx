@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fireShot } from '../../api/gameApi';
+import { fireShot, pauseGame, stopGame } from '../../api/gameApi';
 import { useGamePolling } from '../../hooks/useGamePolling';
 import { useTurnNotification } from '../../hooks/useTurnNotification';
+import { useActiveGame } from '../../hooks/useActiveGame';
+import { GameSessionControls } from '../../components/game/GameSessionControls/GameSessionControls';
 import { GameBoard } from '../../components/board/GameBoard/GameBoard';
 import { TurnIndicator } from '../../components/game/TurnIndicator/TurnIndicator';
 import { ShotResultToast } from '../../components/game/ShotResultToast/ShotResultToast';
@@ -18,10 +20,15 @@ import './Game.css';
 
 export function Game(): React.ReactElement {
   const navigate = useNavigate();
-  const gameId = sessionStorage.getItem('gameId') ?? '';
-  const playerId = sessionStorage.getItem('playerId') ?? '';
+  // Session context from the single localStorage active-game pointer (survives refresh /
+  // tab close / restart). The route guard ensures it is non-null before this page renders.
+  const { pointer, clear: clearActiveGame } = useActiveGame();
+  const gameId = pointer?.gameId ?? '';
+  const playerId = pointer?.playerId ?? '';
   const [error, setError] = useState<string | null>(null);
   const [firing, setFiring] = useState(false);
+  // True while a Pause/Stop request is in flight, so the session controls disable.
+  const [sessionBusy, setSessionBusy] = useState(false);
   // The cell the player just fired at, shown as a pending shot until the result arrives.
   const [pendingShot, setPendingShot] = useState<Coordinate | null>(null);
   const [lastResult, setLastResult] = useState<ShotResult | null>(null);
@@ -31,15 +38,48 @@ export function Game(): React.ReactElement {
 
   const { gameState, isLoading, refresh } = useGamePolling(gameId, playerId, true);
 
+  // Defense-in-depth self-guard reading the SAME active-game pointer the route guard reads
+  // (never sessionStorage). Only fires if the pointer is cleared while mounted (e.g. Stop).
   useEffect(() => {
     if (!gameId || !playerId) navigate('/');
   }, [gameId, playerId, navigate]);
 
+  // On FINISHED, clear the active-game pointer BEFORE navigating to game-over so a
+  // finished game never re-triggers the resume modal on a later Home visit (AC-14).
   useEffect(() => {
     if (gameState?.status === 'FINISHED') {
+      clearActiveGame();
       navigate('/game-over');
     }
-  }, [gameState?.status, navigate]);
+  }, [gameState?.status, navigate, clearActiveGame]);
+
+  // Pause: backend PAUSED, pointer KEPT, return Home (resume modal appears) — AC-8.
+  const handlePause = useCallback(async () => {
+    setSessionBusy(true);
+    setError(null);
+    try {
+      await pauseGame(gameId, playerId);
+      navigate('/');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not pause the game. Please try again.');
+      setSessionBusy(false);
+    }
+  }, [gameId, playerId, navigate]);
+
+  // Stop: backend deletes the session, pointer CLEARED, clean Home, no resume modal — AC-9.
+  const handleStop = useCallback(async () => {
+    setSessionBusy(true);
+    setError(null);
+    try {
+      await stopGame(gameId, playerId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not stop the game. Please try again.');
+      setSessionBusy(false);
+      return;
+    }
+    clearActiveGame();
+    navigate('/');
+  }, [gameId, playerId, navigate, clearActiveGame]);
 
   // Clear the optimistic computer-shot overlay once the poll updates my board
   useEffect(() => {
@@ -131,6 +171,11 @@ export function Game(): React.ReactElement {
             opponentReady={gameState.opponentReady}
           />
         )}
+        <GameSessionControls
+          onPause={() => { void handlePause(); }}
+          onStop={() => { void handleStop(); }}
+          busy={sessionBusy}
+        />
       </header>
 
       {showYourTurn && <YourTurnToast />}

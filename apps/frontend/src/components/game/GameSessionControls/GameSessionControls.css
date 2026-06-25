@@ -1,0 +1,21 @@
+/* In-game Pause / Stop controls. Distinct weights so Stop isn't mistaken for Pause. */
+
+.game-session-controls {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.game-session-controls .btn {
+  flex: 0 1 auto;
+}
+
+/* Stop carries heavier visual weight than Pause (accidental-Stop safeguard). */
+.game-session-controls__stop {
+  font-weight: 700;
+}
+
+@media (max-width: 360px) {
+  .game-session-controls { width: 100%; }
+  .game-session-controls .btn { flex: 1 1 100%; }
+}

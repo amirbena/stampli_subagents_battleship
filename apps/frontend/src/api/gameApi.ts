@@ -7,12 +7,28 @@ import type {
   ConfirmReadyResponse,
   FireShotResponse,
   GameStateResponse,
+  PauseResumeResponse,
   ShipType,
   Orientation,
   GameMode,
   CreateGameRequest,
   JoinGameRequest,
 } from '../types/game';
+
+/**
+ * Sentinel error thrown when a game-scoped call resolves to 404 GAME_NOT_FOUND.
+ *
+ * Callers (useResumeGame) distinguish this from network/5xx failures so they can
+ * clear the local active-game pointer only on an authoritative "game gone" response
+ * (server restart or prior Stop — AC-13), never on a transient connectivity blip.
+ * This mirrors the PlayerNotFoundError convention used by usePlayerIdentity.
+ */
+export class GameNotFoundError extends Error {
+  constructor(gameId: string) {
+    super(`Game not found: ${gameId}`);
+    this.name = 'GameNotFoundError';
+  }
+}
 
 /**
  * Shared axios instance for all backend calls.
@@ -282,22 +298,117 @@ export async function fireShot(
  * The opponent board in the response contains only sunk ships.
  * Un-hit ship positions are intentionally absent — the backend never sends them.
  *
+ * A 404 resolves to a thrown GameNotFoundError (not a generic Error) so the resume
+ * flow can clear the stale active-game pointer (AC-13) while transient/5xx failures
+ * still surface as plain Error and leave the pointer intact. Background polls that do
+ * not need this distinction simply catch the thrown error as before.
+ *
  * @param gameId   the game room
  * @param playerId determines which board is "mine" vs "opponent" in the response
  * @param silent   when true, excluded from the global loader (background poll only)
  * @returns sanitised game state safe to render directly in the UI
+ * @throws GameNotFoundError when the backend returns 404 GAME_NOT_FOUND
  */
 export async function getGameState(
   gameId: string,
   playerId: string,
   silent = false,
 ): Promise<GameStateResponse> {
-  const { data } = await api.get<GameStateResponse>(`/games/${gameId}/state`, {
+  const response = await api.get<GameStateResponse>(`/games/${gameId}/state`, {
     params: { playerId },
     // `silent` is read by the request/response interceptors to skip loader counting.
     silent,
+    // Accept 404 as resolved so we can throw the typed sentinel below; 5xx/network
+    // still reject and surface as Error via the global response interceptor.
+    validateStatus: (status) => status === 200 || status === 404,
   });
+  if (response.status === 404) {
+    throw new GameNotFoundError(gameId);
+  }
+  return response.data;
+}
+
+/**
+ * Pauses the player's active game session.
+ * POST /games/:gameId/players/:playerId/pause
+ *
+ * Pause is one-sided and non-destructive — the backend flips the game to PAUSED and
+ * records the pre-pause phase so resume can restore it. The local active-game pointer
+ * is intentionally NOT cleared on pause (the game remains resumable).
+ *
+ * @param gameId   the game room
+ * @param playerId the participant pausing (must be in the game)
+ * @returns { gameId, status: 'PAUSED', previousStatus } — no board data
+ * @throws Error 403 PLAYER_NOT_IN_GAME — caller is not a participant
+ * @throws Error 404 GAME_NOT_FOUND — game gone (caller may clear pointer)
+ * @throws Error 409 WRONG_PHASE — already PAUSED or FINISHED
+ */
+export async function pauseGame(
+  gameId: string,
+  playerId: string,
+): Promise<PauseResumeResponse> {
+  const { data } = await api.post<PauseResumeResponse>(
+    `/games/${gameId}/players/${playerId}/pause`,
+  );
   return data;
+}
+
+/**
+ * Resumes a PAUSED game, flipping it back to its pre-pause phase.
+ * POST /games/:gameId/players/:playerId/resume
+ *
+ * This is a write that only flips status; the player-scoped board is NOT returned here
+ * (resume hydration comes from the subsequent GET /state — see useResumeGame).
+ *
+ * A 404 resolves to a thrown GameNotFoundError so the caller can clear the stale pointer
+ * (AC-13) instead of treating it as a transient failure. Other 4xx/5xx surface as plain
+ * Error via the global response interceptor.
+ *
+ * @param gameId   the game room
+ * @param playerId the participant resuming (must be in the game)
+ * @returns { gameId, status: restored prior phase, previousStatus: 'PAUSED' }
+ * @throws GameNotFoundError when the backend returns 404 GAME_NOT_FOUND
+ * @throws Error 403 PLAYER_NOT_IN_GAME
+ * @throws Error 409 WRONG_PHASE — game is not PAUSED (e.g. FINISHED)
+ */
+export async function resumeGame(
+  gameId: string,
+  playerId: string,
+): Promise<PauseResumeResponse> {
+  const response = await api.post<PauseResumeResponse>(
+    `/games/${gameId}/players/${playerId}/resume`,
+    undefined,
+    {
+      // Accept 404 as a resolved response so we can throw the typed sentinel below.
+      // 5xx and network errors still reject and surface as Error via the interceptor.
+      validateStatus: (status) => (status >= 200 && status < 300) || status === 404,
+    },
+  );
+  if (response.status === 404) {
+    throw new GameNotFoundError(gameId);
+  }
+  return response.data;
+}
+
+/**
+ * Stops (terminates) the player's game session.
+ * POST /games/:gameId/players/:playerId/stop
+ *
+ * The backend deletes the game and returns 204 No Content. Stop is idempotent: a game
+ * that is already gone (404) is treated as success so "No/Stop never throws" (AC-7/AC-13).
+ * Both 204 and an already-absent 404 resolve normally; only 403 and transient 5xx/network
+ * errors reject. Returns void — there is no response body to map.
+ *
+ * @param gameId   the game room
+ * @param playerId the participant stopping (must be in the game when it still exists)
+ * @throws Error 403 PLAYER_NOT_IN_GAME — caller is not a participant
+ */
+export async function stopGame(gameId: string, playerId: string): Promise<void> {
+  await api.post(`/games/${gameId}/players/${playerId}/stop`, undefined, {
+    // 204 is the success status; 404 means the game is already gone — both are
+    // treated as a successful Stop (idempotent). 403/5xx/network still reject.
+    validateStatus: (status) => (status >= 200 && status < 300) || status === 404,
+  });
 }
 
 export type { PlaceShipRequest, Orientation };

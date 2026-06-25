@@ -81,6 +81,33 @@ public class GameController {
         return ResponseEntity.ok(response);
     }
 
+    // POST /api/v1/games/{gameId}/players/{playerId}/pause — Pause Game
+    @PostMapping("/{gameId}/players/{playerId}/pause")
+    public ResponseEntity<PauseResumeResponse> pauseGame(
+            @PathVariable String gameId,
+            @PathVariable String playerId) {
+        PauseResumeResponse response = gameService.pauseGame(gameId, playerId);
+        return ResponseEntity.ok(response);
+    }
+
+    // POST /api/v1/games/{gameId}/players/{playerId}/resume — Resume Game
+    @PostMapping("/{gameId}/players/{playerId}/resume")
+    public ResponseEntity<PauseResumeResponse> resumeGame(
+            @PathVariable String gameId,
+            @PathVariable String playerId) {
+        PauseResumeResponse response = gameService.resumeGame(gameId, playerId);
+        return ResponseEntity.ok(response);
+    }
+
+    // POST /api/v1/games/{gameId}/players/{playerId}/stop — Stop Game (idempotent, 204 even if absent)
+    @PostMapping("/{gameId}/players/{playerId}/stop")
+    public ResponseEntity<Void> stopGame(
+            @PathVariable String gameId,
+            @PathVariable String playerId) {
+        gameService.stopGame(gameId, playerId);
+        return ResponseEntity.noContent().build();
+    }
+
     // GET /api/v1/games/{gameId}/state?playerId= — Get Game State
     @GetMapping("/{gameId}/state")
     public ResponseEntity<GameStateResponse> getGameState(
