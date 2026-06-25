@@ -326,8 +326,9 @@ Phase 4a — UNIT + INTEGRATION TESTS (parallel, cheapest first)
 
           ── gate: all green → next relevant phase (scope routing below) ──
 
-Phase 4b — INTEGRATION TESTS (after unit gate, if HTTP layer changed)
+Phase 4b — INTEGRATION TESTS (exception-only — cross-layer flow or profile-specific wiring)
           backend-integration-tests   → ./mvnw test *IntegrationTest
+          Skipped for most changes (controller tests covered by @WebMvcTest in java-backend-agent).
           ── gate: must be green before E2E starts ──
 
 Phase 5   playwright-e2e-agent        → apps/frontend/tests/e2e/
@@ -359,10 +360,10 @@ Each agent is a skill in [`.claude/skills/`](.claude/skills/) with a `model:` fi
 | team-lead | claude-opus-4-8 | Orchestrates all phases |
 | product-agent | claude-sonnet-4-6 | User stories + acceptance criteria |
 | architect-agent | claude-opus-4-8 | API contract + domain model |
-| java-backend-agent | claude-sonnet-4-6 | Game logic + REST API + JUnit unit tests |
+| java-backend-agent | claude-sonnet-4-6 | Game logic + REST API + JUnit unit tests (domain, service, @WebMvcTest controller tests) |
 | frontend-api-agent | claude-sonnet-4-6 | API wrappers, hooks, TypeScript types + Vitest unit tests |
 | frontend-ui-agent | claude-sonnet-4-6 | React components, pages, CSS (mobile-first) + Vitest component tests |
-| backend-integration-tests-agent | claude-sonnet-4-6 | @SpringBootTest HTTP layer tests |
+| backend-integration-tests-agent | claude-sonnet-4-6 | @SpringBootTest exception-only: cross-layer flows and profile-specific wiring (controller tests use @WebMvcTest, owned by java-backend-agent) |
 | playwright-e2e-agent | claude-sonnet-4-6 | Browser E2E tests |
 | security-agent | claude-opus-4-8 | Security + integrity review |
 | code-review-agent | claude-opus-4-8 | Engineering review |

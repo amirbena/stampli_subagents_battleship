@@ -465,6 +465,35 @@ If any check fails, route to the owning agent:
 
 Do not spawn `playwright-e2e-agent` until all four checks pass.
 
+#### Full E2E Backend Warmup — Start Backend Before Spawning Playwright Agent
+
+Once all four infrastructure checks pass, start the E2E backend in the background **before** spawning `playwright-e2e-agent`. `playwright.config.ts` sets `reuseExistingServer: true` — if the backend is already responding on port 8081, Playwright will not restart it, eliminating the cold-start wait from the critical path.
+
+```bash
+# Run in apps/backend/
+cd apps/backend
+
+# Start E2E backend in background
+./mvnw spring-boot:run -Pe2e -Dspring-boot.run.profiles=e2e > /tmp/e2e-backend.log 2>&1 &
+echo $! > /tmp/e2e-backend.pid
+echo "E2E backend starting (PID: $(cat /tmp/e2e-backend.pid))"
+
+# Poll until backend accepts connections on port 8081 (max 120s)
+for i in $(seq 1 40); do
+  if curl -s --connect-timeout 2 http://localhost:8081/api/v1/ > /dev/null 2>&1; then
+    echo "E2E backend ready on port 8081 ($((i * 3))s elapsed)"
+    break
+  fi
+  [ $i -eq 40 ] && echo "ERROR: E2E backend did not start within 120s" && cat /tmp/e2e-backend.log && exit 1
+  echo "Waiting for backend... $((i * 3))s elapsed"
+  sleep 3
+done
+```
+
+After the backend is confirmed ready, spawn `playwright-e2e-agent`. Playwright will find the backend already running and skip its own `webServer` startup.
+
+**Skip this step** when E2E mode is Smoke or None — no backend is needed.
+
 #### Backend Integration Tests Decision
 
 Load `.claude/policies/backend-test-ownership-policy.md` before making this decision.
@@ -538,8 +567,8 @@ Spawn `backend-integration-tests-agent` only if any of the five HTTP-layer trigg
 
 **Step 5 — Spawn `playwright-e2e-agent` (if E2E mode is not None):**
 
-- E2E mode **Full** → spawn with backend webServer, run all specs
-- E2E mode **Smoke** → spawn with smoke-only instruction, no backend needed
+- E2E mode **Full** → backend already running on port 8081 (warmed up in E2E Infrastructure Pre-Gate); spawn playwright-e2e-agent with `E2E mode: Full` in assignment; Playwright reuses the existing server
+- E2E mode **Smoke** → spawn with `E2E mode: Smoke`; no backend needed
 - E2E mode **None** → skip entirely; proceed directly to Review
 
 This order minimises cost: unit tests catch obvious breaks cheaply, integration tests catch HTTP-layer issues before the expensive E2E run. Frontend-only changes skip Steps 3–4 entirely.
@@ -569,6 +598,17 @@ This overlaps ~1.5 min of release report writing with the code-review window, so
 #### Release phase
 - After code review (and security if required) return APPROVED, spawn `release-pr-agent` with the pre-written draft path so it can finalize and create the PR immediately.
 
+#### Critical Path Recording (optional — after PR URL confirmed)
+
+After `release-pr-agent` returns the PR URL, Team Lead may write `reports/runs/<workflow-run-id>/critical-path.md` by loading `.claude/templates/critical-path-report-template.md` and filling in the phase timings from timestamps recorded throughout the run.
+
+Record timestamps at each phase boundary using:
+```bash
+date -u +"%H:%M UTC"
+```
+
+**Only record timestamps that were actually observed during the run.** Do not estimate or back-fill missing durations. Leave Duration blank rather than guess. The report is informational and does not block release.
+
 Never pause the workflow and ask the human to "send a message to continue". The entire flow from requirement to PR is non-interactive.
 
 Each `Agent` call must pass a self-contained prompt that includes:
@@ -581,7 +621,10 @@ required output: <from team-lead-plan.md>
 product-spec path: reports/runs/<id>/product-spec.md
 architecture path: reports/runs/<id>/architecture.md (if exists)
 backend-contract-changed: yes/no
+E2E mode: Full | Smoke | None
 ```
+
+The `E2E mode` field is read by `frontend-ui-agent` to decide whether to skip the internal smoke gate (skip when Full — Full E2E covers smoke.spec.ts as a subset).
 
 The `branch` field tells the implementation agent exactly which branch to confirm they are on. Team Lead has already run the full Git Branch Handling Policy (Cases A–I) in Step 5 and left the repo in a clean, correct state. Implementation agents must not re-run branch decisions — they only confirm the branch matches what Team Lead passed.
 
