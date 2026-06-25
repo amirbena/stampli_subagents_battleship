@@ -1,6 +1,10 @@
 # Pipeline reports — generated artifacts, not source code
 reports/
 
+# Dependency lockfiles — local-only, never committed
+package-lock.json
+**/package-lock.json
+
 # Environment
 .env
 .env.local

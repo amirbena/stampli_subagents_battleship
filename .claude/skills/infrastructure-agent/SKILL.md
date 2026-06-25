@@ -277,6 +277,7 @@ npm run dev
 - Use `./mvnw` for macOS/Linux Maven Wrapper.
 - Keep IntelliJ notes separate from terminal commands. If IntelliJ is documented, state: "Maven goals can be run from IntelliJ's Maven panel after importing `pom.xml`. IntelliJ on macOS handles `mvnw` executable permission automatically on project open."
 - If a command cannot be verified locally, state that clearly in the verification block.
+- `package-lock.json` is local-only. Running `npm install` during verification may modify it locally — this is expected. Do not stage `package-lock.json`. Mention it in the Evidence section as local ignored output only.
 
 ## Demo Config Policy
 

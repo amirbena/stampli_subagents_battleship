@@ -16,17 +16,24 @@ metadata:
 
 ## package-lock.json Strategy
 
-`package-lock.json` and `**/package-lock.json` may remain tracked and may remain changed locally after `npm install`. This is acceptable and expected behavior.
+`package-lock.json` is **always local-only**. It must always be listed in `.gitignore`. It must never be staged, committed, or pushed under any circumstances.
 
-**Agents must not stage, commit, or push `package-lock.json` unless the user explicitly requests dependency lockfile changes.**
+Running `npm install` may create or modify `package-lock.json` locally. This is expected and acceptable. The file stays on disk; it is simply never committed.
 
 | State | Allowed? |
 |---|---|
-| `package-lock.json` exists and is changed locally (`git status` shows it as modified) | Yes |
+| `package-lock.json` exists and is changed locally | Yes — expected |
+| `package-lock.json` is tracked (`git ls-files '**/package-lock.json'` returns it) | **No — remove from tracking with `git rm --cached`; do not delete the local file** |
 | `package-lock.json` appears in `git diff --cached --name-only` (staged) | **No — blocking defect** |
-| `package-lock.json` appears in PR files changed without explicit user request | **No — blocking defect** |
+| `package-lock.json` appears in PR files changed | **No — blocking defect** |
 
-Do not add `package-lock.json` to `.gitignore` as part of any automated run unless the user explicitly asks for it.
+`.gitignore` must always contain:
+```
+package-lock.json
+**/package-lock.json
+```
+
+Any prior instruction implying `package-lock.json` may remain tracked or may be committed unless explicitly requested is **superseded by this rule**.
 
 ## Forbidden Staged/Committed Paths
 

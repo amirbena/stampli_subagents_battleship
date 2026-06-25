@@ -217,7 +217,7 @@ package-lock.json
 *.log
 ```
 
-`package-lock.json` may remain tracked and changed locally after `npm install`. Agents must not stage, commit, or push it unless the user explicitly requests dependency lockfile changes.
+`package-lock.json` is local-only. It is always ignored by git and must never be staged, committed, or pushed under any circumstances.
 
 PR descriptions may summarise `reports/` content, but report files themselves must never be committed.
 
@@ -268,4 +268,4 @@ Never commit:
 - `.env` files with real secrets
 - `application.yml` with credentials
 - Any file under `reports/`
-- `package-lock.json` or `**/package-lock.json` unless explicitly requested
+- `package-lock.json` or `**/package-lock.json` — always forbidden, no exceptions

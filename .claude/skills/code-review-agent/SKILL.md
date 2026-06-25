@@ -80,7 +80,7 @@ Return `REQUIRES_CHANGES` immediately if any of the following is true:
 - `git ls-files reports` produces any output — `reports/**` files are tracked
 - `git diff --cached --name-only` includes any path under `reports/`
 - Any staged file matches `.gitignore` — check with `git diff --cached --name-only | xargs -I{} git check-ignore -v {} 2>/dev/null`
-- `package-lock.json` or `**/package-lock.json` appears in staged files or the PR diff, unless the user explicitly requested dependency lockfile changes
+- `package-lock.json` or `**/package-lock.json` appears in staged files, tracked files (`git ls-files '**/package-lock.json'`), or the PR diff — always a violation; `package-lock.json` is always local-only and must never appear in git scope
 - `git diff --cached --name-only` or `git diff --name-only` contains generated/local artifacts
 
 Load `.claude/policies/gitignore-compliance-policy.md` and `.claude/policies/reports-and-artifacts-policy.md` for the enforcement rules.

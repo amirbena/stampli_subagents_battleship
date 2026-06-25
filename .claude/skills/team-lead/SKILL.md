@@ -653,7 +653,7 @@ When `code-review-agent` returns `REQUIRES_CHANGES`:
 ```
 gitignore violation                    → release-pr-agent / git governance path
 reports/** tracked or staged           → release-pr-agent / git governance path
-package-lock.json staged or in PR      → release-pr-agent / git governance path
+package-lock.json staged, tracked, or in PR → release-pr-agent / git governance path (package-lock.json is always local-only; remove from tracking if needed)
 local-artifact in staged/PR files      → release-pr-agent / git governance path
 README / install docs issue            → infrastructure-agent
 platform command verification issue   → infrastructure-agent

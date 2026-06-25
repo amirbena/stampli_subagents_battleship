@@ -139,7 +139,7 @@ When `code-review-agent` returns `REQUIRES_CHANGES`, Team Lead stops the release
 
 - `release-pr-agent` runs a pre-commit gitignore compliance gate before every push. Any staged file matching `.gitignore` or under `reports/` stops the commit immediately.
 - `code-review-agent` checks gitignore/reports compliance as the first item in its review checklist, before any code review. A violation is always `Critical / Blocks PR: Yes`.
-- `package-lock.json` may remain tracked and changed locally; it must not be staged or appear in PR files unless the user explicitly requests it.
+- `package-lock.json` is always local-only. It is always listed in `.gitignore`, never tracked, never staged, and never appears in PR files. If already tracked, remove from tracking with `git rm --cached` without deleting the local file.
 
 See `.claude/policies/reports-and-artifacts-policy.md` and `.claude/policies/gitignore-compliance-policy.md`.
 
