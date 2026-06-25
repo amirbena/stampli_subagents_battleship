@@ -258,6 +258,7 @@ export function Game(): React.ReactElement {
           <TurnIndicator
             isMyTurn={isMyTurn}
             opponentReady={gameState.opponentReady}
+            firing={firing}
           />
         )}
         <GameSessionControls
