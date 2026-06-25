@@ -288,6 +288,8 @@ Run Architecture for **any** of the following — one match is sufficient:
 
 When Architecture runs, it writes `reports/runs/<workflow-run-id>/architecture.md` and returns to Team Lead. Architecture must not activate developers.
 
+Architecture's output **must include** an `## AC-to-Test Coverage Matrix` section (load `.claude/templates/ac-coverage-matrix-template.md` for format). Team Lead reads this matrix in Step 4 to determine which test types to spawn, and in Step 14 to drive the Validation Gap Check. If the matrix is absent, send Architecture Agent back to produce it before continuing.
+
 ---
 
 ## Step 4 — Execution Plan
@@ -465,26 +467,21 @@ Do not spawn `playwright-e2e-agent` until all four checks pass.
 
 #### Backend Integration Tests Decision
 
-Integration tests validate the HTTP layer — things Mockito never catches because they only materialize inside the Spring context. They cost more than unit tests, so Team Lead must only spawn `backend-integration-tests-agent` when the HTTP layer itself is at risk.
+Load `.claude/policies/backend-test-ownership-policy.md` before making this decision.
 
-**Run `backend-integration-tests-agent` when ANY of these are true:**
+**Controller-layer tests (HTTP status, JSON, `@Valid`, error shape) are now owned by `java-backend-agent` as `@WebMvcTest` tests.** The old triggers (new endpoint, DTO field change, `@Valid` added, status code change, new exception mapping) are covered there and do not require `backend-integration-tests-agent`.
 
-| Trigger | Why unit tests are not enough |
+**`backend-integration-tests-agent` is exception-only.** Spawn it only when at least one of these triggers is true:
+
+| Trigger | Why @WebMvcTest is not enough |
 |---------|-------------------------------|
-| New REST endpoint added | Route wiring, path variables, and response serialization are untested by Mockito |
-| DTO field added, renamed, or removed | JSON serialization breaks at runtime, not at compile time |
-| `@Valid` / `@NotNull` / `@Size` or any constraint annotation added to a request body | Validation annotations only fire when Spring processes the request |
-| HTTP status code changed on an existing endpoint | Unit tests mock the service — they never see the actual HTTP response code |
-| New exception → error response mapping added | Only visible through the full Spring context |
+| Cross-layer flow: real request → real service → real repository → response | `@WebMvcTest` mocks the service; real wiring is never exercised |
+| Profile-specific Spring configuration (H2 vs Postgres `@Profile`) | `@WebMvcTest` does not activate `@Profile`-annotated beans |
+| Multi-controller test sequence sharing in-memory state | `@WebMvcTest` is scoped to a single controller |
 
-**Skip `backend-integration-tests-agent` when ALL of these are true:**
-- No new endpoints, no removed endpoints
-- No DTO field changes (no additions, renames, removals, type changes)
-- No new validation annotations on request bodies
-- No status code changes
-- No new exception mappings
+**Skip `backend-integration-tests-agent` for all other cases**, including: new endpoints (covered by `@WebMvcTest`), DTO field changes (covered by `@WebMvcTest`), validation annotations (covered by `@WebMvcTest`), status code changes (covered by `@WebMvcTest`), frontend-only change, service/domain logic only, refactor, test-only, config/docs only.
 
-Typical skip cases: service/domain logic change only, frontend-only change, refactor with identical API surface, test-only change, config/docs only.
+Before spawning: confirm the AC-to-Test Coverage Matrix in `architecture.md` lists a `SpringBootTest` row for the scenario. If the matrix lists `WebMvcTest`, route to `java-backend-agent` instead.
 
 #### Test phase — Sequential by cost, cheapest first
 
@@ -771,6 +768,18 @@ Special cases:
 - If two consecutive fix attempts repeat the same hypothesis without new evidence: Team Lead must reopen Product or Architecture before routing to the developer again.
 
 QA, security, and code review findings return to Team Lead. Team Lead classifies and routes. QA must not route directly to developers.
+
+### Post-Review Fix Severity Routing
+
+When code review or security review returns `REQUIRES CHANGES`, classify the fix by severity before routing. Load `.claude/metadata/review-validity-schema.md` for the full routing table per severity.
+
+| Severity | Definition | Code Re-review | Security Re-review |
+|----------|-----------|---------------|-------------------|
+| **Small** | Test selector, copy, comment, log message — no logic, no contract | Delta (`code-review-agent`, changed files only) | Not required (unless fix touches identity/auth/sanitization) |
+| **Medium** | API wrapper, hook, controller validation, DTO field, error mapping | Delta (`code-review-agent`, changed files only) | Required if fix touches identity, session, auth, hidden-data boundary, or input sanitization |
+| **Large** | Contract change, new endpoint, new domain class, new state transition, multi-layer | Full (`code-review-agent` full) + Architecture reopen if contract affected | Full (`security-agent` full) |
+
+After any fix: run SHA Validity Gate (Step 14) before spawning the re-review agent.
 
 ### QA Cycle Limits (per run)
 
@@ -1059,7 +1068,25 @@ Write `reports/runs/<workflow-run-id>/test-results.md` with each command run, it
 
 ## Step 14 — Release Readiness
 
+### SHA Validity Gate — Run Before Routing to Release
+
+Before routing to Release PR Agent, Team Lead must run the SHA diff check:
+
+```bash
+git diff --name-only <last-reviewed-sha>..HEAD
+```
+
+Where `<last-reviewed-sha>` is the `Generated From Commit` SHA from the most recent `reports/runs/<workflow-run-id>/code-review-report.md`.
+
+Load `.claude/metadata/review-validity-schema.md` for the decision table. Summary:
+- No files changed → review valid, proceed
+- Only `reports/**` or docs changed → keep valid, record reason in release summary
+- Production code/tests/config changed → delta re-review (Small/Medium) or full re-review (Large)
+
+### Release Checklist
+
 Before routing to Release PR Agent, confirm:
+- SHA Validity Gate passed (review is still valid for the current HEAD)
 - Finding Registry shows no open Critical findings
 - All required gate reports exist with current Workflow Run ID
 - `reports/runs/<workflow-run-id>/validation-gap-check.md` exists and all Medium/High gaps are either resolved or escalated
@@ -1088,17 +1115,21 @@ Valid values: `cheap`, `normal`, `full`. Load `.claude/metadata/execution-modes.
 
 ## Validation Gap Check (required in cheap and normal mode)
 
-After code review, before release, Team Lead must explicitly evaluate every product acceptance criterion from `reports/runs/<workflow-run-id>/product-spec.md` against what was actually validated:
+After code review, before release, Team Lead must validate coverage against the **AC-to-Test Coverage Matrix** in `reports/runs/<workflow-run-id>/architecture.md` — not by re-deriving coverage from the product spec from scratch.
+
+For each row in the matrix, compare the specified test type and owner against what was actually produced and run. Only rows marked `Gate: Required` must be validated; `Optional` rows are documented if skipped.
+
+If Architecture was skipped (fast-path or no Architecture Required), fall back to evaluating every product acceptance criterion from `reports/runs/<workflow-run-id>/product-spec.md` directly.
 
 ```md
 # Validation Gap Check
 
 ## Acceptance Criteria Coverage
 
-| Criterion | Validated By | Method | Gap | Risk |
-|---|---|---|---|---|
-| e.g. Hit sound plays on successful shot | Not validated | Playwright skipped | Yes | Low — native API, no logic branch |
-| e.g. No sound plays on opponent's turn | Not validated | Playwright skipped | Yes | Medium — logic branch exists |
+| Criterion | Matrix Test Type | Actual Validated By | Method | Gap | Risk |
+|---|---|---|---|---|---|
+| AC-01 | Component + Full E2E | frontend-ui-agent (Vitest) + playwright-e2e-agent | Vitest component test + Playwright | No | — |
+| e.g. AC-09 | WebMvcTest | Not run | gate skipped | Yes | Medium — controller logic branch |
 
 ## Escalation Decision
 

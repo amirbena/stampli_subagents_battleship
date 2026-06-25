@@ -109,5 +109,26 @@ Create the `reports/runs/<workflow-run-id>/` directory if it does not exist befo
 - Domain model diagram
 - Folder structure
 - Testing strategy per layer
+- **AC-to-Test Coverage Matrix** — required in every `architecture.md`; see format below
 
 `reports/runs/<workflow-run-id>/architecture.md` must include the same Workflow Run ID metadata block from `reports/runs/<workflow-run-id>/product-spec.md` near the top of the file. Never write to flat `reports/architecture.md`.
+
+## AC-to-Test Coverage Matrix — Required Output
+
+Every `architecture.md` must include an `## AC-to-Test Coverage Matrix` section. This is a **binding artifact**: Team Lead uses it to determine which agents and test types to spawn, and to drive the Validation Gap Check in Step 14 instead of re-deriving coverage from the product spec from scratch.
+
+Load `.claude/templates/ac-coverage-matrix-template.md` for the column definitions, test type vocabulary, and example rows.
+
+**Rules:**
+- Every acceptance criterion from `product-spec.md` must appear as a row.
+- Pick the **cheapest test type** that can actually prove the behavior (e.g. `@WebMvcTest` before `@SpringBootTest`; Component before Full E2E).
+- `@SpringBootTest` rows must include a `Notes` cell explaining why `@WebMvcTest` is insufficient.
+- If a criterion cannot be proven by any automated test (e.g. purely visual, audio, or subjective), mark it `Manual` with a note.
+
+```markdown
+## AC-to-Test Coverage Matrix
+
+| AC | Behavior | Test Type | Owner | Framework | Gate | Notes |
+|----|----------|-----------|-------|-----------|------|-------|
+| AC-01 | ... | ... | ... | ... | Required | ... |
+```

@@ -85,7 +85,7 @@ Unknowns:
 ```
 
 Allowed to read: backend code, API code, relevant tests, `package.json` only to inspect scripts if needed, and current workflow reports under `reports/runs/<workflow-run-id>/`.
-Allowed to edit: backend production source (`src/main/`) and backend unit tests (`src/test/java/**/*Test.java`, excluding `*IntegrationTest.java`).
+Allowed to edit: backend production source (`src/main/`) and backend unit tests (`src/test/java/**/*Test.java`, including `@WebMvcTest` controller tests, excluding `*IntegrationTest.java`).
 
 ### Normal Mode
 When invoked with architecture/product input, implement the backend production scope owned by this agent.
@@ -306,7 +306,20 @@ Load `.claude/policies/java-coding-standards.md` for field injection (@Autowired
 
 After every implementation change, add or update unit tests in `src/test/java/`. Run `./mvnw test` and report results before finishing.
 
-Unit tests use JUnit 5 + Mockito. No Spring context (`@SpringBootTest` is forbidden in unit tests — use `@ExtendWith(MockitoExtension.class)` for service tests).
+Load `.claude/policies/backend-test-ownership-policy.md` to determine which test type to use for each test scope. Load `.claude/policies/spring-test-runtime-policy.md` for `@WebMvcTest` and `@SpringBootTest` rules.
+
+### Test ownership — this agent
+
+This agent owns all of the following test types (plain JUnit 5, Mockito, and `@WebMvcTest`):
+
+| Scope | Annotation | File |
+|-------|-----------|------|
+| Domain class behavior | None (plain JUnit 5) | `domain/*Test.java` |
+| Service method logic (mocked repository) | `@ExtendWith(MockitoExtension.class)` | `service/*Test.java` |
+| In-memory repository behavior | None (plain JUnit 5) | `repository/*Test.java` |
+| Controller HTTP status / JSON / `@Valid` / error shape | `@WebMvcTest` | `controller/*Test.java` |
+
+`@SpringBootTest` is **not owned by this agent**. If a test scenario requires a full Spring context, report it to Team Lead — it belongs to `backend-integration-tests-agent` with an explicit justification.
 
 ### Test file location
 ```
@@ -315,9 +328,29 @@ src/test/java/com/stampli/battleship/
 │   ├── BoardTest.java
 │   ├── GameTest.java
 │   └── ShipTest.java
-└── service/
-    └── GameServiceTest.java
+├── service/
+│   └── GameServiceTest.java
+└── controller/
+    └── GameControllerTest.java   ← @WebMvcTest, mocked service
 ```
+
+### @WebMvcTest — required for all controller tests
+
+Use `@WebMvcTest` for all controller-layer tests. Services are mocked with `@MockBean`.
+
+```java
+@WebMvcTest(GameController.class)
+class GameControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockBean
+    private GameService gameService;
+}
+```
+
+Do not use `@SpringBootTest` in any file under this agent's ownership. `@SpringBootTest` requires explicit justification and is owned by `backend-integration-tests-agent`.
 
 ### Required test scenarios
 
@@ -344,6 +377,14 @@ src/test/java/com/stampli/battleship/
 - [ ] Game status transitions correctly: WAITING → PLACING_SHIPS → IN_PROGRESS → FINISHED
 - [ ] Turn alternates correctly after each valid shot
 - [ ] Joining a full room returns an error
+
+**Controller / HTTP Layer** (`@WebMvcTest`)
+- [ ] `POST /api/v1/games` returns 200/201 with `gameId` and `playerId`
+- [ ] `POST .../shots` with `row: -1` returns 400 with `{ "error": "..." }` shape
+- [ ] `POST .../shots` to unknown game returns 404
+- [ ] Firing out of turn returns 409 (or 400) with error body
+- [ ] `@Valid` constraint on request body fires and returns 400 (not 500)
+- [ ] Every new endpoint introduced in this run has at least one `@WebMvcTest` test covering the happy path and one error path
 
 ### Parallel test execution
 Verify or add to `src/test/resources/junit-platform.properties`:

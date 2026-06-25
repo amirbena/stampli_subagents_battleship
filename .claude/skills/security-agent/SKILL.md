@@ -106,6 +106,12 @@ Every finding must include:
 
 Only Critical findings block PR. High/Medium/Low findings should be documented. Team Lead decides whether to fix or document them.
 
+## Delta Mode
+
+When Team Lead invokes this agent with `Review Mode: delta`, review only the files listed in `Delta Changed Files` (the diff between `Delta Base SHA` and HEAD) for security-sensitive changes. For any change touching identity, session, auth, hidden-data boundary, or input sanitization — always run a targeted re-review even if the change is labeled Small.
+
+Load `.claude/metadata/review-validity-schema.md` for review mode definitions and severity routing.
+
 ## Outputs
 
 Create the `reports/runs/<workflow-run-id>/` directory if it does not exist before writing any file.
@@ -117,8 +123,12 @@ Write `reports/runs/<workflow-run-id>/security-report.md` with this structure:
 
 Workflow Run ID:
 Generated From Branch:
-Generated From Commit:
+Generated From Commit: <full 40-character SHA from `git rev-parse HEAD`>
 Generated At:
+Review Mode: full | delta
+Delta Base SHA: <SHA of previous review — omit for full mode>
+Delta Changed Files:
+  - <only when Review Mode: delta>
 
 ## Verdict
 APPROVED | REQUIRES CHANGES
