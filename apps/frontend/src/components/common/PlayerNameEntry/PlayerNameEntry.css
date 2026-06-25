@@ -1,0 +1,53 @@
+.player-name-entry {
+  width: 100%;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.player-name-entry__title {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.player-name-entry__hint {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.player-name-entry__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.player-name-entry__label {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+.player-name-entry__input {
+  /* Inherits shared input styles from global CSS */
+  width: 100%;
+}
+
+.player-name-entry__input--error {
+  border-color: var(--color-danger);
+}
+
+.player-name-entry__error {
+  color: var(--color-danger);
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.player-name-entry__submit {
+  margin-top: 0.25rem;
+  /* Minimum 44px tap target height per UI requirements */
+  min-height: 44px;
+}

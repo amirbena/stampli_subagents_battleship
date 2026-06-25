@@ -16,6 +16,11 @@
  *  - Board security (AC-30–32).
  *  - Two-player flow unchanged (AC-35–36) — covered by existing smoke.spec.ts.
  *
+ * Identity requirement (AC-23 backward-compat):
+ *  - Buttons are now gated behind player identity (AC-01). Each test that needs to
+ *    click a game-start button must first establish identity via POST /players and
+ *    seed localStorage. Tests that only check visibility (not clicking) are exempt.
+ *
  * Notes on strategy:
  *  - Ship placement is done via direct API calls (page.request) to avoid slow UI
  *    interactions across 5 ships × 10 cells each.
@@ -39,6 +44,37 @@ const SHIP_PLACEMENTS = [
   { shipType: 'SUBMARINE',  row: 3, col: 0, orientation: 'HORIZONTAL' }, // 3 cells
   { shipType: 'DESTROYER',  row: 4, col: 0, orientation: 'HORIZONTAL' }, // 2 cells
 ] as const;
+
+/**
+ * Creates a player via POST /players and returns { playerId, displayName }.
+ * Used to establish identity before clicking game-start buttons (AC-01).
+ */
+async function createPlayerViaApi(
+  request: APIRequestContext,
+  displayName: string,
+): Promise<{ playerId: string; displayName: string }> {
+  const res = await request.post(`${API_BASE}/players`, {
+    data: { displayName },
+  });
+  if (!res.ok()) {
+    const body = await res.text();
+    throw new Error(`POST /players failed ${res.status()}: ${body}`);
+  }
+  return res.json() as Promise<{ playerId: string; displayName: string }>;
+}
+
+/**
+ * Seeds localStorage with battleship_player_id so the home page starts in
+ * "identified" state and game-start buttons are enabled. Must be called
+ * AFTER the first page.goto('/') so the page context exists, then
+ * followed by another page.goto('/') to reload with the seeded value.
+ */
+async function seedIdentity(page: import('@playwright/test').Page, playerId: string): Promise<void> {
+  // useLocalStorage serialises with JSON.stringify so we must store the JSON-encoded form.
+  await page.evaluate((id) => {
+    localStorage.setItem('battleship_player_id', JSON.stringify(id));
+  }, playerId);
+}
 
 /**
  * Place all human ships via the backend API so the test doesn't have to
@@ -126,9 +162,15 @@ test('home page renders Play vs Computer button', async ({ page }) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // Test: clicking "Play vs Computer" navigates to lobby with correct mode (AC-3, AC-11, AC-12)
 // ─────────────────────────────────────────────────────────────────────────────
-test('Play vs Computer navigates to lobby and shows vs-computer banner without room code', async ({ page }) => {
+test('Play vs Computer navigates to lobby and shows vs-computer banner without room code', async ({ page, request }) => {
+  // Establish identity so the button is enabled (AC-01).
+  const { playerId } = await createPlayerViaApi(request, 'VsComputerTester1');
+  await page.goto('/');
+  await seedIdentity(page, playerId);
   await page.goto('/');
 
+  // Wait for buttons to be enabled (identity resolved).
+  await expect(page.getByRole('button', { name: /play vs computer/i })).toBeEnabled({ timeout: 10000 });
   await page.getByRole('button', { name: /play vs computer/i }).click();
 
   // Wait for navigation to /lobby (AC-3)
@@ -150,9 +192,14 @@ test('Play vs Computer navigates to lobby and shows vs-computer banner without r
 // Test: full vs-computer happy path — human wins (AC-1, AC-3, AC-11–16, AC-25/26)
 // ─────────────────────────────────────────────────────────────────────────────
 test('full vs-computer flow: place ships, ready up, fire until human wins, see Victory screen', async ({ page, request }) => {
-  // ── Step 1: create the vs-computer game ──────────────────────────────────
+  // ── Step 0: establish identity so game-start buttons are enabled ─────────
+  const { playerId: identityId } = await createPlayerViaApi(request, 'VsComputerFull');
   await page.goto('/');
+  await seedIdentity(page, identityId);
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: /play vs computer/i })).toBeEnabled({ timeout: 10000 });
 
+  // ── Step 1: create the vs-computer game ──────────────────────────────────
   await page.getByRole('button', { name: /play vs computer/i }).click();
 
   // ── Step 2: read gameId / playerId from sessionStorage ───────────────────

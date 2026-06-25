@@ -3,6 +3,8 @@ package com.stampli.battleship.service;
 import com.stampli.battleship.domain.*;
 import com.stampli.battleship.dto.*;
 import com.stampli.battleship.repository.GameRepository;
+import com.stampli.battleship.repository.MoveRepository;
+import com.stampli.battleship.repository.PlayerRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -26,17 +28,24 @@ public class GameService {
     private final GameRepository gameRepository;
     private final PlacementValidationService placementValidationService;
     private final ComputerPlayerService computerPlayerService;
+    private final PlayerRepository playerRepository;
+    private final MoveRepository moveRepository;
 
     public GameService(GameRepository gameRepository,
                        PlacementValidationService placementValidationService,
-                       ComputerPlayerService computerPlayerService) {
+                       ComputerPlayerService computerPlayerService,
+                       PlayerRepository playerRepository,
+                       MoveRepository moveRepository) {
         this.gameRepository = gameRepository;
         this.placementValidationService = placementValidationService;
         this.computerPlayerService = computerPlayerService;
+        this.playerRepository = playerRepository;
+        this.moveRepository = moveRepository;
     }
 
     /**
      * Creates a new human-vs-human game room and registers the first player.
+     * Backward-compat delegate — anonymous player ID generated server-side.
      *
      * @return response containing the new {@code gameId} and the creator's {@code playerId}
      */
@@ -46,15 +55,33 @@ public class GameService {
 
     /**
      * Creates a new game room with the given mode and registers the first (human) player.
-     * When mode is COMPUTER, the computer player is immediately set up and marked ready.
+     * Backward-compat delegate — anonymous player ID generated server-side (AC-23).
      *
      * @param mode HUMAN or COMPUTER
      * @return response containing the new {@code gameId} and the creator's {@code playerId}
      */
     public CreateGameResponse createGame(GameMode mode) {
+        return createGame(mode, null);
+    }
+
+    /**
+     * Creates a new game room with the given mode and an optional persistent player identity.
+     * <p>
+     * When {@code playerId} is supplied: validates that a {@link PlayerProfile} exists (404 if not)
+     * and uses the ID verbatim — no new UUID generated (OQ-3, AC-11/AC-12).
+     * When {@code playerId} is absent/blank: generates a UUID as before (anonymous backward-compat
+     * path, AC-23).
+     *
+     * @param mode     HUMAN or COMPUTER
+     * @param playerId optional persistent player ID from {@code POST /players}; may be {@code null}
+     * @return response containing the new {@code gameId} and the resolved {@code playerId}
+     * @throws GameException 404 PLAYER_NOT_FOUND if a non-blank {@code playerId} has no profile
+     */
+    public CreateGameResponse createGame(GameMode mode, String playerId) {
         String gameId = generateGameId();
-        String playerId = UUID.randomUUID().toString();
-        Player playerA = new Player(playerId, gameId);
+        String resolvedPlayerId = resolvePlayerId(playerId);
+
+        Player playerA = new Player(resolvedPlayerId, gameId);
         Game game = new Game(gameId, playerA, mode);
 
         if (mode == GameMode.COMPUTER) {
@@ -66,17 +93,34 @@ public class GameService {
         }
 
         gameRepository.save(game);
-        return new CreateGameResponse(gameId, playerId, game.getStatus().name(), mode.name());
+        return new CreateGameResponse(gameId, resolvedPlayerId, game.getStatus().name(), mode.name());
     }
 
     /**
      * Adds a second player to an existing game room, transitioning status to PLACING_SHIPS.
+     * Backward-compat delegate — anonymous player ID generated server-side (AC-23).
      *
      * @param gameId the target game room
      * @return response containing the joiner's {@code playerId}
      * @throws GameException 409 if the room already has two players or has already started
      */
     public JoinGameResponse joinGame(String gameId) {
+        return joinGame(gameId, null);
+    }
+
+    /**
+     * Adds a second player to an existing game room with an optional persistent player identity.
+     * <p>
+     * When {@code playerId} is supplied: validates the profile exists (404 if not) and uses it
+     * verbatim as {@code playerB} (AC-13). When absent: generates as before (AC-23).
+     *
+     * @param gameId   the target game room
+     * @param playerId optional persistent player ID; may be {@code null}
+     * @return response containing the joiner's {@code playerId}
+     * @throws GameException 404 PLAYER_NOT_FOUND if a non-blank {@code playerId} has no profile
+     * @throws GameException 409 if the room already has two players or has already started
+     */
+    public JoinGameResponse joinGame(String gameId, String playerId) {
         Game game = findGameOrThrow(gameId);
         // Synchronize to prevent two concurrent joins filling the same slot
         synchronized (game) {
@@ -89,12 +133,32 @@ public class GameService {
             if (game.getPlayerB() != null) {
                 throw new GameException("Game is full", "GAME_FULL", HttpStatus.CONFLICT);
             }
-            String playerId = UUID.randomUUID().toString();
-            Player playerB = new Player(playerId, gameId);
+            String resolvedPlayerId = resolvePlayerId(playerId);
+            Player playerB = new Player(resolvedPlayerId, gameId);
             game.addPlayerB(playerB);
             gameRepository.save(game);
-            return new JoinGameResponse(gameId, playerId, game.getStatus().name());
+            return new JoinGameResponse(gameId, resolvedPlayerId, game.getStatus().name());
         }
+    }
+
+    /**
+     * Resolves a player ID for game creation/joining.
+     * <p>
+     * If {@code playerId} is non-blank: validates the profile exists and returns it verbatim.
+     * If blank/null: generates a new UUID (anonymous path).
+     *
+     * @param playerId raw player ID from request (may be null/blank)
+     * @return the resolved player ID to use
+     * @throws GameException 404 PLAYER_NOT_FOUND if a non-blank ID has no profile
+     */
+    private String resolvePlayerId(String playerId) {
+        if (playerId != null && !playerId.isBlank()) {
+            playerRepository.findById(playerId)
+                    .orElseThrow(() -> new GameException(
+                            "Player not found", "PLAYER_NOT_FOUND", HttpStatus.NOT_FOUND));
+            return playerId;
+        }
+        return UUID.randomUUID().toString();
     }
 
     /**
@@ -282,6 +346,7 @@ public class GameService {
 
             Shot shot = new Shot(playerId, coordinate, result);
             game.addShot(shot);
+            recordMove(gameId, shot);
 
             String nextTurnPlayerId = null;
             String winnerId = null;
@@ -339,6 +404,7 @@ public class GameService {
 
                     Shot compShot = new Shot(computer.getId(), compCoord, compResult);
                     game.addShot(compShot);
+                    recordMove(gameId, compShot);
 
                     String compWinnerId = null;
                     if (compResult == ShotResult.WIN) {
@@ -497,6 +563,36 @@ public class GameService {
                 .collect(Collectors.toList());
 
         return new BoardStateDto(sunkShips, myMissedShots, myHitShots);
+    }
+
+    /**
+     * Records a shot as a persistent {@link Move} entry.
+     * <p>
+     * Coordinate mapping: {@code x = col}, {@code y = row} (standard screen convention).
+     * {@code ShotResult.WIN} is normalised to {@code MoveResult.SUNK} — WIN is an internal
+     * engine signal and must never be persisted (AC-19).
+     * Called for every shot: human and computer alike (AC-20).
+     *
+     * @param gameId the game this shot belongs to
+     * @param shot   the authoritative Shot just added to the game's history
+     */
+    private void recordMove(String gameId, Shot shot) {
+        MoveResult mr;
+        if (shot.getResult() == ShotResult.WIN) {
+            mr = MoveResult.SUNK; // WIN → SUNK normalisation (AC-19)
+        } else {
+            mr = MoveResult.valueOf(shot.getResult().name()); // MISS/HIT/SUNK direct mapping
+        }
+        Move move = new Move(
+                UUID.randomUUID().toString(),
+                gameId,
+                shot.getPlayerId(),
+                shot.getCoordinate().getCol(),  // x = col (architecture §2.2)
+                shot.getCoordinate().getRow(),  // y = row (architecture §2.2)
+                mr,
+                shot.getFiredAt()               // createdAt sourced from Shot.firedAt (AC-19)
+        );
+        moveRepository.save(move);
     }
 
     /** Generates a 6-character alphanumeric room code (e.g. "A3K9XZ"). */

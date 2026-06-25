@@ -21,16 +21,21 @@ public class GameController {
     // POST /api/v1/games — Create Game
     @PostMapping
     public ResponseEntity<CreateGameResponse> createGame(
-            @RequestParam(value = "mode", defaultValue = "HUMAN") String mode) {
+            @RequestParam(value = "mode", defaultValue = "HUMAN") String mode,
+            @RequestBody(required = false) CreateGameRequest body) {
         GameMode gameMode = GameMode.valueOf(mode.toUpperCase());
-        CreateGameResponse response = gameService.createGame(gameMode);
+        String playerId = (body != null) ? body.getPlayerId() : null;
+        CreateGameResponse response = gameService.createGame(gameMode, playerId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     // POST /api/v1/games/{gameId}/join — Join Game
     @PostMapping("/{gameId}/join")
-    public ResponseEntity<JoinGameResponse> joinGame(@PathVariable String gameId) {
-        JoinGameResponse response = gameService.joinGame(gameId);
+    public ResponseEntity<JoinGameResponse> joinGame(
+            @PathVariable String gameId,
+            @RequestBody(required = false) JoinGameRequest body) {
+        String playerId = (body != null) ? body.getPlayerId() : null;
+        JoinGameResponse response = gameService.joinGame(gameId, playerId);
         return ResponseEntity.ok(response);
     }
 

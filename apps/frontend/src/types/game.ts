@@ -103,6 +103,34 @@ export interface ApiError {
   code: string;
 }
 
+// --- Player identity (Guest & Persistent Player Identity feature) ---
+
+/** Persistent guest player profile returned by POST /players and GET /players/{id}. */
+export interface Player {
+  playerId: string;
+  displayName: string;
+  createdAt: string; // ISO-8601 instant
+}
+
+/** Request body for POST /players. */
+export interface CreatePlayerRequest {
+  displayName: string;
+}
+
+/** Response from POST /players and GET /players/{playerId}. */
+export type PlayerResponse = Player;
+
+/** Optional body for POST /games. Omit entirely for the anonymous/backward-compatible path. */
+export interface CreateGameRequest {
+  playerId?: string;
+}
+
+/** Body for POST /games/{gameId}/join. playerId is optional (anonymous path when omitted). */
+export interface JoinGameRequest {
+  gameId: string;
+  playerId?: string;
+}
+
 export const SHIP_SIZES: Record<ShipType, number> = {
   CARRIER: 5,
   BATTLESHIP: 4,

@@ -1,5 +1,6 @@
 package com.stampli.battleship.domain;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -12,6 +13,8 @@ public class Game {
     private String winnerPlayerId;
     private final List<Shot> shotHistory;
     private final GameMode gameMode;
+    private final Instant createdAt;  // set in constructor (AC-17)
+    private Instant finishedAt;       // null until finishGame() is called (AC-17)
 
     public Game(String id, Player playerA) {
         this(id, playerA, GameMode.HUMAN);
@@ -23,6 +26,7 @@ public class Game {
         this.gameMode = gameMode;
         this.status = GameStatus.WAITING_FOR_PLAYERS;
         this.shotHistory = new ArrayList<>();
+        this.createdAt = Instant.now();
     }
 
     public void addPlayerB(Player playerB) {
@@ -39,6 +43,7 @@ public class Game {
         this.status = GameStatus.FINISHED;
         this.winnerPlayerId = winnerPlayerId;
         this.currentTurnPlayerId = null;
+        this.finishedAt = Instant.now();
     }
 
     public String getId() {
@@ -91,5 +96,13 @@ public class Game {
         if (playerA != null && playerA.getId().equals(playerId)) return playerB;
         if (playerB != null && playerB.getId().equals(playerId)) return playerA;
         return null;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public Instant getFinishedAt() {
+        return finishedAt;
     }
 }

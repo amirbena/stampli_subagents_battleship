@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGamePolling } from '../../hooks/useGamePolling';
+import { displayOpponentName } from '../../utils/displayOpponentName';
 import './GameOver.css';
 
 export function GameOver(): React.ReactElement {
@@ -11,6 +12,12 @@ export function GameOver(): React.ReactElement {
   const { gameState } = useGamePolling(gameId, playerId, true);
 
   const didWin = gameState?.winnerId === playerId;
+
+  // When the computer wins, winnerId is a "COMPUTER-<uuid>" sentinel.
+  // displayOpponentName converts it to "Computer" so the raw UUID never shows (AC-16, EC-07).
+  const winnerLabel = gameState?.winnerId
+    ? displayOpponentName(gameState.winnerId)
+    : null;
 
   const handlePlayAgain = () => {
     sessionStorage.removeItem('gameId');
@@ -27,7 +34,7 @@ export function GameOver(): React.ReactElement {
         <p className="game-over-message">
           {didWin
             ? 'You sunk the entire enemy fleet!'
-            : 'Your fleet was destroyed.'}
+            : `Your fleet was destroyed${winnerLabel ? ` by ${winnerLabel}` : ''}.`}
         </p>
         <button
           className="btn btn--primary"

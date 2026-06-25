@@ -1,5 +1,6 @@
 package com.stampli.battleship.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -15,6 +16,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -307,6 +309,189 @@ class GameControllerIntegrationTest {
             mockMvc.perform(get("/games/NOPE00/state").param("playerId", "pid"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error").isNotEmpty());
+        }
+    }
+
+    // ─────────────────────────────────────────────
+    // Helper — create a PlayerProfile via POST /players and return its id
+    // ─────────────────────────────────────────────
+    private String createPlayer(String displayName) throws Exception {
+        MvcResult result = mockMvc.perform(post("/players")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"displayName\":\"%s\"}".formatted(displayName)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString())
+                .get("playerId").asText();
+    }
+
+    // ─────────────────────────────────────────────
+    // POST /games — Player Identity (AC-11/12, OQ-3, AC-23)
+    // ─────────────────────────────────────────────
+    @Nested
+    @DisplayName("POST /games — player identity linkage")
+    class CreateGameWithIdentity {
+
+        @Test
+        @DisplayName("AC-11/12 + OQ-3: supplied playerId is echoed back verbatim in response")
+        void suppliedPlayerIdEchoedVerbatim() throws Exception {
+            String playerId = createPlayer("PlayerA");
+
+            MvcResult result = mockMvc.perform(post("/games").param("mode", "HUMAN")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"playerId\":\"%s\"}".formatted(playerId)))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.playerId").value(playerId))
+                    .andExpect(jsonPath("$.gameId").isNotEmpty())
+                    .andReturn();
+
+            // Extra safety: the echoed ID is exactly the same string (not a new UUID)
+            JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+            assertThat(body.get("playerId").asText()).isEqualTo(playerId);
+        }
+
+        @Test
+        @DisplayName("AC-23 backward-compat: POST /games with no body still returns 201 with a generated playerId")
+        void noBodyStillReturns201WithGeneratedPlayerId() throws Exception {
+            mockMvc.perform(post("/games").param("mode", "HUMAN"))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.gameId").isNotEmpty())
+                    .andExpect(jsonPath("$.playerId").isNotEmpty());
+        }
+
+        @Test
+        @DisplayName("AC-23 backward-compat: POST /games with empty JSON body {} still returns 201")
+        void emptyBodyStillReturns201() throws Exception {
+            mockMvc.perform(post("/games").param("mode", "HUMAN")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{}"))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.playerId").isNotEmpty());
+        }
+
+        @Test
+        @DisplayName("returns 404 PLAYER_NOT_FOUND when playerId has no registered profile")
+        void unknownPlayerIdReturns404() throws Exception {
+            mockMvc.perform(post("/games").param("mode", "HUMAN")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"playerId\":\"nonexistent-player-uuid\"}"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("PLAYER_NOT_FOUND"));
+        }
+
+        @Test
+        @DisplayName("AC-11: COMPUTER mode with playerId returns 201 echoing the same playerId")
+        void computerModeWithPlayerIdEchoed() throws Exception {
+            String playerId = createPlayer("ComputerModePlayer");
+
+            mockMvc.perform(post("/games").param("mode", "COMPUTER")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"playerId\":\"%s\"}".formatted(playerId)))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.playerId").value(playerId))
+                    .andExpect(jsonPath("$.gameMode").value("COMPUTER"));
+        }
+    }
+
+    // ─────────────────────────────────────────────
+    // POST /games/{gameId}/join — Player Identity (AC-13/14)
+    // ─────────────────────────────────────────────
+    @Nested
+    @DisplayName("POST /games/{gameId}/join — player identity linkage")
+    class JoinGameWithIdentity {
+
+        @Test
+        @DisplayName("AC-13 + OQ-3: supplied playerId is echoed back verbatim in join response")
+        void suppliedPlayerIdEchoedOnJoin() throws Exception {
+            // Create a game (anonymous)
+            MvcResult create = mockMvc.perform(post("/games").param("mode", "HUMAN"))
+                    .andExpect(status().isCreated()).andReturn();
+            String gameId = field(create, "gameId");
+
+            // Create a player profile for playerB
+            String playerBId = createPlayer("PlayerB");
+
+            MvcResult join = mockMvc.perform(post("/games/{gameId}/join", gameId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"playerId\":\"%s\"}".formatted(playerBId)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.playerId").value(playerBId))
+                    .andExpect(jsonPath("$.gameId").value(gameId))
+                    .andReturn();
+
+            JsonNode body = objectMapper.readTree(join.getResponse().getContentAsString());
+            assertThat(body.get("playerId").asText()).isEqualTo(playerBId);
+        }
+
+        @Test
+        @DisplayName("AC-23 backward-compat: join with no body still returns 200 with generated playerId")
+        void joinNoBodyStillReturns200() throws Exception {
+            MvcResult create = mockMvc.perform(post("/games").param("mode", "HUMAN"))
+                    .andExpect(status().isCreated()).andReturn();
+            String gameId = field(create, "gameId");
+
+            mockMvc.perform(post("/games/{gameId}/join", gameId))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.playerId").isNotEmpty())
+                    .andExpect(jsonPath("$.gameId").value(gameId));
+        }
+
+        @Test
+        @DisplayName("returns 404 PLAYER_NOT_FOUND when joining with an unknown playerId")
+        void joinWithUnknownPlayerIdReturns404() throws Exception {
+            MvcResult create = mockMvc.perform(post("/games").param("mode", "HUMAN"))
+                    .andExpect(status().isCreated()).andReturn();
+            String gameId = field(create, "gameId");
+
+            mockMvc.perform(post("/games/{gameId}/join", gameId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"playerId\":\"ghost-player-uuid\"}"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("PLAYER_NOT_FOUND"));
+        }
+
+        @Test
+        @DisplayName("AC-14: 409 when room is full, even with a valid playerId")
+        void fullRoomReturns409EvenWithValidPlayer() throws Exception {
+            MvcResult create = mockMvc.perform(post("/games").param("mode", "HUMAN"))
+                    .andExpect(status().isCreated()).andReturn();
+            String gameId = field(create, "gameId");
+
+            // First join fills the room
+            mockMvc.perform(post("/games/{gameId}/join", gameId)).andReturn();
+
+            // Create a registered player for the third attempt
+            String thirdPlayerId = createPlayer("ThirdWheel");
+
+            mockMvc.perform(post("/games/{gameId}/join", gameId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"playerId\":\"%s\"}".formatted(thirdPlayerId)))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.error").isNotEmpty());
+        }
+
+        @Test
+        @DisplayName("both players can be registered profiles and the game links them correctly")
+        void bothRegisteredPlayersLinked() throws Exception {
+            String playerAId = createPlayer("RegisteredA");
+            String playerBId = createPlayer("RegisteredB");
+
+            // playerA creates the game
+            MvcResult create = mockMvc.perform(post("/games").param("mode", "HUMAN")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"playerId\":\"%s\"}".formatted(playerAId)))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.playerId").value(playerAId))
+                    .andReturn();
+            String gameId = field(create, "gameId");
+
+            // playerB joins
+            mockMvc.perform(post("/games/{gameId}/join", gameId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"playerId\":\"%s\"}".formatted(playerBId)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.playerId").value(playerBId))
+                    .andExpect(jsonPath("$.gameId").value(gameId));
         }
     }
 

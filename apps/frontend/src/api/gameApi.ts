@@ -10,6 +10,8 @@ import type {
   ShipType,
   Orientation,
   GameMode,
+  CreateGameRequest,
+  JoinGameRequest,
 } from '../types/game';
 
 /**
@@ -158,11 +160,21 @@ api.interceptors.response.use(
  * Creates a new game room.
  * POST /games
  *
+ * When playerId is supplied the backend links playerA to the existing Player
+ * record and echoes the same UUID back in the response (OQ-3: same UUID end-to-end).
+ * When playerId is omitted the backend generates a new anonymous UUID as before
+ * (backward-compatible path — existing call sites need no changes).
+ *
+ * @param mode     HUMAN | COMPUTER (default COMPUTER when omitted)
+ * @param playerId optional persistent player ID from localStorage
  * @returns gameId (6-char room code) and the creator's playerId
  */
-export async function createGame(mode?: GameMode): Promise<CreateGameResponse> {
+export async function createGame(mode?: GameMode, playerId?: string): Promise<CreateGameResponse> {
   const params = mode ? { mode } : undefined;
-  const { data } = await api.post<CreateGameResponse>('/games', undefined, { params });
+  // Only include the request body when playerId is present — omitting the body
+  // entirely preserves the existing no-body backward-compatible path.
+  const body: CreateGameRequest | undefined = playerId ? { playerId } : undefined;
+  const { data } = await api.post<CreateGameResponse>('/games', body, { params });
   return data;
 }
 
@@ -170,12 +182,17 @@ export async function createGame(mode?: GameMode): Promise<CreateGameResponse> {
  * Joins an existing game room as the second player.
  * POST /games/:gameId/join
  *
- * @param gameId the 6-char room code received from the creator
+ * When playerId is supplied the backend links playerB to the existing Player
+ * record (AC-13). When omitted the backend generates an anonymous UUID as today.
+ *
+ * @param gameId   the 6-char room code received from the creator
+ * @param playerId optional persistent player ID from localStorage
  * @returns the joiner's playerId
  * @throws Error 409 if the room is full or already in progress
  */
-export async function joinGame(gameId: string): Promise<JoinGameResponse> {
-  const { data } = await api.post<JoinGameResponse>(`/games/${gameId}/join`, { gameId });
+export async function joinGame(gameId: string, playerId?: string): Promise<JoinGameResponse> {
+  const body: JoinGameRequest = { gameId, ...(playerId ? { playerId } : {}) };
+  const { data } = await api.post<JoinGameResponse>(`/games/${gameId}/join`, body);
   return data;
 }
 
