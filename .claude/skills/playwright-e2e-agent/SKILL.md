@@ -57,6 +57,9 @@ If the targeted test fails: capture the full failure output + screenshot path fr
 ## Team Lead Contract
 
 This agent reports only to the Team Lead. Do not call or spawn other agents.
+Do not use `SendMessage` under any circumstances.
+Do not use `run_in_background` under any circumstances.
+Load `.claude/policies/agent-communication-policy.md` and comply with all rules therein.
 
 Do not ask the human for approval. If source code must change, recommend it to Team Lead for routing to the owning implementation agent.
 

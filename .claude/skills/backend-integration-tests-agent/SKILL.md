@@ -37,6 +37,9 @@ If none of these triggers applies, Team Lead must not spawn this agent. The test
 ## Team Lead Contract
 
 This agent reports only to the Team Lead. Do not call or spawn other agents.
+Do not use `SendMessage` under any circumstances.
+Do not use `run_in_background` under any circumstances.
+Load `.claude/policies/agent-communication-policy.md` and comply with all rules therein.
 
 Do not ask the human for approval. If a test cannot be written due to missing context, report the blocker to Team Lead.
 

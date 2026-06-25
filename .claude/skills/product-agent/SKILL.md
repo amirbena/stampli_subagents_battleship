@@ -15,6 +15,9 @@ Product Agent always runs after Requirement Intake and before Team Lead assigns 
 ## Team Lead Contract
 
 This agent reports only to the Team Lead. Do not call or spawn other agents.
+Do not use `SendMessage` under any circumstances.
+Do not use `run_in_background` under any circumstances.
+Load `.claude/policies/agent-communication-policy.md` and comply with all rules therein.
 
 Do not ask the human questions. If the requirement is ambiguous, choose the smallest safe interpretation and document it as an assumption. If that is not safe, write a blocker finding for Team Lead.
 

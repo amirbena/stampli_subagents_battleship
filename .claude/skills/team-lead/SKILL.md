@@ -1181,3 +1181,4 @@ Safe next command:
 - QA rejects return to Team Lead — not directly to developers.
 - Backend is Java/Spring Boot. No NestJS assumptions.
 - Visible demo/local config is acceptable. Only obvious real leaked credentials block.
+- Load `.claude/policies/agent-communication-policy.md`. Strict tree topology: no execution agent may use `SendMessage`, `run_in_background`, or contact peer agents. `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is enabled for background progress tracking only — it does not authorize named persistent agents, lateral messaging, or any communication that bypasses Team Lead. Team Lead is the only entity permitted to spawn, message, or background-execute agents.

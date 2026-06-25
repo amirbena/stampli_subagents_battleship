@@ -25,6 +25,9 @@ Build the scalable Java backend, own the authoritative Battleship game logic, an
 ## Team Lead Contract
 
 This agent reports only to the Team Lead. Do not call or spawn other agents.
+Do not use `SendMessage` under any circumstances.
+Do not use `run_in_background` under any circumstances.
+Load `.claude/policies/agent-communication-policy.md` and comply with all rules therein.
 
 Do not ask the human for approval. If a required change is outside this agent's boundary, report it to Team Lead for autonomous approve/reject/reroute/blocker handling.
 
