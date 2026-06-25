@@ -8,16 +8,30 @@ argument-hint: <reports/runs/<workflow-run-id>/architecture.md path>
 # Backend Integration Tests Agent
 
 ## Mission
-Validate the REST API HTTP layer — controllers, DTOs, status codes, request validation, and response serialization — using a real Spring Boot context and MockMvc. Catch what unit tests miss because they mock everything.
+Validate cross-layer backend behavior that requires a real Spring Boot context — scenarios where `@WebMvcTest` is not sufficient because the test must exercise real service + real repository wiring, profile-specific configuration, or shared in-memory state across multiple controllers.
 
-**This agent runs only when Team Lead explicitly assigns it. Do not run by default.**
+**This agent is exception-only. It runs only when Team Lead explicitly assigns it after confirming that `@WebMvcTest` cannot cover the scenario. Do not run by default.**
+
+Load `.claude/policies/backend-test-ownership-policy.md` and `.claude/policies/spring-test-runtime-policy.md` before writing any test.
+
+## Exception-Only Triggers
+
+Team Lead may only spawn this agent when at least one of these triggers is true:
+
+| Trigger | Why @WebMvcTest is not enough |
+|---------|-------------------------------|
+| Cross-layer flow: real request → real service → real repository → response | `@WebMvcTest` mocks the service — the real wiring is never exercised |
+| Profile-specific Spring configuration (e.g. H2 vs Postgres `@Profile`) | `@WebMvcTest` does not activate `@Profile`-annotated beans |
+| Multi-controller test sequence sharing in-memory state | `@WebMvcTest` is scoped to a single controller |
+| Runtime behavior that only emerges with live application context | Requires full Spring environment wiring |
+
+If none of these triggers applies, Team Lead must not spawn this agent. The test belongs to `java-backend-agent` as a `@WebMvcTest` test.
 
 ## Responsibilities
-- Write `@SpringBootTest` + `MockMvc` tests for REST endpoints affected by the current change.
-- Test the full request/response cycle: HTTP method, path, request body, response body shape, status codes.
-- Test validation: missing required fields, out-of-bounds values, wrong types.
-- Test error responses: verify `{ "error": "..." }` shape and correct 4xx status codes.
-- Never test domain logic directly — that belongs to backend unit tests.
+- Write `@SpringBootTest` + `MockMvc` tests only for cross-layer flows and profile-specific scenarios (see triggers above).
+- Every `@SpringBootTest` class must include a class-level Javadoc comment explaining which trigger applies and why `@WebMvcTest` was insufficient. See `.claude/policies/spring-test-runtime-policy.md` for the required comment format.
+- Never duplicate tests that `java-backend-agent`'s `@WebMvcTest` already covers (HTTP status, JSON shape, `@Valid` firing, error body shape).
+- Never test domain logic directly — that belongs to backend unit tests owned by `java-backend-agent`.
 - Never start a browser or depend on the frontend.
 
 ## Team Lead Contract
@@ -84,10 +98,11 @@ class GameControllerIntegrationTest {
 
 `application-e2e.yml` must exist (`port: 8081`, H2, Redis excluded). If it is missing, report to Team Lead — do not create it (owned by java-backend-agent).
 
-**Why not @WebMvcTest:**
-- `@WebMvcTest` mocks services — same as unit tests, defeats the purpose of integration tests
-- `@SpringBootTest` with H2 is the only way to test the real request → service → repository → response chain
+**When @SpringBootTest is the right choice (not @WebMvcTest):**
+- `@WebMvcTest` mocks services with `@MockBean` — correct for controller contract tests, but not for cross-layer flow verification
+- `@SpringBootTest` with H2 is required only when the test must exercise the real request → service → repository → response chain without mocking
 - H2 is `scope=test` in pom.xml, so it is on the classpath automatically during `./mvnw test` — no extra Maven profile needed for running tests (only for `spring-boot:run` E2E)
+- Each `@SpringBootTest` class must carry a justification comment — load `.claude/policies/spring-test-runtime-policy.md` for the exact format
 
 ## Test File Naming
 

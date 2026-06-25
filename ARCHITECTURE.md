@@ -151,10 +151,10 @@ User Requirement
 | **Product Agent** | sonnet-4-6 | `reports/runs/<id>/product-spec.md`, acceptance criteria | `.claude/skills/product-agent` |
 | **Team Lead** | opus-4-8 | Orchestration, plan, branch decisions, quality gates | `.claude/skills/team-lead` |
 | **Architect Agent** | opus-4-8 | `reports/runs/<id>/architecture.md`, API contract, domain model | `.claude/skills/architect-agent` |
-| **Java Backend Agent** | sonnet-4-6 | `apps/backend/src/main/java/` — all production Java; `src/test/**/*Test.java` — JUnit 5 + Mockito unit tests | `.claude/skills/java-backend-agent` |
+| **Java Backend Agent** | sonnet-4-6 | `apps/backend/src/main/java/` — all production Java; `src/test/**/*Test.java` — JUnit 5 + Mockito unit tests (domain + service) **and `@WebMvcTest` controller tests** | `.claude/skills/java-backend-agent` |
 | **Frontend API Agent** | sonnet-4-6 | `apps/frontend/src/api/`, `hooks/`, `types/` — HTTP wrappers, hooks, TS types + Vitest unit tests | `.claude/skills/frontend-api-agent` |
 | **Frontend UI Agent** | sonnet-4-6 | `apps/frontend/src/components/`, `pages/`, `utils/`, CSS — render layer + Vitest component tests | `.claude/skills/frontend-ui-agent` |
-| **Backend Integration Tests Agent** | sonnet-4-6 | `apps/backend/src/test/**/*IntegrationTest.java` — `@SpringBootTest` + MockMvc (HTTP layer) | `.claude/skills/backend-integration-tests-agent` |
+| **Backend Integration Tests Agent** | sonnet-4-6 | `apps/backend/src/test/**/*IntegrationTest.java` — `@SpringBootTest` + MockMvc, **exception-only** for cross-layer flows and profile-specific wiring | `.claude/skills/backend-integration-tests-agent` |
 | **Playwright E2E Agent** | sonnet-4-6 | `apps/frontend/tests/e2e/` — browser E2E tests | `.claude/skills/playwright-e2e-agent` |
 | **Security Agent** | opus-4-8 | `reports/runs/<id>/security-report.md` | `.claude/skills/security-agent` |
 | **Code Review Agent** | opus-4-8 | `reports/runs/<id>/code-review-report.md` | `.claude/skills/code-review-agent` |
@@ -169,12 +169,37 @@ User Requirement
 - **Team Lead** owns all decisions — branch, scope, agent routing, quality gates. No other agent makes decisions.
 - **Product Agent** runs in three modes: Full (new feature, API change), Light (UX interaction risk on fast-path — clarifies what must feel instant, what shows loading, scope risks; returns control to Team Lead), or Skipped (fast-path + no UX risk). Team Lead selects the mode; Product Agent never selects its own mode or advances the pipeline.
 - **Architect** owns structure (domain model, API contract, folder layout) — never environment setup or implementation.
-- **Java Backend Agent** owns JUnit 5 unit tests for domain and service layer — no separate backend unit test agent (same rationale as frontend).
+- **Java Backend Agent** owns JUnit 5 unit tests for domain and service layer **and `@WebMvcTest` controller tests** — no separate backend unit test agent. `@WebMvcTest` is the default for all controller-layer tests (HTTP status, JSON shape, `@Valid` firing, error body). `backend-integration-tests-agent` is exception-only for cross-layer flows and profile-specific wiring where `@WebMvcTest` is insufficient. See `.claude/policies/backend-test-ownership-policy.md`.
 - **Frontend API Agent** owns Vitest unit tests for `api/`, `hooks/`, and `types/` — co-located in those directories.
 - **Frontend UI Agent** owns Vitest component tests for `components/`, `pages/`, and `utils/` — co-located. It is also the sole agent for cheap/styling-only changes. It owns test selection within its scope — Team Lead does not prescribe individual test cases. It applies a priority ladder: (1) unit test for isolated DOM/state/class issues, (2) frontend integration test for seam/timing/wiring/async-ordering issues where per-layer unit tests cannot exercise the risk together, (3) Playwright smoke for real-browser layout and responsive confidence. It self-diagnoses when a frontend integration test is needed: when runtime behavior is broken but per-layer unit tests all pass — including timing races (interceptor fires before React renders), provider wiring, and shared state ordering, not only A→B seam breaks. It writes the failing `*.integration.test.tsx` (real component + real hook/store/interceptor, network boundary mocked) **before** touching production code — see [TDD rule in SKILL.md](.claude/skills/frontend-ui-agent/SKILL.md).
 - **Frontend split is conservative.** `frontend-ui-agent` is the default for any single-agent case (small, tightly-coupled, or UI-only). `frontend-api-agent` runs alone for hook/type-only changes. Both run in parallel only when the requirement has clearly independent API/data-layer work AND independent UI/render-layer work. Team Lead pre-writes `types/game.ts` before spawning both. When both run in parallel, Team Lead is the synchronization point — it waits for both to finish, then runs the full gate as a cross-agent contract check before advancing.
 - **E2E failure routing follows data, not symptom.** A visible UI symptom does not mean the bug is in the UI layer. Team Lead checks the data flow first — if the hook returns wrong data, route to `frontend-api-agent`; if the hook is correct but the component renders wrong, route to `frontend-ui-agent`. After any `frontend-api-agent` fix, always run `npm run build` before re-triggering E2E to catch silent consumer breaks.
 - **Playwright E2E Agent** owns browser tests — never touches production code.
+
+### AC-to-Test Coverage Matrix
+
+Every `architecture.md` produced by Architect Agent must include an `## AC-to-Test Coverage Matrix`. This matrix maps every acceptance criterion from the product spec to a test type, owner, framework, gate, and notes. Format and column definitions: `.claude/templates/ac-coverage-matrix-template.md`.
+
+The matrix is the authoritative source Team Lead uses to:
+1. Determine which agents and test types to spawn during implementation.
+2. Drive the Validation Gap Check (Step 14) before release — comparing actual test coverage against the matrix, not re-deriving from the product spec.
+
+### Backend Test Ownership Model
+
+```
+Domain / service behavior        → java-backend-agent    → JUnit 5 / Mockito
+In-memory repository behavior    → java-backend-agent    → plain JUnit 5
+Controller HTTP / JSON / @Valid  → java-backend-agent    → @WebMvcTest   ← DEFAULT
+Error response shape             → java-backend-agent    → @WebMvcTest
+Cross-layer backend flow         → backend-integration-tests-agent → @SpringBootTest (justification required)
+Profile-specific wiring          → backend-integration-tests-agent → @SpringBootTest (justification required)
+```
+
+`@WebMvcTest` is always attempted first. `@SpringBootTest` requires an explicit justification comment and is owned by `backend-integration-tests-agent`. See `.claude/policies/backend-test-ownership-policy.md` and `.claude/policies/spring-test-runtime-policy.md`.
+
+### Review Validity Model
+
+Every `code-review-report.md` and `security-report.md` records the SHA (`Generated From Commit`) at the time of review. Before routing to release, Team Lead runs `git diff --name-only <last-reviewed-sha>..HEAD`. If production code changed after the review, a delta or full re-review is required. Post-review fix routing follows three severity levels (Small / Medium / Large). See `.claude/metadata/review-validity-schema.md`.
 
 ### Run Isolation
 Every workflow run writes to its own directory:

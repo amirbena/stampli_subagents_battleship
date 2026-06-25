@@ -30,10 +30,10 @@ To extend an agent, edit its `SKILL.md` — do not create parallel files.
 | Team Lead | `.claude/skills/team-lead` | claude-opus-4-8 | Planning, task assignment, quality gates, E2E infrastructure pre-gate, final release decision |
 | Product Agent | `.claude/skills/product-agent` | claude-sonnet-4-6 | `reports/runs/<id>/product-spec.md`, user stories, acceptance criteria |
 | Architect Agent | `.claude/skills/architect-agent` | claude-opus-4-8 | `reports/runs/<id>/architecture.md`, API contract, domain model — structure only, not environment setup |
-| Java Backend Agent | `.claude/skills/java-backend-agent` | claude-sonnet-4-6 | `apps/backend/src/main/java/` — all production backend code; `src/test/**/*Test.java` — all JUnit 5 unit tests (domain + service layer) |
+| Java Backend Agent | `.claude/skills/java-backend-agent` | claude-sonnet-4-6 | `apps/backend/src/main/java/` — all production backend code; `src/test/**/*Test.java` — all JUnit 5 unit tests (domain + service layer) **and `@WebMvcTest` controller tests** |
 | Frontend API Agent | `.claude/skills/frontend-api-agent` | claude-sonnet-4-6 | `apps/frontend/src/api/`, `hooks/`, `types/` — HTTP wrappers, hooks, TypeScript types + Vitest unit tests |
 | Frontend UI Agent | `.claude/skills/frontend-ui-agent` | claude-sonnet-4-6 | `apps/frontend/src/components/`, `pages/`, `utils/`, CSS — render layer + Vitest component tests + cross-layer `*.integration.test.tsx` (self-diagnosed: seam/timing/wiring/async-ordering issues where per-layer unit tests pass but runtime behavior fails) |
-| Backend Integration Tests Agent | `.claude/skills/backend-integration-tests-agent` | claude-sonnet-4-6 | `apps/backend/src/test/**/*IntegrationTest.java` — `@SpringBootTest` + MockMvc, HTTP layer |
+| Backend Integration Tests Agent | `.claude/skills/backend-integration-tests-agent` | claude-sonnet-4-6 | `apps/backend/src/test/**/*IntegrationTest.java` — `@SpringBootTest` + MockMvc, **exception-only** for cross-layer flows and profile-specific wiring; `@WebMvcTest` tests belong to `java-backend-agent` |
 | Playwright E2E Agent | `.claude/skills/playwright-e2e-agent` | claude-sonnet-4-6 | `apps/frontend/tests/e2e/` — all browser tests; never assumes servers are running |
 | Security Agent | `.claude/skills/security-agent` | claude-opus-4-8 | `reports/runs/<id>/security-report.md` |
 | Code Review Agent | `.claude/skills/code-review-agent` | claude-opus-4-8 | `reports/runs/<id>/code-review-report.md` |
@@ -98,6 +98,32 @@ Current decisions locked in:
 - **E2E failure routing follows data, not symptom.** A UI symptom does not mean the bug is in the UI layer. Team Lead checks the data flow — if the hook returns wrong data, route to `frontend-api-agent`; if the hook is correct but the component renders wrong, route to `frontend-ui-agent`. After any `frontend-api-agent` fix, always run `npm run build` before re-triggering E2E. Before re-triggering E2E after any frontend fix, only agents that changed files must re-verify — but `npm run build` always runs regardless.
 - **No separate Backend Unit Tests Agent.** Java unit tests (JUnit 5 + Mockito, domain + service layer) are owned by the Java Backend Agent — same rationale as frontend. When backend logic changes, the Java Backend Agent adds or updates the corresponding `*Test.java` files in the same pass.
 - **No DB Integration Tests Agent at this stage.** The backend uses in-memory storage by default. A dedicated DB integration tests agent should only be introduced if the codebase moves to PostgreSQL/JPA/Hibernate as the primary persistence layer, adds schema migrations, or requires repository-level tests with a real database or Testcontainers.
+
+## Backend Test Ownership and Spring Test Policy
+
+`java-backend-agent` owns all controller-layer tests using `@WebMvcTest` (HTTP status, JSON shape, `@Valid` firing, error body shape). `@WebMvcTest` is the default for all controller tests — it boots only the web layer and mocks services.
+
+`backend-integration-tests-agent` is **exception-only**. Team Lead may only spawn it when the scenario genuinely requires a full Spring context: cross-layer flow (real service + real repository), profile-specific wiring, or multi-controller shared state. Every `@SpringBootTest` class must include a class-level justification comment.
+
+See `.claude/policies/backend-test-ownership-policy.md` and `.claude/policies/spring-test-runtime-policy.md` for the decision table, WebMvcTest examples, and SpringBootTest justification format.
+
+## AC-to-Test Coverage Matrix
+
+When Architect Agent runs, it must include an `## AC-to-Test Coverage Matrix` in `architecture.md`. This matrix maps every acceptance criterion to a test type, owner, framework, gate, and notes. It is the binding source of truth that Team Lead uses to:
+1. Decide which test types and agents to spawn (not re-derived from the product spec).
+2. Drive the Validation Gap Check before release (comparing what was validated against what the matrix specified).
+
+Load `.claude/templates/ac-coverage-matrix-template.md` for the column definitions and example rows.
+
+## Code Review and Security Review Validity
+
+Every `code-review-report.md` and `security-report.md` must record the `Generated From Commit` SHA at the time of review.
+
+Before routing to `release-pr-agent`, Team Lead runs the SHA Validity Gate:
+```bash
+git diff --name-only <last-reviewed-sha>..HEAD
+```
+If production code changed after the last review, a delta or full re-review is required before release. See `.claude/metadata/review-validity-schema.md` for the decision table and post-review fix severity routing (Small / Medium / Large).
 
 ## Quality Gates (all required before PR, run in this order)
 - [ ] `./mvnw test` passes (backend unit tests — if backend touched)
