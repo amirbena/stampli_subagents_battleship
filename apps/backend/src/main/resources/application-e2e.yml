@@ -21,4 +21,6 @@ spring:
 
 battleship:
   cors:
-    allowed-origin: http://localhost:3001
+    # Explicit localhost:3001 origin used by the Playwright E2E test runner.
+    # allowedOriginPatterns accepts both explicit origins and wildcard patterns.
+    allowed-origin-pattern: http://localhost:3001

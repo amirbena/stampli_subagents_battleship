@@ -25,4 +25,6 @@ spring:
 
 battleship:
   cors:
-    allowed-origin: ${CORS_ALLOWED_ORIGIN:http://localhost:5173}
+    # [*] is Spring's wildcard token for any port value in allowedOriginPatterns.
+    # This lets any localhost port through without enumerating ports explicitly.
+    allowed-origin-pattern: ${CORS_ALLOWED_ORIGIN_PATTERN:http://localhost:[*]}

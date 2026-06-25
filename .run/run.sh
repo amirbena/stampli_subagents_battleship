@@ -160,7 +160,7 @@ echo "==> Starting backend natively (Spring Boot, postgres profile) on :8080/api
     SPRING_DATASOURCE_PASSWORD="${POSTGRES_PASSWORD}" \
     SPRING_REDIS_HOST="localhost" \
     SPRING_REDIS_PORT="6379" \
-    CORS_ALLOWED_ORIGIN="http://localhost:3001" \
+    CORS_ALLOWED_ORIGIN_PATTERN="http://localhost:[*]" \
     ./mvnw spring-boot:run
 ) > >(sed -u 's/^/[backend]  /') 2>&1 &
 BACKEND_PID=$!
