@@ -35,8 +35,9 @@ cd apps/backend && ./mvnw clean install && cd ../..
 cd apps/frontend && npx playwright install --with-deps && cd ../..
 ```
 
-**Claude Code settings** — create `.claude/settings.json` at the project root before running `/requirement`.
+**Claude Code settings** — add the block below to your local Claude Code user settings (`~/.claude/settings.json`) before running `/requirement`.
 Without it, agents pause for confirmation on every file read, shell command, and git operation.
+Do **not** create this as a project file — it belongs in your local Claude installation only.
 
 ```json
 {
