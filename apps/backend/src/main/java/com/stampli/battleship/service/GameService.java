@@ -475,6 +475,86 @@ public class GameService {
         );
     }
 
+    /**
+     * Pauses an active game on behalf of a participant.
+     * <p>
+     * Records the pre-pause phase so {@link #resumeGame} can restore it exactly.
+     * Ownership is validated via the same {@code getPlayerOrThrow} path as fireShot/setReady.
+     *
+     * @param gameId   the target game
+     * @param playerId the requesting participant
+     * @return the transition result (status PAUSED, previousStatus = prior phase)
+     * @throws GameException 404 GAME_NOT_FOUND if the game does not exist
+     * @throws GameException 403 PLAYER_NOT_IN_GAME if the caller is not a participant
+     * @throws GameException 409 WRONG_PHASE if the game is already PAUSED or FINISHED
+     */
+    public PauseResumeResponse pauseGame(String gameId, String playerId) {
+        Game game = findGameOrThrow(gameId);
+        // Synchronize so a pause cannot race a concurrent shot/join on the same game
+        synchronized (game) {
+            getPlayerOrThrow(game, playerId);
+            GameStatus previous = game.getStatus();
+            try {
+                game.pause();
+            } catch (IllegalStateException e) {
+                // Domain rejects pause from PAUSED/FINISHED — surface as 409 WRONG_PHASE
+                throw new GameException(e.getMessage(), "WRONG_PHASE", HttpStatus.CONFLICT);
+            }
+            gameRepository.save(game);
+            return new PauseResumeResponse(gameId, game.getStatus(), previous);
+        }
+    }
+
+    /**
+     * Resumes a paused game on behalf of a participant, restoring the pre-pause phase.
+     *
+     * @param gameId   the target game
+     * @param playerId the requesting participant
+     * @return the transition result (status = restored prior phase, previousStatus = PAUSED)
+     * @throws GameException 404 GAME_NOT_FOUND if the game does not exist
+     * @throws GameException 403 PLAYER_NOT_IN_GAME if the caller is not a participant
+     * @throws GameException 409 WRONG_PHASE if the game is not currently PAUSED
+     */
+    public PauseResumeResponse resumeGame(String gameId, String playerId) {
+        Game game = findGameOrThrow(gameId);
+        synchronized (game) {
+            getPlayerOrThrow(game, playerId);
+            try {
+                game.resume();
+            } catch (IllegalStateException e) {
+                // Domain rejects resume from any non-PAUSED status — surface as 409 WRONG_PHASE
+                throw new GameException(e.getMessage(), "WRONG_PHASE", HttpStatus.CONFLICT);
+            }
+            gameRepository.save(game);
+            return new PauseResumeResponse(gameId, game.getStatus(), GameStatus.PAUSED);
+        }
+    }
+
+    /**
+     * Stops (terminally removes) a game session on behalf of a participant.
+     * <p>
+     * Idempotent: if the game is already absent this is a no-op (the client treats an
+     * already-gone game as already-stopped). When the game exists, the caller must be a
+     * participant before deletion.
+     *
+     * @param gameId   the target game
+     * @param playerId the requesting participant
+     * @throws GameException 403 PLAYER_NOT_IN_GAME if the game exists but the caller is not a participant
+     */
+    public void stopGame(String gameId, String playerId) {
+        Optional<Game> gameOpt = gameRepository.findById(gameId);
+        // Idempotent: a missing game is already stopped — no error, no-op
+        if (gameOpt.isEmpty()) {
+            return;
+        }
+        Game game = gameOpt.get();
+        synchronized (game) {
+            // Ownership is enforced only while the game still exists
+            getPlayerOrThrow(game, playerId);
+            gameRepository.delete(gameId);
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------------------------

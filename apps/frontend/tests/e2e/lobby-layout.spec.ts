@@ -36,12 +36,20 @@ async function setupLobby(page: Page) {
     })
   );
 
-  // Set sessionStorage BEFORE navigating — the redirect guard reads it on mount
+  // Seed the localStorage active-game pointer BEFORE navigating — RequireActiveSession
+  // reads this single source of truth ('battleship_active_game') on mount and allows
+  // the /lobby route only when it is non-null. The value is JSON.stringify of
+  // { gameId, playerId, gameMode } (useLocalStorage serialization).
   await page.goto('/');
   await page.evaluate(() => {
-    sessionStorage.setItem('gameId', 'test-game-layout-001');
-    sessionStorage.setItem('playerId', 'test-player-layout-001');
-    sessionStorage.setItem('gameMode', 'COMPUTER');
+    localStorage.setItem(
+      'battleship_active_game',
+      JSON.stringify({
+        gameId: 'test-game-layout-001',
+        playerId: 'test-player-layout-001',
+        gameMode: 'COMPUTER',
+      }),
+    );
   });
 
   await page.goto('/lobby');

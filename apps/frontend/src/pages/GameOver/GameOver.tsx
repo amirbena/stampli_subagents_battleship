@@ -1,15 +1,28 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGamePolling } from '../../hooks/useGamePolling';
+import { useActiveGame } from '../../hooks/useActiveGame';
 import { displayOpponentName } from '../../utils/displayOpponentName';
 import './GameOver.css';
 
 export function GameOver(): React.ReactElement {
   const navigate = useNavigate();
-  const gameId = sessionStorage.getItem('gameId') ?? '';
-  const playerId = sessionStorage.getItem('playerId') ?? '';
+  const { pointer, clear: clearActiveGame } = useActiveGame();
+
+  // Capture the session ids ONCE at first render, before the clear-on-mount effect nulls
+  // the pointer. The guard guaranteed the pointer was non-null on entry, so these are valid.
+  // Using a ref keeps the polling hook fed with stable ids even after the pointer is cleared,
+  // so the final-state fetch (winnerId) still completes (AC-14 clear must not break the result).
+  const sessionRef = useRef({ gameId: pointer?.gameId ?? '', playerId: pointer?.playerId ?? '' });
+  const { gameId, playerId } = sessionRef.current;
 
   const { gameState } = useGamePolling(gameId, playerId, true);
+
+  // Reaching game-over means the session is finished — clear the active-game pointer so it
+  // never re-triggers the resume modal on a later Home visit (AC-14). Runs once on mount.
+  useEffect(() => {
+    clearActiveGame();
+  }, [clearActiveGame]);
 
   const didWin = gameState?.winnerId === playerId;
 
@@ -20,8 +33,7 @@ export function GameOver(): React.ReactElement {
     : null;
 
   const handlePlayAgain = () => {
-    sessionStorage.removeItem('gameId');
-    sessionStorage.removeItem('playerId');
+    // The active-game pointer is already cleared on mount (AC-14); just return to a clean Home.
     navigate('/');
   };
 

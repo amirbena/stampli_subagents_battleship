@@ -6,6 +6,7 @@ import { Lobby } from './pages/Lobby/Lobby';
 import { Game } from './pages/Game/Game';
 import { GameOver } from './pages/GameOver/GameOver';
 import { GlobalLoader } from './components/common/GlobalLoader/GlobalLoader';
+import { RequireActiveSession } from './components/common/RequireActiveSession/RequireActiveSession';
 import './styles/index.css';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
@@ -14,10 +15,15 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
       {/* Global non-blocking HTTP loader — visible for any user-initiated request. */}
       <GlobalLoader />
       <Routes>
+        {/* Home is the only unguarded door — the guard only ever redirects *into* it. */}
         <Route path="/" element={<Home />} />
-        <Route path="/lobby" element={<Lobby />} />
-        <Route path="/game" element={<Game />} />
-        <Route path="/game-over" element={<GameOver />} />
+        {/* Internal routes require a valid active-game pointer (AC-3, AC-4); the guard
+            reads the same useActiveGame source as the Home resume modal — no redirect loop. */}
+        <Route element={<RequireActiveSession />}>
+          <Route path="/lobby" element={<Lobby />} />
+          <Route path="/game" element={<Game />} />
+          <Route path="/game-over" element={<GameOver />} />
+        </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

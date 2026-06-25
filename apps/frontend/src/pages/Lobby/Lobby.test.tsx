@@ -50,6 +50,8 @@ vi.mock('../../api/gameApi', () => ({
   placeShip: vi.fn(),
   removeShip: vi.fn(),
   setReady: vi.fn(),
+  pauseGame: vi.fn(),
+  stopGame: vi.fn(),
 }));
 
 function ship(shipType: ShipType, cells: { row: number; col: number }[]): ShipDto {
@@ -64,10 +66,18 @@ const FULL_FLEET: ShipDto[] = [
   ship('DESTROYER', [{ row: 4, col: 0 }]),
 ];
 
+// Session context now lives in the localStorage active-game pointer (not sessionStorage).
+function setActiveGame(gameMode: 'HUMAN' | 'COMPUTER' = 'HUMAN') {
+  window.localStorage.setItem(
+    'battleship_active_game',
+    JSON.stringify({ gameId: 'GAME01', playerId: 'player1', gameMode }),
+  );
+}
+
 beforeEach(() => {
   sessionStorage.clear();
-  sessionStorage.setItem('gameId', 'GAME01');
-  sessionStorage.setItem('playerId', 'player1');
+  localStorage.clear();
+  setActiveGame('HUMAN');
   pollingReturn = { gameState: null, isLoading: false };
   placementReturn = makePlacement();
   lastUsePlacementArg = undefined;
@@ -75,13 +85,13 @@ beforeEach(() => {
 
 describe('Lobby — vs Computer mode', () => {
   it('shows vs-computer message when gameMode=COMPUTER', () => {
-    sessionStorage.setItem('gameMode', 'COMPUTER');
+    setActiveGame('COMPUTER');
     render(<MemoryRouter><Lobby /></MemoryRouter>);
     expect(screen.getByText(/playing vs computer/i)).toBeInTheDocument();
   });
 
   it('does not show room code when gameMode=COMPUTER', () => {
-    sessionStorage.setItem('gameMode', 'COMPUTER');
+    setActiveGame('COMPUTER');
     render(<MemoryRouter><Lobby /></MemoryRouter>);
     // RoomCodeDisplay shows the gameId; it should not be present
     expect(screen.queryByText('GAME01')).not.toBeInTheDocument();
@@ -90,13 +100,13 @@ describe('Lobby — vs Computer mode', () => {
 
 describe('Lobby — vs Human mode', () => {
   it('does not show vs-computer message when gameMode=HUMAN', () => {
-    sessionStorage.setItem('gameMode', 'HUMAN');
+    setActiveGame('HUMAN');
     render(<MemoryRouter><Lobby /></MemoryRouter>);
     expect(screen.queryByText(/playing vs computer/i)).not.toBeInTheDocument();
   });
 
   it('shows room code when gameMode=HUMAN', () => {
-    sessionStorage.setItem('gameMode', 'HUMAN');
+    setActiveGame('HUMAN');
     render(<MemoryRouter><Lobby /></MemoryRouter>);
     // RoomCodeDisplay renders the gameId text somewhere
     expect(screen.getByText('GAME01')).toBeInTheDocument();
@@ -110,7 +120,7 @@ describe('Lobby — usePlacement gameId wiring', () => {
   });
 
   it('passes an empty string to usePlacement when gameId is absent from sessionStorage', () => {
-    sessionStorage.removeItem('gameId');
+    localStorage.removeItem('battleship_active_game');
     // Redirect effect fires when gameId is missing, but the hook is still called first.
     render(<MemoryRouter><Lobby /></MemoryRouter>);
     expect(lastUsePlacementArg).toBe('');

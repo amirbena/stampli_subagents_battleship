@@ -15,6 +15,9 @@ public class Game {
     private final GameMode gameMode;
     private final Instant createdAt;  // set in constructor (AC-17)
     private Instant finishedAt;       // null until finishGame() is called (AC-17)
+    // Remembers the phase the game was in when paused, so resume() can restore it exactly.
+    // null unless status == PAUSED.
+    private GameStatus statusBeforePause;
 
     public Game(String id, Player playerA) {
         this(id, playerA, GameMode.HUMAN);
@@ -44,6 +47,41 @@ public class Game {
         this.winnerPlayerId = winnerPlayerId;
         this.currentTurnPlayerId = null;
         this.finishedAt = Instant.now();
+    }
+
+    /**
+     * Pauses the game. Legal only from an active, non-terminal phase
+     * (WAITING_FOR_PLAYERS, PLACING_SHIPS, or IN_PROGRESS). Records the current
+     * phase in {@code statusBeforePause} so resume() can restore it exactly.
+     *
+     * @throws IllegalStateException if the game is already PAUSED or FINISHED
+     */
+    public void pause() {
+        if (status != GameStatus.WAITING_FOR_PLAYERS
+                && status != GameStatus.PLACING_SHIPS
+                && status != GameStatus.IN_PROGRESS) {
+            throw new IllegalStateException("Cannot pause a game in status " + status);
+        }
+        this.statusBeforePause = this.status;
+        this.status = GameStatus.PAUSED;
+    }
+
+    /**
+     * Resumes a paused game, restoring the phase it was in when paused and
+     * clearing {@code statusBeforePause}.
+     *
+     * @throws IllegalStateException if the game is not currently PAUSED
+     */
+    public void resume() {
+        if (status != GameStatus.PAUSED) {
+            throw new IllegalStateException("Cannot resume a game in status " + status);
+        }
+        this.status = this.statusBeforePause;
+        this.statusBeforePause = null;
+    }
+
+    public GameStatus getStatusBeforePause() {
+        return statusBeforePause;
     }
 
     public String getId() {

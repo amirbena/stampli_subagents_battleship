@@ -41,6 +41,8 @@ vi.mock('../../api/gameApi', () => ({
   placeShip: vi.fn().mockResolvedValue({ shipType: 'DESTROYER', cells: [] }),
   removeShip: vi.fn().mockResolvedValue(undefined),
   setReady: vi.fn().mockResolvedValue(undefined),
+  pauseGame: vi.fn(),
+  stopGame: vi.fn(),
 }));
 
 function ship(shipType: ShipType, cells: Coordinate[]): ShipDto {
@@ -71,9 +73,13 @@ function gameStateWith(ships: ShipDto[]): GameStateResponse {
 
 beforeEach(() => {
   sessionStorage.clear();
-  sessionStorage.setItem('gameId', 'GAME01');
-  sessionStorage.setItem('playerId', 'player1');
-  sessionStorage.setItem('gameMode', 'HUMAN');
+  localStorage.clear();
+  // Session context now lives in the localStorage active-game pointer (not sessionStorage).
+  // placement_ships_<gameId> remains in sessionStorage (transient placement scratch).
+  localStorage.setItem(
+    'battleship_active_game',
+    JSON.stringify({ gameId: 'GAME01', playerId: 'player1', gameMode: 'HUMAN' }),
+  );
   currentGameState = null;
 });
 
