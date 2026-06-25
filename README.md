@@ -16,6 +16,7 @@ These steps are performed **once** when you first clone the repository. They are
 
 Run each command from the directory shown:
 
+**macOS / Linux**
 ```bash
 # Frontend — install Node dependencies
 cd apps/frontend
@@ -23,16 +24,26 @@ npm install
 
 # Backend — download Maven dependencies and compile
 cd apps/backend
-./mvnw clean install          # macOS / Linux (Maven Wrapper)
-# mvn clean install           # alternative if you have Maven installed globally
+./mvnw clean install
+```
+
+**Windows (PowerShell or cmd)**
+```bash
+# Frontend — install Node dependencies
+cd apps\frontend
+npm install
+
+# Backend — download Maven dependencies and compile
+cd apps\backend
+mvnw.cmd clean install
 ```
 
 > `npm install` is only required the first time (or after a `package.json` change).
 > Subsequent runs via `npm run dev` or the fast-local scripts reuse the existing `node_modules`.
 >
-> `./mvnw clean install` resolves all Maven dependencies into your local `.m2` cache and compiles
-> the project. This prevents slow cold-start downloads when agents later call `./mvnw test` or
-> `./mvnw spring-boot:run`.
+> The Maven Wrapper (`./mvnw` on macOS/Linux, `mvnw.cmd` on Windows) resolves all Maven
+> dependencies into your local `.m2` cache and compiles the project. This prevents slow
+> cold-start downloads when agents later call the wrapper to run tests or start the backend.
 
 #### 2. Create `.claude/settings.json`
 
@@ -46,9 +57,10 @@ flow.
 
 Create `.claude/settings.json` at the project root with **exactly** this content:
 
+> Optionally add `"theme": "light"` (or `"dark"` or `"system"`) as a top-level key in the object if you want to pin Claude Code's colour theme. It is intentionally omitted here so each developer keeps their own preference. If omitted, Claude Code uses its default.
+
 ```json
 {
-  "theme": "dark",
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },
