@@ -25,4 +25,8 @@ spring:
 
 battleship:
   cors:
-    allowed-origin: ${CORS_ALLOWED_ORIGIN:http://localhost:5173}
+    # Strict port range for allowed localhost CORS origins (inclusive).
+    # Only http://localhost:<minPort> through http://localhost:<maxPort> are permitted.
+    # Override via CORS_MIN_PORT / CORS_MAX_PORT environment variables.
+    min-port: ${CORS_MIN_PORT:3000}
+    max-port: ${CORS_MAX_PORT:3030}

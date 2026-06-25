@@ -19,6 +19,5 @@ spring:
       - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
       - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
 
-battleship:
-  cors:
-    allowed-origin: http://localhost:3001
+# Port 3001 is within the default 3000–3030 range enforced by CorsConfig.
+# No CORS override is needed for the E2E profile.
