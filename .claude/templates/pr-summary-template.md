@@ -33,6 +33,18 @@
 ## Files Changed
 - <main changed areas — not a full file-by-file dump unless the change is small>
 
+<!-- ## Documentation Parity
+Include this section ONLY when the PR modifies .claude/ files, agent definitions,
+policies, metadata, templates, CLAUDE.md, or any governance artifact.
+Omit entirely for pure application changes with no governance impact.
+
+Updated:
+- <file> — <what was updated>
+
+Deferred:
+- <file> — <reason> (severity: Low)
+-->
+
 ---
 # Only add sections beyond this when actually relevant to the reviewer:
 # demo config changes, unresolved findings, security notes, architecture decisions.

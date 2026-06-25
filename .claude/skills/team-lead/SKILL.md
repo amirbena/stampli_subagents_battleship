@@ -50,6 +50,8 @@ If evidence is missing, write `Evidence not found.` Do not invent files, scripts
 
 ## Step 0.5 — Fast-Path Pre-Classification (before spawning product-agent)
 
+**Documentation parity check:** If this requirement modifies any file under `.claude/skills/`, `.claude/policies/`, `.claude/metadata/`, `.claude/templates/`, `CLAUDE.md`, or changes agent ownership, a route, an execution mode, or a quality gate — load `.claude/policies/documentation-parity-policy.md` and identify which documentation must be updated in this run. Record required updates and their severity in `reports/runs/<workflow-run-id>/team-lead-classification.md` under `## Documentation Parity Impact`. Skip this check (and record "No parity impact") for application-only changes.
+
 **First: classify the requirement intent.** Load `.claude/policies/requirement-intent-classification-policy.md` to determine whether the requirement is a WHAT-change (new behavior → standard path) or HOW-change (same outcome, different mechanism → refactor candidate). Record the intent classification in `team-lead-classification.md` before applying fast-path triggers. A HOW-change that also changes an API contract must still run Architecture Agent — scope classification does not bypass contract-change gates.
 
 Read `reports/runs/<workflow-run-id>/requirements.md`. Evaluate whether the requirement is **infra-only or docs-only** using the checklist below. This pre-classification takes ~30 s and can save ~1.5 min by eliminating the product-agent entirely on routes where it adds no value.
@@ -1023,6 +1025,7 @@ Before routing to Release PR Agent, confirm:
 - Working tree is clean
 - Branch is not `main`
 - `origin/main` freshness checked
+- Documentation parity gate: load `.claude/policies/documentation-parity-policy.md`. Verify all High-severity parity items from `team-lead-classification.md` were applied. High-severity items block release. Low-severity items are documented in release summary and deferred.
 
 If non-critical unresolved findings remain, document them in PR summary. Do not block for non-critical findings. Validation gaps with Risk: Low are documented in PR summary and do not block release.
 
@@ -1126,6 +1129,8 @@ Default: do not add dependencies. Prefer native implementation and existing depe
 Release summary/PR body must be written to `reports/runs/<workflow-run-id>/release-summary.md`.
 
 Load `.claude/templates/pr-summary-template.md` when writing. Keep it short and review-focused — full evidence stays in `reports/runs/<workflow-run-id>/`. Only add sections beyond the template when actually relevant to the reviewer (demo config changes, unresolved findings, security notes, architecture decisions).
+
+If documentation parity updates were required in this run, include a `## Documentation Parity` section in the release summary listing which files were updated and whether any Low-severity items were deferred with reason. Omit this section when no parity impact was identified.
 
 ---
 
