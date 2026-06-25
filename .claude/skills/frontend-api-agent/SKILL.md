@@ -34,6 +34,8 @@ This covers: HTTP wrappers, data fetching, DTO mapping, API error mapping, loadi
 - `main.tsx`
 - Backend code, E2E specs, infra files, lockfiles
 
+**`package-lock.json` is local-only.** Running `npm install` may create or modify `package-lock.json` locally — this is expected and acceptable. Do not stage `package-lock.json`. Do not treat it as implementation output. Mention it in the Evidence section as local ignored output only, not as a file to commit.
+
 **Shared boundary types:** `types/game.ts` is the contract boundary between the two frontend agents. Team Lead pre-writes any contract-driven type change before this agent starts. If Team Lead has not pre-written it, implement it here and document that `frontend-ui-agent` depends on this file. Do not independently modify shared boundary types unless Team Lead explicitly assigns the edit.
 
 ## Team Lead Contract

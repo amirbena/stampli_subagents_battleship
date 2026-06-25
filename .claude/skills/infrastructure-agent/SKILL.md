@@ -226,6 +226,59 @@ if ($errs.Count -eq 0) { "PARSE OK" } else { $errs }
 - Playwright instructions must use `npm run e2e:ci`; do not rely on manually started services.
 - If a command cannot be verified locally, state that clearly in the return summary.
 
+## Platform Verification Rule
+
+When Infrastructure Agent writes or changes documentation that includes terminal commands, it must verify those commands on the relevant platform before reporting done.
+
+**Relevant platform** is determined from available evidence: OS reported in the environment, user's stated OS, or the platform context of the change. When uncertain, verify the current host platform and state it explicitly.
+
+**Required behavior:**
+- Detect the current/relevant platform using `uname -s` (macOS/Linux) or the environment.
+- Run or validate the documented commands for that platform when safe (non-destructive, idempotent operations like `--version` or `--help`).
+- If command execution is not safe or not possible, explicitly state that it was not executed and why.
+- Include platform verification evidence in the agent report.
+
+**Report wording must include:**
+
+```
+Platform verification:
+- Relevant platform: <Windows / macOS / Linux>
+- Commands documented:
+  - <command list>
+- Commands verified:
+  - <verified command list with output summary>
+- Commands not verified:
+  - <command list and reason (e.g. not safe to run, wrong OS, destructive)>
+- Result: checked on the relevant platform / partially checked / not checked
+```
+
+**Required platform examples:**
+
+macOS / Linux:
+```bash
+chmod +x mvnw          # one-time after git clone — makes Maven Wrapper executable
+./mvnw clean install   # Maven Wrapper (no global Maven needed)
+npm install
+npm run dev
+```
+
+Windows:
+```powershell
+cd apps\backend
+mvnw.cmd clean install
+cd apps\frontend
+npm install
+npm run dev
+```
+
+**Hard rules:**
+- Do not use `chmod +x` in Windows instructions.
+- Use `.\mvnw.cmd` (or `mvnw.cmd`) for Windows Maven Wrapper.
+- Use `./mvnw` for macOS/Linux Maven Wrapper.
+- Keep IntelliJ notes separate from terminal commands. If IntelliJ is documented, state: "Maven goals can be run from IntelliJ's Maven panel after importing `pom.xml`. IntelliJ on macOS handles `mvnw` executable permission automatically on project open."
+- If a command cannot be verified locally, state that clearly in the verification block.
+- `package-lock.json` is local-only. Running `npm install` during verification may modify it locally — this is expected. Do not stage `package-lock.json`. Mention it in the Evidence section as local ignored output only.
+
 ## Demo Config Policy
 
 Load `.claude/policies/demo-config-policy.md` for the full classification table and rules. Do not add real secrets to any file. `.env.example` is for documentation and placeholders only.

@@ -131,7 +131,20 @@ git diff --name-only <last-reviewed-sha>..HEAD
 ```
 If production code changed after the last review, a delta or full re-review is required before release. See `.claude/metadata/review-validity-schema.md` for the decision table and post-review fix severity routing (Small / Medium / Large).
 
+When `code-review-agent` returns `REQUIRES_CHANGES`, Team Lead stops the release flow, reads the failure category and required owner from the structured output, routes the fix to the relevant agent, and re-runs code review after correction. No Code Review bypass is allowed. See `.claude/skills/team-lead/SKILL.md` Step 9 for the full routing table.
+
+## Artifact and Gitignore Compliance
+
+`reports/` is evidence, not truth. All files under `reports/` are local execution artifacts — never staged, committed, or pushed.
+
+- `release-pr-agent` runs a pre-commit gitignore compliance gate before every push. Any staged file matching `.gitignore` or under `reports/` stops the commit immediately.
+- `code-review-agent` checks gitignore/reports compliance as the first item in its review checklist, before any code review. A violation is always `Critical / Blocks PR: Yes`.
+- `package-lock.json` is always local-only. It is always listed in `.gitignore`, never tracked, never staged, and never appears in PR files. If already tracked, remove from tracking with `git rm --cached` without deleting the local file.
+
+See `.claude/policies/reports-and-artifacts-policy.md` and `.claude/policies/gitignore-compliance-policy.md`.
+
 ## Quality Gates (all required before PR, run in this order)
+- [ ] No `reports/**` or gitignored files are staged (enforced by `release-pr-agent` pre-commit gate and `code-review-agent` checklist)
 - [ ] `./mvnw test` passes (backend unit tests — if backend touched)
 - [ ] `npm run test` + `npm run build` pass (frontend — if frontend touched): single-agent path: running agent owns gate; split path: Team Lead runs once after both agents finish
 - [ ] `./mvnw test -Dtest="*IntegrationTest"` passes (backend integration tests — after unit tests green, when HTTP layer changed)

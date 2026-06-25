@@ -64,6 +64,29 @@ Before consuming `reports/runs/<workflow-run-id>/architecture.md` or other repor
 
 ## Review Checklist
 
+### Gitignore and Local Artifact Compliance (mandatory — run first)
+
+Run these commands before reviewing any code. A violation here is always `Severity: Critical` and `Blocks PR: Yes`.
+
+```bash
+git status --short
+git diff --name-only
+git diff --cached --name-only
+git ls-files reports
+git ls-files '**/package-lock.json'
+```
+
+Return `REQUIRES_CHANGES` immediately if any of the following is true:
+- `git ls-files reports` produces any output — `reports/**` files are tracked
+- `git diff --cached --name-only` includes any path under `reports/`
+- Any staged file matches `.gitignore` — check with `git diff --cached --name-only | xargs -I{} git check-ignore -v {} 2>/dev/null`
+- `package-lock.json` or `**/package-lock.json` appears in staged files, tracked files (`git ls-files '**/package-lock.json'`), or the PR diff — always a violation; `package-lock.json` is always local-only and must never appear in git scope
+- `git diff --cached --name-only` or `git diff --name-only` contains generated/local artifacts
+
+Load `.claude/policies/gitignore-compliance-policy.md` and `.claude/policies/reports-and-artifacts-policy.md` for the enforcement rules.
+
+Do not fix the violation. Return the structured output below to Team Lead.
+
 ### Backend
 - [ ] Domain logic is in `domain/` classes, not in controllers or repositories.
 - [ ] Controllers are thin: validate input, call service, return DTO.
@@ -160,3 +183,26 @@ On `REQUIRES CHANGES`:
 - **Do not call or spawn any agent — not even the suspected owner.**
 - Return control to the Team Lead. Team Lead is the only entry point for routing fixes to developer agents.
 - If a finding involves an API contract break, flag it explicitly so Team Lead can decide whether to reopen Architecture before routing to developers.
+
+### Structured REQUIRES_CHANGES Output
+
+When returning `REQUIRES_CHANGES`, include this block for every finding category:
+
+```
+Code Review Result: REQUIRES_CHANGES
+
+Failure category:
+- <gitignore / reports / package-lock / local-artifact / docs-platform / backend / frontend / tests / infrastructure / other>
+
+Evidence:
+- Commands run: <list>
+- Relevant output: <summary of command output>
+
+Required owner:
+- <agent name>
+
+Team Lead action:
+- Route remediation to <agent name> and rerun Code Review after correction.
+```
+
+Code Review must not approve until all forbidden staged/PR files are removed from the commit/PR scope.

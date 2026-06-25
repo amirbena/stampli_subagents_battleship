@@ -226,6 +226,8 @@ reports/
       release-summary.md
 ```
 
+**`reports/` is evidence, not truth.** All files under `reports/` are local execution artifacts — never staged, committed, or pushed. `.gitignore` excludes the entire `reports/` tree. `release-pr-agent` enforces a pre-commit compliance gate; `code-review-agent` checks for tracked `reports/` files as its first review step. See `.claude/policies/reports-and-artifacts-policy.md`.
+
 #### Why `.workflow.lock` exists
 
 All agents in a run share one git working tree and one `reports/` directory. If two requirements are triggered at the same time (or a second `/requirement` is fired before the first run finishes), two concurrent agent pipelines would:
@@ -263,12 +265,13 @@ This is separate from the Team Lead E2E mode decision above — it is a lightwei
 For layout/alignment/responsive acceptance criteria that smoke cannot verify (smoke only checks navigation and page boot, not authenticated screen layout), Team Lead runs or writes a targeted Playwright test after smoke passes. These tests use `page.route()` to mock all API calls, `sessionStorage` to bypass auth redirects, and `boundingBox()` + `scrollWidth` assertions to verify pixel-level layout. Location: `apps/frontend/tests/e2e/<page>-layout.spec.ts`. On failure, Team Lead routes the exact assertion + auto-saved screenshot to `frontend-ui-agent`.
 
 ### Quality Gates (all must pass before PR)
+- No `reports/**` or gitignored files staged — enforced by `release-pr-agent` pre-commit gate and `code-review-agent` (first checklist item, `Critical / Blocks PR: Yes`)
 - `./mvnw test` — backend unit tests
 - `npm run build` — frontend build
 - `npm run test` — frontend unit tests + cross-layer integration tests (Vitest; `*.integration.test.tsx` files are included automatically)
 - `npm run test:e2e` — Playwright E2E
 - `reports/runs/<id>/security-report.md` verdict: **APPROVED**
-- `reports/runs/<id>/code-review-report.md` verdict: **APPROVED**
+- `reports/runs/<id>/code-review-report.md` verdict: **APPROVED** (REQUIRES_CHANGES routes back to Team Lead; Team Lead routes fix to owner agent; no bypass)
 
 ---
 

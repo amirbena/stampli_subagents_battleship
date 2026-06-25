@@ -38,6 +38,8 @@ This covers: board rendering, visual states, CSS, UX behavior, modals/toasts, ac
 - `api/`, `hooks/`, `types/` (data layer — owned by `frontend-api-agent`)
 - Backend code, E2E specs, infra files, lockfiles
 
+**`package-lock.json` is local-only.** Running `npm install` or `npm run test` may modify `package-lock.json` locally — this is expected and acceptable. Do not stage `package-lock.json`. Do not treat it as implementation output. Mention it in the Evidence section as local ignored output only, not as a file to commit.
+
 **Shared boundary types:** `types/game.ts` is read-only for this agent. Do not modify it independently — Team Lead pre-writes type changes before this agent starts. If a type is missing or wrong, report it to Team Lead; do not make the change unilaterally.
 
 ## Team Lead Contract

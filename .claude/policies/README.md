@@ -41,3 +41,10 @@ Team Lead remains the orchestrator.
 | `git-preflight-policy.md` | Branch confirmation and Git Summary block required before any file edit | All implementation agents |
 | `git-branch-policy.md` | Branch creation, sync, and naming decisions (Cases A–I) | Team Lead (Step 5) |
 | `demo-config-policy.md` | Classifies demo/local config vs real credentials; defines what security review must flag | infrastructure-agent, security-agent |
+
+### Artifact and Git Compliance
+
+| Policy | Purpose | Primary loader |
+|---|---|---|
+| `reports-and-artifacts-policy.md` | Declares `reports/` as local execution evidence — never staged or committed; PR descriptions may summarise but not commit report files; prevents `reports/**` from entering git history | release-pr-agent (pre-commit gate), code-review-agent (review checklist), Team Lead (QA loop routing) |
+| `gitignore-compliance-policy.md` | Files matching `.gitignore` must not be staged or committed; `package-lock.json` is always local-only — always in `.gitignore`, never tracked, never staged or pushed; defines verification commands and enforcement points | release-pr-agent (pre-commit gate), code-review-agent (review checklist), Team Lead (QA loop routing), frontend-api-agent, frontend-ui-agent, infrastructure-agent |
