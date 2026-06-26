@@ -53,8 +53,10 @@ class GameServiceIdentityTest {
     void setUp() {
         placementValidationService = new PlacementValidationService();
         computerPlayerService = new ComputerPlayerService(placementValidationService);
+        // No-op delay double — keeps the computer "thinking" pause out of unit tests (no real sleep).
+        ComputerMoveDelay noDelay = () -> { };
         gameService = new GameService(gameRepository, placementValidationService, computerPlayerService,
-                playerRepository, moveRepository);
+                playerRepository, moveRepository, noDelay);
     }
 
     // =========================================================================

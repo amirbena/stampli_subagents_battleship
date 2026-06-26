@@ -30,17 +30,20 @@ public class GameService {
     private final ComputerPlayerService computerPlayerService;
     private final PlayerRepository playerRepository;
     private final MoveRepository moveRepository;
+    private final ComputerMoveDelay computerMoveDelay;
 
     public GameService(GameRepository gameRepository,
                        PlacementValidationService placementValidationService,
                        ComputerPlayerService computerPlayerService,
                        PlayerRepository playerRepository,
-                       MoveRepository moveRepository) {
+                       MoveRepository moveRepository,
+                       ComputerMoveDelay computerMoveDelay) {
         this.gameRepository = gameRepository;
         this.placementValidationService = placementValidationService;
         this.computerPlayerService = computerPlayerService;
         this.playerRepository = playerRepository;
         this.moveRepository = moveRepository;
+        this.computerMoveDelay = computerMoveDelay;
     }
 
     /**
@@ -375,6 +378,13 @@ public class GameService {
             // --- Computer fires back (only if game still in progress and mode is COMPUTER) ---
             ComputerShotDto computerShotDto = null;
             if (game.getGameMode() == GameMode.COMPUTER && game.getStatus() == GameStatus.IN_PROGRESS) {
+                // "Thinking" pause so the computer does not fire back instantly. Placed only on the
+                // path that actually fires the computer shot, so HUMAN mode and the human-wins path
+                // (status already FINISHED) never wait. The human's shot above is already applied to
+                // the shared Game reference and getGameState reads without this monitor, so a poll
+                // during the wait shows the human's result while the computer's shot is still pending.
+                computerMoveDelay.await();
+
                 Player computer = game.getOpponent(playerId);
                 Coordinate compCoord = computerPlayerService.selectShot(game, computer.getId());
 

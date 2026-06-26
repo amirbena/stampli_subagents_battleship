@@ -39,6 +39,9 @@ class GameServiceTest {
     @Mock
     private MoveRepository moveRepository;
 
+    @Mock
+    private ComputerMoveDelay computerMoveDelay;
+
     @InjectMocks
     private GameService gameService;
 
