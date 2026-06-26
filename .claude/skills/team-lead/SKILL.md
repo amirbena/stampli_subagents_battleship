@@ -56,7 +56,7 @@ If evidence is missing, write `Evidence not found.` Do not invent files, scripts
 
 Read `reports/runs/<workflow-run-id>/requirements.md`. Evaluate whether the requirement is **infra-only or docs-only** using the checklist below. This pre-classification takes ~30 s and can save ~1.5 min by eliminating the product-agent entirely on routes where it adds no value.
 
-### Fast-path triggers — skip Product only when the change fits exactly one of these four categories
+### Fast-path triggers — skip Product only when the change fits exactly one of these five categories
 
 1. **Pure infra** — change is limited to infrastructure concerns: Dockerfile, docker-compose files,
    shell scripts (.sh), CI config, developer tooling, OR documentation (README, ARCHITECTURE.md, etc.)
@@ -81,7 +81,26 @@ Read `reports/runs/<workflow-run-id>/requirements.md`. Evaluate whether the requ
 
    When this trigger applies, the Visual Analysis acts as the product spec. Team Lead extracts the inferred acceptance criteria directly from the Visual Analysis section and uses them as the inline acceptance checklist.
 
-If the change does not clearly and completely fit one of the four categories → standard path. Spawn product-agent.
+5. **Developer-experience / local-tooling WHAT-change** — the requirement adds or changes real system
+   behavior, but the audience is exclusively developers running local tooling. ALL five sub-conditions
+   must be true; if any is uncertain → standard path, spawn product-agent.
+
+   - The requirement's subject is developer-local: local launchers (`.run/*`), startup scripts, Docker
+     local-dev behavior, CI/test tooling, developer-only health/status checks, local port management,
+     local process lifecycle, build/package scripts, developer-visible terminal output, local-dev
+     documentation, repository governance, or agent governance.
+   - No end-user product/game/application behavior changes — nothing a player sees in a browser is
+     affected by this change.
+   - No gameplay, multiplayer, session, or auth domain is involved.
+   - Acceptance criteria are already stated in operational/technical terms in the requirement — no
+     product-semantic interpretation is needed to make them testable.
+   - Remaining ambiguity is technical or architectural, not product/user-flow ambiguity.
+
+   **Architecture independence:** skipping Product via Trigger 5 does NOT skip Architecture. Architecture
+   still runs when the change introduces a new endpoint, route, shared contract, system boundary
+   decision, or cross-platform local-dev contract. The only thing Trigger 5 skips is Product Agent.
+
+If the change does not clearly and completely fit one of the five categories → standard path. Spawn product-agent.
 
 ### If ALL triggers are met → run UX Interaction Risk Check before applying fast-path
 
@@ -151,7 +170,7 @@ Fast-Path Reason: <all triggers met / trigger X absent>
 
 | Agent | Required? | Reason |
 |-------|-----------|--------|
-| product-agent | Yes — full / Yes — light mode (UX clarification only) / No — skipped (fast-path) | ... |
+| product-agent | Yes — full / Yes — light mode (UX clarification only) / No — skipped (fast-path Trigger 1–4) / No — skipped (fast-path Trigger 5 DevEx) | ... |
 | java-backend-agent | Yes / No | ... |
 | frontend-api-agent | Yes / No | owns api/, hooks/, types/ |
 | frontend-ui-agent | Yes / No | owns components/, pages/, utils/, CSS |
@@ -629,6 +648,8 @@ architecture path: reports/runs/<id>/architecture.md (if exists)
 backend-contract-changed: yes/no
 E2E mode: Full | Smoke | None
 ```
+
+**Cross-platform infrastructure assignments:** When the assignment touches any OS-specific local-dev file (`.sh`, `.ps1`, `.cmd`, `.bat`, local Docker Compose config, local startup scripts, or CI scripts with OS-conditional logic), the required output must explicitly include: `cross-platform parity: all variants discovered, each updated or justified, parity table in report`. Infrastructure Agent runs the Cross-Platform Parity Gate (`.claude/skills/infrastructure-agent/SKILL.md`) before reporting done.
 
 The `E2E mode` field is read by `frontend-ui-agent` to decide whether to skip the internal smoke gate: skip when Full or Smoke (Team Lead's official E2E gate covers smoke.spec.ts in both cases); run only when None.
 

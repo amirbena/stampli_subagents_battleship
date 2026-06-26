@@ -133,9 +133,9 @@ See `.claude/policies/requirement-similarity-policy.md` for full signal definiti
 
 ## Requirement Intent Classification
 
-Before applying fast-path triggers, Team Lead classifies every requirement as a **WHAT-change** (new or extended behavior → standard path) or a **HOW-change** (same outcome, different mechanism → refactor candidate with scope-specific routing). The word "refactor" may not appear in the requirement — intent is inferred from what changes for users and the API surface.
+Before applying fast-path triggers, Team Lead classifies every requirement as a **WHAT-change** (new or extended behavior), a **DevEx WHAT-change** (new behavior but audience is exclusively developers — local scripts, `.run/*`, Docker local-dev, CI, dev-only health checks, local-dev docs, repo/agent governance; routes to Trigger 5 fast-path, Product skipped, Architecture preserved), or a **HOW-change** (same outcome, different mechanism → refactor candidate with scope-specific routing). The word "refactor" may not appear in the requirement — intent is inferred from what changes for users and the API surface.
 
-See `.claude/policies/requirement-intent-classification-policy.md` for signal phrases, refactor scope table (test-only / single-layer / cross-layer / domain-model / full-flow), contract-change escalation rules, and the required `Intent Classification` block in `team-lead-classification.md`.
+See `.claude/policies/requirement-intent-classification-policy.md` for signal phrases, DevEx sub-type conditions, refactor scope table (test-only / single-layer / cross-layer / domain-model / full-flow), contract-change escalation rules, and the required `Intent Classification` block in `team-lead-classification.md`.
 
 ## File Ownership Rule
 Agents must not edit files outside their ownership domain without explicit Team Lead approval.

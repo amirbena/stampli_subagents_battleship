@@ -14,7 +14,40 @@ The requirement adds, changes, or removes a **user-visible outcome or system beh
 
 **Signal phrases:** "add", "allow", "prevent", "show", "hide", "validate", "the user should be able to", "the system should now", "return X to the client", "new screen", "new endpoint", "new game rule", "change how X feels to the user"
 
-**Routing:** Standard path applies. Product Agent runs (Full or Light based on UX risk). Architecture required if contract changes.
+**Routing:** Before routing to Product Agent, determine the audience of the behavior change. See the DevEx sub-type below.
+
+---
+
+### DevEx WHAT-Change — Developer-Experience or Local-Tooling Behavior
+
+A requirement can be a WHAT-change because it changes real system behavior, but **not** a Product-change because the audience is exclusively developers running local tooling — not end-users of the deployed application.
+
+**Developer-facing behavior is not automatically Product behavior.**
+
+**Signal subjects:** `.run/*` local launchers, startup scripts, Docker local-dev behavior, CI/test tooling, developer-only health checks, local port management, local process lifecycle, build/package scripts, developer-visible terminal output, local-dev documentation, repository governance, agent governance.
+
+**All of these must be true for a DevEx WHAT-change classification:**
+1. The requirement changes system behavior visible or relevant only to developers running the project locally.
+2. No end-user product/game/application behavior changes — nothing a player sees in a browser is affected.
+3. No gameplay, multiplayer, session, or auth domain is involved.
+4. Acceptance criteria are already stated in operational/technical terms (e.g. "port free → start normally") — no product-semantic interpretation pass is needed to make them testable.
+5. Remaining ambiguity is technical or architectural, not product/user-flow ambiguity.
+
+**Routing:** Apply Team Lead fast-path Trigger 5 (see `.claude/skills/team-lead/SKILL.md` Step 0.5). Product Agent is skipped. Architecture still runs if a new endpoint, route, shared contract, or system boundary decision is involved. Infrastructure and Backend are the primary implementation owners.
+
+**Examples of DevEx WHAT-changes (Product skipped):**
+- Preventing duplicate local backend startup when `./run` is called while a backend is already running
+- Adding a health endpoint used only by local startup scripts for backend identity detection
+- Updating README with local startup instructions or local port configuration
+- Changing local Docker Compose port mappings
+- Improving CI cache, test commands, or build tooling
+- Adding developer-only startup messages or terminal diagnostics
+
+**Counter-examples (not DevEx — Product runs):**
+- Adding a new game feature visible to players
+- Changing when a player can fire or how a turn transitions
+- Adding user-visible error messages in the browser app
+- Any API response change that alters what the game client renders for a player
 
 ---
 
@@ -78,8 +111,9 @@ Record in `reports/runs/<workflow-run-id>/team-lead-classification.md`:
 ```md
 ## Intent Classification
 
-Intent: WHAT-change / HOW-change / Ambiguous
+Intent: WHAT-change / DevEx WHAT-change / HOW-change / Ambiguous
 Reason: <1 sentence explaining the primary signal>
+DevEx Sub-type: Yes / No — <if Yes: all 5 DevEx conditions met; Product skipped; Architecture if contract change>
 Refactor Scope: test-only / single-layer / cross-layer / domain-model / full-flow / N/A
 Contract Change Detected: Yes / No
 Contract Change Reason: <if Yes — which fields, endpoints, or status codes change>
