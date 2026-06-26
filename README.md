@@ -151,6 +151,25 @@ chmod +x ./.run/run.sh
 
 Stop with **Ctrl+C**. The script prompts whether to also stop the Postgres/Redis containers.
 
+### Ports: backend is fixed, frontend can fall back
+
+The run scripts treat the two ports differently:
+
+- **Backend — fixed on `8080`, never a fallback.** Before starting the backend, the script checks whether `8080` is already in use:
+  - **Free** → it starts the backend natively, as usual.
+  - **In use by the battleship backend** → it **reuses** the existing backend and does **not** start a second one (prints `Existing battleship backend detected on :8080 — reusing it`). This is what lets you run Docker Compose and `./run` together, or run `./run` twice, without a port-conflict crash.
+  - **In use by something else** → it **fails early** with a clear error and does **not** start the backend on another port.
+- **Frontend — may fall back.** If `3001` is taken, Vite automatically picks the next free port (e.g. `3002`). This is expected and fine.
+
+**Health-check based detection (not just "is the port open?").** A listening socket alone is not trusted. The script calls the backend health endpoint `GET http://localhost:8080/api/v1/health` and only reuses the process when it returns HTTP `200` with the identity token `battleship-backend` in the body. Anything else on `8080` is treated as a conflict.
+
+**If port 8080 is occupied by a non-backend process:** the script stops with an error rather than guessing. Find and stop the process, then re-run:
+```bash
+lsof -i :8080        # macOS / Linux — identify the process holding 8080
+# Windows:  netstat -ano | findstr :8080
+```
+Once `8080` is free (or it is the real battleship backend), re-run the script.
+
 ---
 
 ## Docker Compose (full stack)
@@ -240,6 +259,8 @@ The pipeline runs autonomously: requirement intake → product spec → architec
 |---------|-----|
 | `mvnw: Permission denied` | `chmod +x apps/backend/mvnw` |
 | `no main manifest attribute` in `maven-wrapper.jar` | Run `mvn wrapper:wrapper -Dmaven=3.9.6` inside `apps/backend/` to regenerate the wrapper |
+| `./run` says "Existing battleship backend detected" | Expected — a backend is already running on `8080` (Docker Compose or a prior `./run`); the script reuses it instead of starting a duplicate. Nothing to fix. |
+| `./run` fails: port 8080 in use but no battleship backend responded | A non-backend process holds `8080`. `lsof -i :8080` (Windows: `netstat -ano \| findstr :8080`), stop it, then re-run. The backend never falls back to another port. |
 | Backend won't start — port 8080 in use | `lsof -i :8080` then kill the process |
 | Frontend won't start — port 3001 in use | `lsof -i :3001` then kill the process |
 | Docker containers unhealthy | `docker compose logs postgres` — check DB creds in `.env` |
