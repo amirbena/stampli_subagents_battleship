@@ -6,7 +6,7 @@ interface TurnIndicatorProps {
   opponentReady: boolean;
 }
 
-export function TurnIndicator({ isMyTurn, opponentReady }: TurnIndicatorProps): React.ReactElement {
+export function TurnIndicator({ isMyTurn, opponentReady }: TurnIndicatorProps): React.ReactElement | null {
   if (!opponentReady) {
     return (
       <div className="turn-indicator turn-indicator--waiting">
@@ -15,9 +15,15 @@ export function TurnIndicator({ isMyTurn, opponentReady }: TurnIndicatorProps): 
     );
   }
 
+  // The player's own turn is signalled by the separate YourTurnToast, not a persistent
+  // banner — so render nothing here when it is my turn and the opponent is ready.
+  if (isMyTurn) {
+    return null;
+  }
+
   return (
-    <div className={`turn-indicator ${isMyTurn ? 'turn-indicator--my-turn' : 'turn-indicator--opponent-turn'}`}>
-      {isMyTurn ? '🎯 Your Turn — Fire!' : "Opponent's Turn…"}
+    <div className="turn-indicator turn-indicator--opponent-turn">
+      Opponent's Turn…
     </div>
   );
 }
