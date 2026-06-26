@@ -33,6 +33,7 @@ class GamePauseResumeStopServiceTest {
     @Mock private ComputerPlayerService computerPlayerService;
     @Mock private PlayerRepository playerRepository;
     @Mock private MoveRepository moveRepository;
+    @Mock private ComputerMoveDelay computerMoveDelay;
 
     @InjectMocks private GameService gameService;
 

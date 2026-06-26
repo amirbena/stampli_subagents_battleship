@@ -36,6 +36,11 @@ class GameServiceComputerTest {
     @Mock
     private MoveRepository moveRepository;
 
+    // Mock the "thinking" delay so we can verify it is invoked on the computer-fires path
+    // and skipped otherwise — a mock's await() is a no-op, so no real sleep occurs.
+    @Mock
+    private ComputerMoveDelay computerMoveDelay;
+
     // Use real service instances for white-box coverage of AI integration
     private PlacementValidationService placementValidationService;
     private ComputerPlayerService computerPlayerService;
@@ -46,7 +51,7 @@ class GameServiceComputerTest {
         placementValidationService = new PlacementValidationService();
         computerPlayerService = new ComputerPlayerService(placementValidationService);
         gameService = new GameService(gameRepository, placementValidationService, computerPlayerService,
-                playerRepository, moveRepository);
+                playerRepository, moveRepository, computerMoveDelay);
 
         // save() is a void method — Mockito mocks it as no-op by default; no explicit stub needed.
     }
@@ -212,6 +217,53 @@ class GameServiceComputerTest {
         FireShotResponse response = gameService.fireShot(game.getId(), humanAId, target);
 
         assertThat(response.getComputerShot()).isNull();
+    }
+
+    // -------------------------------------------------------------------------
+    // fireShot — computer "thinking" delay (vs-computer pacing)
+    // -------------------------------------------------------------------------
+
+    @Test
+    void fireShot_computerMode_invokesThinkingDelayBeforeComputerShot() {
+        // The computer must "think" (pause) before firing back in COMPUTER mode.
+        Game game = buildComputerGameInProgress();
+        String humanId = game.getPlayerA().getId();
+        Coordinate target = findEmptyCell(game.getPlayerB().getBoard());
+        when(gameRepository.findById(game.getId())).thenReturn(Optional.of(game));
+
+        gameService.fireShot(game.getId(), humanId, target);
+
+        verify(computerMoveDelay, times(1)).await();
+    }
+
+    @Test
+    void fireShot_humanMode_doesNotInvokeThinkingDelay() {
+        // No computer turn exists in HUMAN mode, so there must be no thinking pause.
+        Game game = buildHumanGameInProgress();
+        String humanAId = game.getPlayerA().getId();
+        Coordinate target = findEmptyCell(game.getPlayerB().getBoard());
+        when(gameRepository.findById(game.getId())).thenReturn(Optional.of(game));
+
+        gameService.fireShot(game.getId(), humanAId, target);
+
+        verify(computerMoveDelay, never()).await();
+    }
+
+    @Test
+    void fireShot_computerMode_humanWins_doesNotInvokeThinkingDelay() {
+        // When the human's shot ends the game, the computer never fires — so no pause (AC-07).
+        Game game = buildComputerGameInProgress();
+        String humanId = game.getPlayerA().getId();
+        Board computerBoard = game.getPlayerB().getBoard();
+        sinkAllShipsExceptLastCell(computerBoard);
+        Coordinate lastCell = findLastUnsunkCell(computerBoard);
+        when(gameRepository.findById(game.getId())).thenReturn(Optional.of(game));
+
+        FireShotResponse response = gameService.fireShot(game.getId(), humanId, lastCell);
+
+        assertThat(response.getWinnerId()).isEqualTo(humanId);
+        assertThat(response.getComputerShot()).isNull();
+        verify(computerMoveDelay, never()).await();
     }
 
     // -------------------------------------------------------------------------
