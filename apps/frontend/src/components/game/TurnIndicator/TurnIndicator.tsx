@@ -4,10 +4,9 @@ import './TurnIndicator.css';
 interface TurnIndicatorProps {
   isMyTurn: boolean;
   opponentReady: boolean;
-  firing: boolean;
 }
 
-export function TurnIndicator({ isMyTurn, opponentReady, firing }: TurnIndicatorProps): React.ReactElement {
+export function TurnIndicator({ isMyTurn, opponentReady }: TurnIndicatorProps): React.ReactElement {
   if (!opponentReady) {
     return (
       <div className="turn-indicator turn-indicator--waiting">
@@ -16,11 +15,9 @@ export function TurnIndicator({ isMyTurn, opponentReady, firing }: TurnIndicator
     );
   }
 
-  const showYourTurn = isMyTurn && !firing;
-
   return (
-    <div className={`turn-indicator ${showYourTurn ? 'turn-indicator--my-turn' : 'turn-indicator--opponent-turn'}`}>
-      {showYourTurn ? '🎯 Your Turn — Fire!' : "Opponent's Turn…"}
+    <div className={`turn-indicator ${isMyTurn ? 'turn-indicator--my-turn' : 'turn-indicator--opponent-turn'}`}>
+      {isMyTurn ? '🎯 Your Turn — Fire!' : "Opponent's Turn…"}
     </div>
   );
 }
