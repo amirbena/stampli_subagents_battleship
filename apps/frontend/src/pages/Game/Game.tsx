@@ -11,11 +11,17 @@ import { ShotResultToast } from '../../components/game/ShotResultToast/ShotResul
 import { ShipStatusPanel } from '../../components/game/ShipStatusPanel/ShipStatusPanel';
 import { FiringIndicator } from '../../components/game/FiringIndicator/FiringIndicator';
 import { YourTurnToast } from '../../components/game/YourTurnToast/YourTurnToast';
+import { CantShootToast } from '../../components/game/CantShootToast/CantShootToast';
 import { ErrorMessage } from '../../components/common/ErrorMessage/ErrorMessage';
 import { LoadingSpinner } from '../../components/common/LoadingSpinner/LoadingSpinner';
 import { LeaveConfirmModal } from '../../components/common/LeaveConfirmModal/LeaveConfirmModal';
 import { computeOwnBoardCells, computeOpponentBoardCells, getSunkShipTypes } from '../../utils/boardHelpers';
 import { playShotSound } from '../../utils/sound';
+import {
+  COMPUTER_PLAYING_REVEAL_MS,
+  COMPUTER_PLAYING_HOLD_MS,
+  YOUR_TURN_AGAIN_MS,
+} from '../../utils/turnTiming';
 import type { ShotResult, ShipType, CellState, Coordinate } from '../../types/game';
 import './Game.css';
 
@@ -36,8 +42,25 @@ export function Game(): React.ReactElement {
   const [lastSunkShip, setLastSunkShip] = useState<ShipType | null>(null);
   // Optimistic overlay for computer's shot on my board before next poll
   const [computerShotOverlay, setComputerShotOverlay] = useState<{ row: number; col: number; state: CellState } | null>(null);
+  // vs-computer turn choreography (presentation only — backend stays authoritative).
+  // True while the computer's turn is being presented: the board is locked and the
+  // title reads "Computer is playing".
+  const [computerPlaying, setComputerPlaying] = useState(false);
+  // Incremented on each blocked click during the lock to (re)show the "can't shoot" notice.
+  const [cantShootTrigger, setCantShootTrigger] = useState(0);
+  // True while the transient "Your turn again" cue is shown after control returns.
+  const [yourTurnAgain, setYourTurnAgain] = useState(false);
 
   const { gameState, isLoading, gameGone, refresh } = useGamePolling(gameId, playerId, true);
+
+  // Guards against state updates after unmount during the (longer) vs-computer choreography.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
   // True while the Stay/Leave confirmation dialog is open (AC-11).
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
@@ -162,12 +185,31 @@ export function Game(): React.ReactElement {
   }, [gameState]);
 
   const isMyTurn = gameState?.currentTurnPlayerId === playerId;
-  // Show "Your turn!" only on the opponent/computer → me transition (see hook).
+  // vs-computer mode (from the polled state, falling back to the session pointer) drives
+  // the persistent two-state turn title and the computer-turn lock.
+  const vsComputer = (gameState?.gameMode ?? pointer?.gameMode) === 'COMPUTER';
+  // Show "Your turn!" only on the opponent/computer → me transition (see hook). In
+  // vs-computer the polled turn never flips, so this stays dormant and the local
+  // "Your turn again" cue (yourTurnAgain) is used instead.
   const showYourTurn = useTurnNotification(isMyTurn, gameState?.status);
+
+  // Auto-dismiss the transient "Your turn again" cue.
+  useEffect(() => {
+    if (!yourTurnAgain) return;
+    const timer = setTimeout(() => setYourTurnAgain(false), YOUR_TURN_AGAIN_MS);
+    return () => clearTimeout(timer);
+  }, [yourTurnAgain]);
 
   const opponentBoardCells = gameState ? computeOpponentBoardCells(gameState.opponentBoard) : undefined;
 
   const handleFireShot = (row: number, col: number): void => {
+    // During the computer's turn the board is locked: no shot fires, but the player
+    // gets explicit feedback ("Can't shoot — computer is playing") rather than a
+    // silent dead click. Repeated clicks refresh the same notice (trigger bump).
+    if (computerPlaying) {
+      setCantShootTrigger((n) => n + 1);
+      return;
+    }
     // Gate: ignore the click entirely (no sound, no request) when it is not the
     // player's turn or a shot is already pending — prevents duplicate shots.
     if (!isMyTurn || firing) return;
@@ -188,19 +230,50 @@ export function Game(): React.ReactElement {
       const res = await fireShot(gameId, playerId, row, col);
       setLastResult(res.result);
       setLastSunkShip(res.sunkShipType);
-      if (res.computerShot) {
-        const cs = res.computerShot;
+
+      const cs = res.computerShot;
+      if (cs) {
+        // The computer is taking its turn. Present a visible, locked "Computer is
+        // playing" phase (board cannot fire) BEFORE revealing the computer's shot,
+        // then return control with a "Your turn again" cue. The backend already
+        // resolved both shots — this is purely the player-facing choreography.
+        setFiring(false);
+        setPendingShot(null);
+        setComputerPlaying(true);
+
+        await delay(COMPUTER_PLAYING_REVEAL_MS);
+        if (!mountedRef.current) return;
+
         const cellState: CellState = cs.result === 'MISS' ? 'miss' : 'hit';
         setComputerShotOverlay({ row: cs.row, col: cs.col, state: cellState });
+        // Pull the authoritative board so the computer's shot shows for real.
+        await refresh();
+        if (!mountedRef.current) return;
+
         if (cs.winnerId) {
+          // The computer's shot ended the game — go straight to game over and
+          // suppress the "Your turn again" cue (control never returns).
           navigate('/game-over');
+          return;
         }
+
+        // Brief hold so the player sees the shot land under "Computer is playing"
+        // before control returns.
+        await delay(COMPUTER_PLAYING_HOLD_MS);
+        if (!mountedRef.current) return;
+
+        setComputerPlaying(false);
+        setYourTurnAgain(true);
+      } else {
+        // No computer turn (HUMAN multiplayer, or the player's shot ended the game).
+        // Pull the authoritative board immediately so the result shows without
+        // waiting for the next poll interval.
+        await refresh();
       }
-      // Pull the authoritative board immediately so the result shows without
-      // waiting for the next poll interval.
-      await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Shot failed. Please try again.');
+      // Never leave the player stuck in a "Computer is playing" lock on failure.
+      setComputerPlaying(false);
     } finally {
       // Always clear pending + unlock the board, even on failure, so the
       // indicator never sticks and the player can fire again.
@@ -258,6 +331,8 @@ export function Game(): React.ReactElement {
           <TurnIndicator
             isMyTurn={isMyTurn}
             opponentReady={gameState.opponentReady}
+            vsComputer={vsComputer}
+            computerPlaying={computerPlaying}
           />
         )}
         <GameSessionControls
@@ -268,7 +343,9 @@ export function Game(): React.ReactElement {
       </header>
 
       {showYourTurn && <YourTurnToast />}
+      {yourTurnAgain && <YourTurnToast message="🎯 Your turn again!" />}
       <FiringIndicator active={firing} />
+      <CantShootToast trigger={cantShootTrigger} />
       <ShotResultToast result={lastResult} sunkShipType={lastSunkShip} />
       <ErrorMessage message={error} />
 
@@ -278,7 +355,7 @@ export function Game(): React.ReactElement {
             <GameBoard
               cells={opponentBoardCellsWithPending}
               onCellClick={handleFireShot}
-              interactive={isMyTurn && !firing}
+              interactive={isMyTurn && !firing && !computerPlaying}
               label="Enemy Waters"
             />
           )}

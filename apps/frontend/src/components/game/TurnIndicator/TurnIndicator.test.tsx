@@ -33,4 +33,29 @@ describe('TurnIndicator', () => {
     const { container } = render(<TurnIndicator isMyTurn={true} opponentReady={false} />);
     expect(container.firstChild).toHaveClass('turn-indicator--waiting');
   });
+
+  describe('vs-computer persistent title', () => {
+    it('shows a persistent "Your turn" title when not the computer\'s turn', () => {
+      const { container } = render(
+        <TurnIndicator isMyTurn={true} opponentReady={true} vsComputer={true} computerPlaying={false} />,
+      );
+      expect(screen.getByText(/your turn/i)).toBeInTheDocument();
+      expect(container.firstChild).toHaveClass('turn-indicator--my-turn');
+    });
+
+    it('shows "Computer is playing" while the computer is playing', () => {
+      const { container } = render(
+        <TurnIndicator isMyTurn={true} opponentReady={true} vsComputer={true} computerPlaying={true} />,
+      );
+      expect(screen.getByText(/computer is playing/i)).toBeInTheDocument();
+      expect(container.firstChild).toHaveClass('turn-indicator--computer');
+    });
+
+    it('still shows the waiting message in vs-computer when the opponent is not ready', () => {
+      render(
+        <TurnIndicator isMyTurn={true} opponentReady={false} vsComputer={true} computerPlaying={false} />,
+      );
+      expect(screen.getByText(/waiting for opponent/i)).toBeInTheDocument();
+    });
+  });
 });
