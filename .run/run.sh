@@ -24,6 +24,15 @@ cd "$SCRIPT_DIR"
 ENV_FILE="apps/backend/.env"
 COMPOSE_DOWN_CMD="docker compose --env-file ${ENV_FILE} down"
 
+# --- Backend port + identity (single source of truth — mirrors application.yml) ---
+# The backend port is FIXED: it never falls back to an alternate port. If the port
+# is already serving the expected backend (started by Docker Compose or a prior
+# ./run), this script reuses it instead of starting a duplicate. The service token
+# is the identity check — a bare listening port is NOT trusted (see AC-08).
+BACKEND_PORT=8080
+BACKEND_HEALTH_URL="http://localhost:8080/api/v1/health"
+BACKEND_SERVICE_TOKEN="battleship-backend"
+
 # --- Demo defaults (overridden by apps/backend/.env when present) ----------
 POSTGRES_DB="battleship"
 POSTGRES_USER="battleship"
@@ -144,9 +153,61 @@ cleanup() {
       ;;
   esac
 }
+# --- Backend reuse detection (runs BEFORE the cleanup trap is armed) --------
+# Decide up-front whether to start a backend or reuse an already-running one.
+# Doing this before `trap cleanup` means a fail-early exit does not trigger the
+# container-teardown prompt.
+
+# True (0) if something is listening on the given TCP port. Uses the bash
+# /dev/tcp builtin (no lsof/nc dependency); the connect attempt is effectively
+# instant against localhost.
+port_in_use() {
+  (exec 3<>"/dev/tcp/localhost/$1") 2>/dev/null && { exec 3>&- 3<&-; return 0; } || return 1
+}
+
+# True (0) if the occupant of the backend port is the EXPECTED backend: it must
+# answer the health URL with HTTP 200 AND a body containing the service token.
+# Polls up to ~40s (a Compose backend may still be booting); returns on first
+# success so a fully-up backend is detected in well under a second. HTTP 200
+# alone is intentionally insufficient — the token is the identity check (AC-08).
+probe_backend_health() {
+  local timeout=40 elapsed=0 response code
+  while [ "$elapsed" -lt "$timeout" ]; do
+    response="$(curl -s --max-time 2 -w '\n%{http_code}' "$BACKEND_HEALTH_URL" 2>/dev/null || true)"
+    code="$(printf '%s' "$response" | tail -n1)"
+    if [ "$code" = "200" ] && printf '%s' "$response" | grep -q "$BACKEND_SERVICE_TOKEN"; then
+      return 0
+    fi
+    sleep 3
+    elapsed=$((elapsed + 3))
+  done
+  return 1
+}
+
+REUSE_BACKEND=""
+echo "==> Checking for an existing backend on :${BACKEND_PORT}"
+if port_in_use "$BACKEND_PORT"; then
+  echo "    port ${BACKEND_PORT} is in use — verifying it is the battleship backend..."
+  if probe_backend_health; then
+    REUSE_BACKEND=1
+    echo "    Existing battleship backend detected on :${BACKEND_PORT} — reusing it (no second backend started)."
+  else
+    fail "Port ${BACKEND_PORT} is in use but no battleship backend responded at ${BACKEND_HEALTH_URL}.
+       Something other than the battleship backend is holding the port. Free it
+       (e.g. 'lsof -i :${BACKEND_PORT}' then stop that process) and retry.
+       The backend will NOT start on an alternate port (the backend port is fixed)."
+  fi
+else
+  echo "    port ${BACKEND_PORT} is free — will start the backend natively."
+fi
+
 trap cleanup INT TERM EXIT
 
-# 3. Backend — native, postgres profile, pointing at local containers
+# 3. Backend — native, postgres profile, pointing at local containers (only when
+# not reusing an already-running backend). In the reuse branch BACKEND_PID stays
+# empty, so cleanup() (which guards on empty PID) never signals the external
+# backend this script did not start.
+if [ -z "$REUSE_BACKEND" ]; then
 echo "==> Starting backend natively (Spring Boot, postgres profile) on :8080/api/v1"
 # `exec` makes the subshell's PID the real mvnw process (= job pgid). The label
 # filter runs via process substitution, so `sed` stays OUT of this job's group
@@ -181,6 +242,7 @@ wait_for_backend() {
   echo "    WARN: backend did not respond within ${timeout}s — starting frontend anyway."
 }
 wait_for_backend
+fi  # end: start backend only when not reusing an existing one
 
 # 4. Frontend — native Vite dev server, pointing at native backend
 echo "==> Starting frontend natively (Vite dev) on :3001"

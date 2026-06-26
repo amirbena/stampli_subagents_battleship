@@ -21,6 +21,15 @@ Set-Location $ScriptDir
 $EnvFile = 'apps/backend/.env'
 $ComposeDownCmd = "docker compose --env-file $EnvFile down"
 
+# --- Backend port + identity (single source of truth -- mirrors application.yml) ---
+# The backend port is FIXED: it never falls back to an alternate port. If the port
+# is already serving the expected backend (started by Docker Compose or a prior
+# ./run), this script reuses it instead of starting a duplicate. The service token
+# is the identity check -- a bare listening port is NOT trusted (AC-08).
+$BackendPort        = 8080
+$BackendHealthUrl   = 'http://localhost:8080/api/v1/health'
+$BackendServiceToken = 'battleship-backend'
+
 # --- Demo defaults (overridden by apps/backend/.env when present) ----------
 $PostgresDb = 'battleship'
 $PostgresUser = 'battleship'
@@ -114,6 +123,31 @@ function Test-TcpPort([int]$Port) {
     }
 }
 
+# --- Helper: verify the occupant of the backend port is the EXPECTED backend ---
+# Defined BEFORE the main try/finally so its inner try/catch is not lexically
+# nested inside the outer try (avoids the PS 5.1 nested-catch parser bug).
+# Returns $true only when the health URL answers HTTP 200 AND the body contains
+# the service token. Polls up to ~40s (a Compose backend may still be booting);
+# returns on first success. HTTP 200 alone is intentionally insufficient (AC-08).
+function Test-BackendHealth {
+    $deadline = 40
+    $elapsed = 0
+    while ($elapsed -lt $deadline) {
+        try {
+            $resp = Invoke-WebRequest -Uri $BackendHealthUrl -TimeoutSec 2 -UseBasicParsing
+            if ($resp.StatusCode -eq 200 -and $resp.Content -match $BackendServiceToken) {
+                return $true
+            }
+        } catch {
+            # Non-200, connection refused, or still-booting backend -- keep polling.
+            $null = $_
+        }
+        Start-Sleep -Seconds 3
+        $elapsed += 3
+    }
+    return $false
+}
+
 function Stop-ProcTree($Proc) {
     if ($Proc -and -not $Proc.HasExited) {
         # taskkill /T kills the whole process tree (mvnw -> JVM, npm -> node).
@@ -155,6 +189,25 @@ try {
         Write-Host "    Maven Wrapper JAR ready."
     }
 
+    # --- Backend reuse detection (no duplicate backend on a fixed port) ---
+    # In the reuse branch $BackendProc stays $null, so the finally-block
+    # Stop-ProcTree (which guards on $Proc) never touches the external backend
+    # this script did not start.
+    $reuseBackend = $false
+    Write-Host "==> Checking for an existing backend on :$BackendPort"
+    if (Test-TcpPort $BackendPort) {
+        Write-Host "    port $BackendPort is in use -- verifying it is the battleship backend..."
+        if (Test-BackendHealth) {
+            $reuseBackend = $true
+            Write-Host "    Existing battleship backend detected on :$BackendPort -- reusing it (no second backend started)."
+        } else {
+            Fail "Port $BackendPort is in use but no battleship backend responded at $BackendHealthUrl. Something other than the battleship backend is holding the port. Free it (check with: netstat -ano | findstr :$BackendPort) and stop that process, then retry. The backend will NOT start on an alternate port (the backend port is fixed)."
+        }
+    } else {
+        Write-Host "    port $BackendPort is free -- will start the backend natively."
+    }
+
+    if (-not $reuseBackend) {
     # 3. Backend -- native, postgres profile, pointing at local containers
     Write-Host "==> Starting backend natively (Spring Boot, postgres profile) on :8080/api/v1"
     $env:SPRING_PROFILES_ACTIVE     = 'postgres'
@@ -184,6 +237,7 @@ try {
     if (-not $backendReady) {
         Write-Host "    WARN: backend did not respond within 120s -- starting frontend anyway."
     }
+    }  # end: start backend only when not reusing an existing one
 
     # 4. Frontend -- native Vite dev server, pointing at native backend
     Write-Host "==> Starting frontend natively (Vite dev) on :3001"
