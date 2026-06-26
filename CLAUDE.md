@@ -11,6 +11,8 @@ You are working inside a Gen4 multi-agent software factory building a multiplaye
 - Do not introduce Redis unless a concrete scalability requirement justifies it.
 - Every feature must be covered by backend unit tests or Playwright E2E tests.
 - A PR can only be opened after all quality gates pass.
+- Product defines what the user should experience, not how the code implements it. Product implementation notes are non-binding — execution agents choose the smallest safe implementation.
+- If a frontend-only implementation requires state or capabilities not already present in the data layer, the agent must stop and return to Team Lead for reclassification rather than inventing missing state.
 
 ## Scalability Architecture
 - `GameRepository` is always an interface. Services depend on the interface, never the implementation.

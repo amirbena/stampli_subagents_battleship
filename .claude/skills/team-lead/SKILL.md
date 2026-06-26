@@ -434,6 +434,27 @@ Load `.claude/policies/frontend-split-decision-policy.md` for the full split cri
 **Shared boundary types (required when splitting):**
 `types/game.ts` is the contract boundary. Before spawning either frontend agent, Team Lead writes any required changes to `types/game.ts` directly (always a small, architecture-driven edit). Neither agent may independently modify shared boundary types unless Team Lead explicitly assigns the edit to one agent and tells the other to treat it as read-only.
 
+#### Frontend-Only Reclassification — `REQUIRES_CHANGES` from `frontend-ui-agent`
+
+When `frontend-ui-agent` returns `REQUIRES_CHANGES` stating that reliable frontend state is **missing or insufficient** to safely implement the assigned behavior, this is a **reclassification event — not a QA or test failure**. Do not route it through the QA loop (Step 9).
+
+Team Lead must:
+
+1. **Read the missing-capability description** from `frontend-ui-agent`'s report.
+2. **Reclassify the task** — the current `frontend-only` classification is wrong if required state is absent from the data layer.
+3. **Route the minimum required existing agents** to deliver the missing capability:
+   - Missing API field or backend data → `java-backend-agent` (if the backend must expose it)
+   - Missing hook, type, or data-fetching layer → `frontend-api-agent`
+   - Missing architecture decision about what state must exist → `architect-agent`
+4. **After the missing capability is delivered**, re-spawn `frontend-ui-agent` with the corrected classification and scope.
+5. **Never instruct `frontend-ui-agent` to invent timing logic, timeout assumptions, permission checks, identity/session fields, or missing contract fields.** If those are absent, the classification is wrong — reclassify first.
+
+| Finding from `frontend-ui-agent` | Team Lead action |
+|---|---|
+| Reliable state exists in current hooks/props/store | Continue existing frontend-only route |
+| Reliable state is missing or insufficient | Reclassify; route `java-backend-agent`, `frontend-api-agent`, or `architect-agent` as the minimum required set; re-spawn `frontend-ui-agent` after capability is delivered |
+
+Applies to: turn ownership, permissions, loading/recovery status, identity/session state, and any capability-driven UI behavior that cannot be safely inferred from existing frontend data.
 
 #### Backend Integration Tests Decision
 
