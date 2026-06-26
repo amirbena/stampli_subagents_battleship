@@ -135,7 +135,7 @@ If Team Lead indicated Security review should reuse an already-running review pa
 
 When Team Lead invokes this agent with `Review Mode: delta`, review only the files listed in `Delta Changed Files` (the diff between `Delta Base SHA` and HEAD) for security-sensitive changes. For any change touching identity, session, auth, hidden-data boundary, or input sanitization — always run a targeted re-review even if the change is labeled Small.
 
-Load `.claude/metadata/review-validity-schema.md` for review mode definitions and severity routing.
+Load `.claude/metadata/review/review-validity-schema.md` for review mode definitions and severity routing.
 
 ## Outputs
 
@@ -160,7 +160,7 @@ APPROVED | REQUIRES CHANGES
 
 ## Findings
 
-<load .claude/templates/finding-report-template.md for the Finding SEC-001 field structure>
+<load .claude/templates/review/finding-report-template.md for the Finding SEC-001 field structure>
 
 ## Notes
 <optional non-blocking observations>

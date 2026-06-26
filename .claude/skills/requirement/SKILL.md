@@ -475,7 +475,7 @@ Then stop. Mark lock `"status": "blocked"`.
 
 ## Step 5 — Write Requirements
 
-Load `.claude/templates/requirements-template.md` and fill in all sections. Write the result to `reports/runs/<workflow-run-id>/requirements.md`.
+Load `.claude/skills/requirement/templates/requirements-template.md` and fill in all sections. Write the result to `reports/runs/<workflow-run-id>/requirements.md`.
 
 Required sections: Raw User Request, Visual Analysis (if images attached — omit if none), Requirement Summary, Initial Scope, Acceptance Criteria, Initial Risks, Workflow Metadata.
 

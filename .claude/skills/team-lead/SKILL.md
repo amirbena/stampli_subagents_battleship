@@ -50,9 +50,9 @@ If evidence is missing, write `Evidence not found.` Do not invent files, scripts
 
 ## Step 0.5 — Fast-Path Pre-Classification (before spawning product-agent)
 
-**Documentation parity check:** If this requirement modifies any file under `.claude/skills/`, `.claude/policies/`, `.claude/metadata/`, `.claude/templates/`, `CLAUDE.md`, or changes agent ownership, a route, an execution mode, or a quality gate — load `.claude/policies/documentation-parity-policy.md` and identify which documentation must be updated in this run. Record required updates and their severity in `reports/runs/<workflow-run-id>/team-lead-classification.md` under `## Documentation Parity Impact`. Skip this check (and record "No parity impact") for application-only changes.
+**Documentation parity check:** If this requirement modifies any file under `.claude/skills/`, `.claude/policies/`, `.claude/metadata/`, `.claude/templates/`, `CLAUDE.md`, or changes agent ownership, a route, an execution mode, or a quality gate — load `.claude/skills/team-lead/policies/documentation-parity-policy.md` and identify which documentation must be updated in this run. Record required updates and their severity in `reports/runs/<workflow-run-id>/team-lead-classification.md` under `## Documentation Parity Impact`. Skip this check (and record "No parity impact") for application-only changes.
 
-**First: classify the requirement intent.** Load `.claude/policies/requirement-intent-classification-policy.md` to determine whether the requirement is a WHAT-change (new behavior → standard path) or HOW-change (same outcome, different mechanism → refactor candidate). Record the intent classification in `team-lead-classification.md` before applying fast-path triggers. A HOW-change that also changes an API contract must still run Architecture Agent — scope classification does not bypass contract-change gates.
+**First: classify the requirement intent.** Load `.claude/skills/team-lead/policies/requirement-intent-classification-policy.md` to determine whether the requirement is a WHAT-change (new behavior → standard path) or HOW-change (same outcome, different mechanism → refactor candidate). Record the intent classification in `team-lead-classification.md` before applying fast-path triggers. A HOW-change that also changes an API contract must still run Architecture Agent — scope classification does not bypass contract-change gates.
 
 Read `reports/runs/<workflow-run-id>/requirements.md`. Evaluate whether the requirement is **infra-only or docs-only** using the checklist below. This pre-classification takes ~30 s and can save ~1.5 min by eliminating the product-agent entirely on routes where it adds no value.
 
@@ -209,7 +209,7 @@ Rules:
 
 ## Step 2 — Decision Tree Classification
 
-Classify the requirement immediately after reading Product Spec. Load `.claude/templates/team-lead-classification-template.md` and write the filled result to `reports/runs/<workflow-run-id>/team-lead-classification.md`.
+Classify the requirement immediately after reading Product Spec. Load `.claude/templates/team-lead/team-lead-classification-template.md` and write the filled result to `reports/runs/<workflow-run-id>/team-lead-classification.md`.
 
 ### Decision Rules
 
@@ -255,7 +255,7 @@ Run Architecture for **any** of the following — one match is sufficient:
 
 When Architecture runs, it writes `reports/runs/<workflow-run-id>/architecture.md` and returns to Team Lead. Architecture must not activate developers.
 
-Architecture's output **must include** an `## AC-to-Test Coverage Matrix` section (load `.claude/templates/ac-coverage-matrix-template.md` for format). Team Lead reads this matrix in Step 4 to determine which test types to spawn, and in Step 14 to drive the Validation Gap Check. If the matrix is absent, send Architecture Agent back to produce it before continuing.
+Architecture's output **must include** an `## AC-to-Test Coverage Matrix` section (load `.claude/templates/architecture/ac-coverage-matrix-template.md` for format). Team Lead reads this matrix in Step 4 to determine which test types to spawn, and in Step 14 to drive the Validation Gap Check. If the matrix is absent, send Architecture Agent back to produce it before continuing.
 
 ### Architecture → Product REQUIRES_CHANGES Routing
 
@@ -283,7 +283,7 @@ See `.claude/policies/agent-responsibility-boundaries-policy.md` for the full re
 
 After Product (and optional Architecture), write `reports/runs/<workflow-run-id>/team-lead-plan.md`.
 
-Load `.claude/templates/team-lead-execution-plan-template.md` and fill in every section. Required sections: Requirement Summary, Product Summary, Architecture Status, Execution Route, Execution Mode, Agents To Run/Skipped, Developer Assignments, Work Order, File Ownership, Shared File Handling, Required Tests, Runtime/Build/Test Failure Routing, QA Plan, Security Review Required, Backend Integration Tests Required, E2E Mode, Demo Config Plan, Done Criteria, Loop Prevention Plan, Risk Handling Policy.
+Load `.claude/templates/team-lead/team-lead-execution-plan-template.md` and fill in every section. Required sections: Requirement Summary, Product Summary, Architecture Status, Execution Route, Execution Mode, Agents To Run/Skipped, Developer Assignments, Work Order, File Ownership, Shared File Handling, Required Tests, Runtime/Build/Test Failure Routing, QA Plan, Security Review Required, Backend Integration Tests Required, E2E Mode, Demo Config Plan, Done Criteria, Loop Prevention Plan, Risk Handling Policy.
 
 Do not produce a plan without filling in every applicable section. The template contains the E2E mode decision table and loop prevention limits — use them when filling in those sections.
 
@@ -366,10 +366,10 @@ No implementation may start before the branch decision is written to `reports/ru
 
 When triggered:
 
-1. Load `.claude/policies/requirement-similarity-policy.md`.
+1. Load `.claude/skills/team-lead/policies/requirement-similarity-policy.md`.
 2. Collect all five signals defined in the policy: branch slug alignment, requirement area overlap, acceptance criteria inheritance, dirty file scope match, prior PR alignment.
 3. Classify: `same | extension | related | unrelated | unclear`. Apply confidence rules. Reclassify to `unclear` if confidence is `low` or signals conflict.
-4. Load `.claude/templates/requirement-similarity-detection-template.md` and write the filled result to `reports/runs/<workflow-run-id>/requirement-similarity-detection.md`.
+4. Load `.claude/templates/team-lead/requirement-similarity-detection-template.md` and write the filled result to `reports/runs/<workflow-run-id>/requirement-similarity-detection.md`.
 5. Write the `## Requirement Similarity Detection` block into `team-lead-classification.md`.
 6. Use the classification to determine which Case (A–I) in the Branch Decision Matrix applies. The policy's branch decision table maps each classification × branch state to the correct Case.
 
@@ -389,7 +389,7 @@ When triggered:
 | H | Branch has open PR but new requirement is unrelated | Leave old branch untouched, create new branch |
 | I | Branch has open PR and new requirement is related | Continue same branch after rebase |
 
-For all case-specific bash command sequences, stash/rebase procedures, conflict handling, branch naming rules, commit message format, New Branch Guard commands, and forbidden actions list — load `.claude/policies/git-branch-policy.md`.
+For all case-specific bash command sequences, stash/rebase procedures, conflict handling, branch naming rules, commit message format, New Branch Guard commands, and forbidden actions list — load `.claude/skills/team-lead/policies/git-branch-policy.md`.
 
 **Lazy-load rule:** Load the policy file whenever any of the following apply: dirty working tree, current branch is `main`, branch switch needed, new branch creation needed, rebase needed, stash needed, conflict present, PR status affects the decision, New Branch Guard needed. Skip loading only on the simplest path: clean feature branch already matching the requirement, no switch, no dirty state, no new branch.
 
@@ -422,7 +422,7 @@ Reason: <one sentence>
 
 ## Step 6 — Developer Agents
 
-Load `.claude/policies/background-agent-policy.md` before using `run_in_background` on any agent invocation. If any agent is spawned with `run_in_background: true`, record the agent name and expected output path in `team-lead-plan.md`. No gate may be marked complete while a background agent result is outstanding — collect and confirm every background result before advancing.
+Load `.claude/skills/team-lead/policies/background-agent-policy.md` before using `run_in_background` on any agent invocation. If any agent is spawned with `run_in_background: true`, record the agent name and expected output path in `team-lead-plan.md`. No gate may be marked complete while a background agent result is outstanding — collect and confirm every background result before advancing.
 
 > **Universal Continuation Rule — No Manual Wakeup:**
 >
@@ -478,7 +478,7 @@ Team Lead MUST spawn all assigned developer agents automatically using the `Agen
 
 **Frontend split decision — required before spawning any frontend agent:**
 
-Load `.claude/policies/frontend-split-decision-policy.md` for the full split criteria, conservative defaults, ownership boundaries, and routing table. Team Lead makes the split decision — the policy defines the criteria.
+Load `.claude/skills/team-lead/policies/frontend-split-decision-policy.md` for the full split criteria, conservative defaults, ownership boundaries, and routing table. Team Lead makes the split decision — the policy defines the criteria.
 
 **Shared boundary types (required when splitting):**
 `types/game.ts` is the contract boundary. Before spawning either frontend agent, Team Lead writes any required changes to `types/game.ts` directly (always a small, architecture-driven edit). Neither agent may independently modify shared boundary types unless Team Lead explicitly assigns the edit to one agent and tells the other to treat it as read-only.
@@ -507,7 +507,7 @@ Applies to: turn ownership, permissions, loading/recovery status, identity/sessi
 
 #### Backend Integration Tests Decision
 
-Load `.claude/policies/backend-test-ownership-policy.md` before making this decision.
+Load `.claude/policies/java/backend-test-ownership-policy.md` before making this decision.
 
 **Controller-layer tests (HTTP status, JSON, `@Valid`, error shape) are now owned by `java-backend-agent` as `@WebMvcTest` tests.** The old triggers (new endpoint, DTO field change, `@Valid` added, status code change, new exception mapping) are covered there and do not require `backend-integration-tests-agent`.
 
@@ -580,7 +580,7 @@ If E2E mode is **Full**, immediately after the Step 2 gate passes:
    - `playwright.config.ts` missing backend webServer → `playwright-e2e-agent` with explicit instruction to add it
    - `VITE_API_BASE_URL` missing → `playwright-e2e-agent` with explicit instruction to add it
    Do not start the warmup until all four checks pass.
-2. If all four checks pass, load `.claude/runbooks/e2e-warmup.md`. Select the Bash or PowerShell sequence based on the `OS` field in `## Runtime Environment`. Start the backend warmup **in the background** (non-blocking). Record the PID file path (`/tmp/e2e-backend.pid` on macOS/Linux, `$env:TEMP\e2e-backend.pid` on Windows) in `team-lead-plan.md`.
+2. If all four checks pass, load `.claude/runbooks/team-lead/e2e-warmup.md`. Select the Bash or PowerShell sequence based on the `OS` field in `## Runtime Environment`. Start the backend warmup **in the background** (non-blocking). Record the PID file path (`/tmp/e2e-backend.pid` on macOS/Linux, `$env:TEMP\e2e-backend.pid` on Windows) in `team-lead-plan.md`.
 3. Continue immediately to Step 3 (integration tests). The warmup runs concurrently.
 
 This moves 40–120s of warmup off the serial critical path.
@@ -653,7 +653,7 @@ This overlaps ~1.5 min of release report writing with the code-review window, so
 
 #### Critical Path Recording (standard practice)
 
-After `release-pr-agent` returns the PR URL, Team Lead writes `reports/runs/<workflow-run-id>/critical-path.md` by loading `.claude/templates/critical-path-report-template.md` and filling in the phase timings from timestamps recorded throughout the run.
+After `release-pr-agent` returns the PR URL, Team Lead writes `reports/runs/<workflow-run-id>/critical-path.md` by loading `.claude/templates/team-lead/critical-path-report-template.md` and filling in the phase timings from timestamps recorded throughout the run.
 
 Record a timestamp at each of these checkpoints using:
 ```bash
@@ -725,11 +725,11 @@ Write `reports/runs/<workflow-run-id>/infra-non-modification-check.md`. If forbi
 git diff --name-only
 ```
 
-Compare changed files against Team Lead assignments. Load `.claude/templates/scope-check-templates.md` → `## Ownership Check` section for the report format. Write the filled result to `reports/runs/<workflow-run-id>/ownership-check.md`.
+Compare changed files against Team Lead assignments. Load `.claude/templates/team-lead/scope-check-templates.md` → `## Ownership Check` section for the report format. Write the filled result to `reports/runs/<workflow-run-id>/ownership-check.md`.
 
 ### 7c — Diff Scope Check
 
-Load `.claude/templates/scope-check-templates.md` → `## Diff Scope Check` section for the report format. Write the filled result to `reports/runs/<workflow-run-id>/diff-scope-check.md`.
+Load `.claude/templates/team-lead/scope-check-templates.md` → `## Diff Scope Check` section for the report format. Write the filled result to `reports/runs/<workflow-run-id>/diff-scope-check.md`.
 
 Prefer escalation over blocker when safe. Hard block only for unsafe Git state, forbidden infrastructure change, obvious real leaked credential, or unrecoverable repo state.
 
@@ -739,7 +739,7 @@ Prefer escalation over blocker when safe. Hard block only for unsafe Git state, 
 
 When any agent in the parallel test phase reports a failure, Team Lead is the sole decision-maker on who owns the fix. Never route blindly — read the failure output and classify it first.
 
-Load `.claude/policies/test-failure-routing-policy.md` for the full classification table, routing rules, and fix cycle limit.
+Load `.claude/skills/team-lead/policies/test-failure-routing-policy.md` for the full classification table, routing rules, and fix cycle limit.
 
 ---
 
@@ -867,7 +867,7 @@ If fix attempts are exhausted (per QA Cycle Limits below), write `workflow-block
 
 ### Post-Review Fix Severity Routing
 
-When code review or security review returns `REQUIRES CHANGES`, classify the fix by severity before routing. Load `.claude/metadata/review-validity-schema.md` for the full routing table per severity.
+When code review or security review returns `REQUIRES CHANGES`, classify the fix by severity before routing. Load `.claude/metadata/review/review-validity-schema.md` for the full routing table per severity.
 
 | Severity | Definition | Code Re-review | Security Re-review |
 |----------|-----------|---------------|-------------------|
@@ -913,7 +913,7 @@ If two consecutive attempts repeat the same hypothesis without new evidence, Tea
 
 ### Failure Type Routing Table
 
-Load `.claude/policies/qa-failure-routing-policy.md` for the complete routing table, file-path routing rules, and escalation conditions. Key routing summary:
+Load `.claude/skills/team-lead/policies/qa-failure-routing-policy.md` for the complete routing table, file-path routing rules, and escalation conditions. Key routing summary:
 - Java backend failures → `java-backend-agent`
 - Frontend failures → read file path (`api/hooks/types` → `frontend-api-agent`; `components/pages/utils/CSS` → `frontend-ui-agent`)
 - Security findings → `security-agent`
@@ -1039,7 +1039,7 @@ Write `reports/runs/<workflow-run-id>/demo-config-check.md` when config changes 
 
 Choose the cheapest sufficient level. Do not run all tests by default. Run only commands that exist.
 
-Load `.claude/policies/frontend-test-routing-policy.md` for:
+Load `.claude/skills/team-lead/policies/frontend-test-routing-policy.md` for:
 - Testing Strategy levels (Level 0–4 definitions and when to use each)
 - Frontend test type definitions (unit / integration / smoke / full E2E)
 - Simple UI/CSS/layout change routing
@@ -1078,7 +1078,7 @@ git diff --name-only <last-reviewed-sha>..HEAD
 
 Where `<last-reviewed-sha>` is the `Generated From Commit` SHA from the most recent `reports/runs/<workflow-run-id>/code-review-report.md`.
 
-Load `.claude/metadata/review-validity-schema.md` for the decision table. Summary:
+Load `.claude/metadata/review/review-validity-schema.md` for the decision table. Summary:
 - No files changed → review valid, proceed
 - Only `reports/**` or docs changed → keep valid, record reason in release summary
 - Production code/tests/config changed → delta re-review (Small/Medium) or full re-review (Large)
@@ -1093,7 +1093,7 @@ Before routing to Release PR Agent, confirm:
 - Working tree is clean
 - Branch is not `main`
 - `origin/main` freshness checked
-- Documentation parity gate: load `.claude/policies/documentation-parity-policy.md`. Verify all High-severity parity items from `team-lead-classification.md` were applied. High-severity items block release. Low-severity items are documented in release summary and deferred.
+- Documentation parity gate: load `.claude/skills/team-lead/policies/documentation-parity-policy.md`. Verify all High-severity parity items from `team-lead-classification.md` were applied. High-severity items block release. Low-severity items are documented in release summary and deferred.
 
 If non-critical unresolved findings remain, document them in PR summary. Do not block for non-critical findings. Validation gaps with Risk: Low are documented in PR summary and do not block release.
 
@@ -1103,11 +1103,11 @@ If non-critical unresolved findings remain, document them in PR summary. Do not 
 
 Valid labels: `docs-only`, `frontend-only`, `java-backend-only`, `backend-and-frontend`, `config-aware`, `infra`, `auth-security`, `multiplayer-session`, `full-stack-complex`.
 
-Load `.claude/metadata/route-matrix.yml` when you need the description for an unfamiliar label.
+Load `.claude/metadata/team-lead/route-matrix.yml` when you need the description for an unfamiliar label.
 
 ## Execution Modes
 
-Valid values: `cheap`, `normal`, `full`. Load `.claude/metadata/execution-modes.yml` for gate and token budget details.
+Valid values: `cheap`, `normal`, `full`. Load `.claude/metadata/team-lead/execution-modes.yml` for gate and token budget details.
 
 **Binding rules (always enforced, never in the metadata file):**
 - Code review runs in every mode — at minimum review-lite for cheap. Never skip entirely.
@@ -1210,7 +1210,7 @@ Dependency changes must be visible in Team Lead decision records and the PR summ
 
 Release summary/PR body must be written to `reports/runs/<workflow-run-id>/release-summary.md`.
 
-Load `.claude/templates/pr-summary-template.md` when writing. Keep it short and review-focused — full evidence stays in `reports/runs/<workflow-run-id>/`. Only add sections beyond the template when actually relevant to the reviewer (demo config changes, unresolved findings, security notes, architecture decisions).
+Load `.claude/skills/release-pr-agent/templates/pr-summary-template.md` when writing. Keep it short and review-focused — full evidence stays in `reports/runs/<workflow-run-id>/`. Only add sections beyond the template when actually relevant to the reviewer (demo config changes, unresolved findings, security notes, architecture decisions).
 
 If documentation parity updates were required in this run, include a `## Documentation Parity` section in the release summary listing which files were updated and whether any Low-severity items were deferred with reason. Omit this section when no parity impact was identified.
 

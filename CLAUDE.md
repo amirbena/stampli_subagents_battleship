@@ -27,6 +27,25 @@ You are working inside a Gen4 multi-agent software factory building a multiplaye
 - New features map to new services and controllers, not changes to existing domain classes.
 - The WebSocket transport layer can replace HTTP polling without any domain or service changes.
 
+## Governance File Placement
+
+Governance files follow a narrowest-scope ownership rule:
+
+| Scope | Location |
+|---|---|
+| Global (all agents) | `.claude/policies/` |
+| Java family | `.claude/policies/java/` |
+| Frontend family | `.claude/policies/frontend/` |
+| E2E family | `.claude/policies/e2e/` |
+| Team Lead routing | `.claude/skills/team-lead/policies/` |
+| Team Lead metadata | `.claude/metadata/team-lead/` |
+| Team Lead templates | `.claude/templates/team-lead/` |
+| Agent-local templates | `.claude/skills/<agent>/templates/` |
+| Review templates/metadata | `.claude/templates/review/`, `.claude/metadata/review/` |
+| Architecture templates | `.claude/templates/architecture/` |
+
+When adding a new governance file, place it at the narrowest scope that covers all its consumers.
+
 ## Agent Skills
 
 Each agent is defined as a skill in `.claude/skills/<agent-name>/SKILL.md`.
@@ -85,7 +104,7 @@ When `frontend-ui-agent` implements a change, it runs `smoke.spec.ts` as its own
 - Backend-only changes with zero frontend impact
 
 ## Git Branch Handling Policy
-Team Lead's branch decisions (Cases A–J) live in `.claude/skills/team-lead/SKILL.md` (Step 5). Operational bash sequences live in `.claude/policies/git-branch-policy.md` (lazy-loaded by Team Lead when a branch operation is needed). Key rules:
+Team Lead's branch decisions (Cases A–J) live in `.claude/skills/team-lead/SKILL.md` (Step 5). Operational bash sequences live in `.claude/skills/team-lead/policies/git-branch-policy.md` (lazy-loaded by Team Lead when a branch operation is needed). Key rules:
 - Team Lead owns all branch decisions (Cases A–J) before any implementation agent is spawned.
 - Implementation agents (frontend, backend) only confirm they are on the branch Team Lead assigned — they never run branch operations themselves.
 - Never implement directly on `main`. Dirty `main` is always a hard stop.
@@ -136,13 +155,13 @@ When a new requirement arrives after an interrupted run, Team Lead Step 5.5 clas
 - `reports/runs/<id>/requirement-similarity-detection.md` — signal table, classification, branch/PR/stash decision.
 - `## Requirement Similarity Detection` block in `team-lead-classification.md`.
 
-See `.claude/policies/requirement-similarity-policy.md` for full signal definitions, confidence rules, branch decision table, and stash safety rules.
+See `.claude/skills/team-lead/policies/requirement-similarity-policy.md` for full signal definitions, confidence rules, branch decision table, and stash safety rules.
 
 ## Requirement Intent Classification
 
 Before applying fast-path triggers, Team Lead classifies every requirement as a **WHAT-change** (new or extended behavior), a **DevEx WHAT-change** (new behavior but audience is exclusively developers — local scripts, `.run/*`, Docker local-dev, CI, dev-only health checks, local-dev docs, repo/agent governance; routes to Trigger 5 fast-path, Product skipped, Architecture preserved), or a **HOW-change** (same outcome, different mechanism → refactor candidate with scope-specific routing). The word "refactor" may not appear in the requirement — intent is inferred from what changes for users and the API surface.
 
-See `.claude/policies/requirement-intent-classification-policy.md` for signal phrases, DevEx sub-type conditions, refactor scope table (test-only / single-layer / cross-layer / domain-model / full-flow), contract-change escalation rules, and the required `Intent Classification` block in `team-lead-classification.md`.
+See `.claude/skills/team-lead/policies/requirement-intent-classification-policy.md` for signal phrases, DevEx sub-type conditions, refactor scope table (test-only / single-layer / cross-layer / domain-model / full-flow), contract-change escalation rules, and the required `Intent Classification` block in `team-lead-classification.md`.
 
 ## File Ownership Rule
 Agents must not edit files outside their ownership domain without explicit Team Lead approval.
@@ -166,7 +185,7 @@ Current decisions locked in:
 
 `backend-integration-tests-agent` is **exception-only**. Team Lead may only spawn it when the scenario genuinely requires a full Spring context: cross-layer flow (real service + real repository), profile-specific wiring, or multi-controller shared state. Every `@SpringBootTest` class must include a class-level justification comment.
 
-See `.claude/policies/backend-test-ownership-policy.md` and `.claude/policies/spring-test-runtime-policy.md` for the decision table, WebMvcTest examples, and SpringBootTest justification format.
+See `.claude/policies/java/backend-test-ownership-policy.md` and `.claude/policies/java/spring-test-runtime-policy.md` for the decision table, WebMvcTest examples, and SpringBootTest justification format.
 
 ## AC-to-Test Coverage Matrix
 
@@ -174,7 +193,7 @@ When Architect Agent runs, it must include an `## AC-to-Test Coverage Matrix` in
 1. Decide which test types and agents to spawn (not re-derived from the product spec).
 2. Drive the Validation Gap Check before release (comparing what was validated against what the matrix specified).
 
-Load `.claude/templates/ac-coverage-matrix-template.md` for the column definitions and example rows.
+Load `.claude/templates/architecture/ac-coverage-matrix-template.md` for the column definitions and example rows.
 
 ## Code Review and Security Review Validity
 
@@ -184,7 +203,7 @@ Before routing to `release-pr-agent`, Team Lead runs the SHA Validity Gate:
 ```bash
 git diff --name-only <last-reviewed-sha>..HEAD
 ```
-If production code changed after the last review, a delta or full re-review is required before release. See `.claude/metadata/review-validity-schema.md` for the decision table and post-review fix severity routing (Small / Medium / Large).
+If production code changed after the last review, a delta or full re-review is required before release. See `.claude/metadata/review/review-validity-schema.md` for the decision table and post-review fix severity routing (Small / Medium / Large).
 
 When `code-review-agent` returns `REQUIRES_CHANGES`, Team Lead stops the release flow, reads the failure category and required owner from the structured output, routes the fix to the relevant agent, and re-runs code review after correction. No Code Review bypass is allowed. See `.claude/skills/team-lead/SKILL.md` Step 9 for the full routing table.
 

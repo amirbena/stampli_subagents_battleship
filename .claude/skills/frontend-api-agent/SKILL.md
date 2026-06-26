@@ -80,13 +80,13 @@ Risks:
 
 ## Evidence
 
-Load `.claude/policies/frontend-coding-standards.md` → "Evidence Block" for the required structure and field definitions.
+Load `.claude/policies/frontend/frontend-coding-standards.md` → "Evidence Block" for the required structure and field definitions.
 
 ---
 
 ## Code Standards
 
-Load `.claude/policies/frontend-coding-standards.md` → "Comment Philosophy" for the shared principle. API-layer requirements follow.
+Load `.claude/policies/frontend/frontend-coding-standards.md` → "Comment Philosophy" for the shared principle. API-layer requirements follow.
 
 ### JSDoc — required on every hook's public interface
 
@@ -113,7 +113,7 @@ Co-located under `src/api/`, `src/hooks/`, `src/types/`. No separate test direct
 
 **Single-agent path** (Team Lead spawned only this agent — no `frontend-ui-agent` running in parallel):
 
-Load `.claude/policies/frontend-coding-standards.md` → "Single-Agent Gate Commands" for the gate sequence and → "Self-Heal Escalation Rule" for the escalation threshold. This agent owns the gate end-to-end.
+Load `.claude/policies/frontend/frontend-coding-standards.md` → "Single-Agent Gate Commands" for the gate sequence and → "Self-Heal Escalation Rule" for the escalation threshold. This agent owns the gate end-to-end.
 
 **Split path** (Team Lead spawned both frontend agents in parallel):
 
@@ -123,7 +123,7 @@ Run only the co-located slice — do NOT run the full suite (race condition with
 cd apps/frontend && npx vitest run src/api src/hooks src/types
 ```
 
-See `.claude/policies/frontend-coding-standards.md` → "Self-Heal Escalation Rule". Team Lead runs `npm run test` + `npm run build` once after both agents finish.
+See `.claude/policies/frontend/frontend-coding-standards.md` → "Self-Heal Escalation Rule". Team Lead runs `npm run test` + `npm run build` once after both agents finish.
 
 ### Backend Contract Dependency
 

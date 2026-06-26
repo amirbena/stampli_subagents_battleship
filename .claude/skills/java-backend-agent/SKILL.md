@@ -301,7 +301,7 @@ logging:
 
 ## Coding Standards
 
-Load `.claude/policies/java-coding-standards.md` for field injection (@Autowired placement) and Lombok constructor rules.
+Load `.claude/policies/java/java-coding-standards.md` for field injection (@Autowired placement) and Lombok constructor rules.
 
 ---
 
@@ -309,7 +309,7 @@ Load `.claude/policies/java-coding-standards.md` for field injection (@Autowired
 
 After every implementation change, add or update unit tests in `src/test/java/`. Run `./mvnw test` and report results before finishing.
 
-Load `.claude/policies/backend-test-ownership-policy.md` to determine which test type to use for each test scope. Load `.claude/policies/spring-test-runtime-policy.md` for `@WebMvcTest` and `@SpringBootTest` rules.
+Load `.claude/policies/java/backend-test-ownership-policy.md` to determine which test type to use for each test scope. Load `.claude/policies/java/spring-test-runtime-policy.md` for `@WebMvcTest` and `@SpringBootTest` rules.
 
 ### Test ownership — this agent
 

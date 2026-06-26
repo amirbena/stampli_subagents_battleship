@@ -23,7 +23,7 @@ and return control to Team Lead. Do not fill the gap by spawning a subagent.
 Team Lead is the only entity permitted to:
 
 - Spawn agents (via `Skill(*)`).
-- Use `run_in_background` when governed by `.claude/policies/background-agent-policy.md`.
+- Use `run_in_background` when governed by `.claude/skills/team-lead/policies/background-agent-policy.md`.
 - Use `SendMessage` solely to monitor a background subagent Team Lead personally spawned.
   Note: `task-notification` is the primary completion signal for harness-tracked background
   agents — Team Lead is re-invoked automatically. `SendMessage` for status is secondary

@@ -141,7 +141,7 @@ Only Critical findings block PR. High/Medium/Low findings should be documented a
 
 When Team Lead invokes this agent with `Review Mode: delta`, review only the files listed in `Delta Changed Files` (the diff between `Delta Base SHA` and HEAD). Do not re-review files that were already reviewed and unchanged.
 
-Delta mode is used for post-fix re-reviews after a Small or Medium fix was routed by Team Lead. Load `.claude/metadata/review-validity-schema.md` for review mode definitions and severity routing.
+Delta mode is used for post-fix re-reviews after a Small or Medium fix was routed by Team Lead. Load `.claude/metadata/review/review-validity-schema.md` for review mode definitions and severity routing.
 
 ## Outputs
 
@@ -166,7 +166,7 @@ APPROVED | REQUIRES CHANGES
 
 ## Findings
 
-<load .claude/templates/finding-report-template.md for the Finding CR-001 field structure>
+<load .claude/templates/review/finding-report-template.md for the Finding CR-001 field structure>
 
 ## Notes
 <optional non-blocking observations>
