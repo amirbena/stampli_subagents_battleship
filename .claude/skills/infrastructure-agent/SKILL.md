@@ -161,9 +161,67 @@ The E2E CI path must:
 - Run Playwright.
 - Tear down services.
 
+## Cross-Platform Parity Gate
+
+**Trigger:** runs whenever the assignment touches any OS-specific local-dev file: `.sh`, `.ps1`, `.cmd`, `.bat`, Docker Compose local-dev config, local startup scripts, package scripts with OS-specific behavior, or CI scripts with OS-conditional logic.
+
+**Rule — current OS is the live-test target, not the implementation boundary.**
+
+A change is not complete just because it works on the current OS. Every affected cross-platform variant must be discovered, updated or explicitly justified, and verified.
+
+### Required steps (in order)
+
+**1. Discover all variants**
+
+Before writing a single line, list every cross-platform variant of the file(s) being changed. Examples:
+- `run.sh` → also check `run.ps1`, `run.cmd`
+- `mvnw` → also check `mvnw.cmd`
+- A Docker Compose file → check for any OS-conditional overrides or companion scripts
+
+**2. Classify each variant**
+
+For each discovered variant, decide:
+- **Affected** — the change in the primary file must be reflected here.
+- **Unaffected** — the change does not apply; state explicitly why.
+
+A variant is only "unaffected" when: the changed logic is OS-specific to a different platform and has no equivalent need on this platform, OR the variant explicitly delegates to the primary script and therefore inherits the change automatically. Both cases require a written justification.
+
+**3. Update every affected variant**
+
+Apply the equivalent behavior change to each affected variant. Use platform-appropriate primitives (bash, PowerShell, cmd) — do not copy-paste `.sh` syntax into `.ps1` or `.cmd`.
+
+**4. Verify**
+
+| Variant | Verification method |
+|---|---|
+| Current OS | Live execution (or `bash -n` / equivalent syntax check) — required |
+| Non-current OS `.sh` | `bash -n <file>` syntax check |
+| Non-current OS `.ps1` | PowerShell `Parser::ParseFile` (see per-file checklist below) |
+| Non-current OS `.cmd` | Manual review against known cmd pitfalls (see per-file checklist below) |
+
+If live execution is not possible on a variant's native OS, a syntax/parse check plus an explicit parity review is the minimum. Never claim a non-current-OS variant is "done" without at minimum the parse check and a written parity review.
+
+**5. Report**
+
+The agent report must include a Cross-Platform Parity table:
+
+```
+Cross-Platform Parity:
+- Variants discovered: <list all>
+- Variants affected:   <list affected>
+- Variants unchanged:  <list with reason for each>
+- Live-tested:         <list, current OS only>
+- Syntax/parse-checked:<list>
+- Parity-reviewed:     <list — reviewed for behavioral equivalence but not live-tested>
+- Not testable on current OS: <list with reason>
+- Behavioral equivalence expected: Yes / No / Partial — <note any known divergence>
+```
+
+---
+
 ## Native Run Scripts — Scope And Rules
 
-When Team Lead assigns native run scripts (`run.sh`, `run.ps1`, `run.cmd`) or Maven Wrapper patches (`mvnw.cmd`), apply the checklist below **before** reporting done. These are multi-platform files with non-obvious runtime traps; static syntax checks alone are not sufficient.
+When Team Lead assigns native run scripts (`run.sh`, `run.ps1`, `run.cmd`) or Maven Wrapper patches (`mvnw.cmd`), run the **Cross-Platform Parity Gate** first (above), then apply the per-file checklist below **before** reporting done. These are multi-platform files with non-obvious runtime traps; static syntax checks alone are not sufficient.
 
 ### Bash / POSIX scripts (`run.sh`, `*.sh`)
 

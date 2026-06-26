@@ -27,17 +27,22 @@ User Requirement
          ▼  Step 0.5 — Fast-Path Pre-Classification
          │  Team Lead reads requirements.md FIRST.
          │  If change is (1) pure infra, (2) pure internal refactor,
-         │  (3) bug fix restoring documented behavior, OR
+         │  (3) bug fix restoring documented behavior,
          │  (4) visual fix with screenshot evidence — Visual Analysis
          │  present with concrete defects + expected behavior + inferred
-         │  criteria, UI-only, no UX ambiguity, no backend/API change →
-         │  fast-path applies. Before skipping Product, Team Lead runs
-         │  UX Interaction Risk Check: does the requirement involve a
-         │  user action whose result must feel immediate (shot feedback,
-         │  placement, turn transition, loading, stale state, optimistic
-         │  UI)? If YES → Product Agent runs in Light Mode (UX
-         │  clarification only, no routing, returns control to Team Lead).
-         │  If NO → Product Agent skipped entirely.
+         │  criteria, UI-only, no UX ambiguity, no backend/API change, OR
+         │  (5) developer-experience / local-tooling WHAT-change — real new
+         │  behavior but audience is exclusively developers (local scripts,
+         │  .run/*, Docker local-dev, CI, dev-only health checks, local-dev
+         │  docs, repo/agent governance) with no end-user product impact →
+         │  fast-path applies. Skipping Product via Trigger 5 does NOT skip
+         │  Architecture (Architecture still runs for new endpoints, routes,
+         │  contracts, or system boundaries). Before skipping via Triggers
+         │  1-4, Team Lead runs UX Interaction Risk Check: does the
+         │  requirement involve a user action whose result must feel
+         │  immediate (shot feedback, placement, turn transition, loading,
+         │  stale state, optimistic UI)? If YES → Product Agent runs in
+         │  Light Mode. If NO → Product Agent skipped entirely.
          │  Otherwise: full Product Agent run.
          │    ↓
 ┌─────────────────┐
@@ -174,7 +179,7 @@ User Requirement
 
 ### Separation of Concerns
 - **Team Lead** owns all decisions — branch, scope, agent routing, quality gates. No other agent makes decisions.
-- **Product Agent** runs in three modes: Full (new feature, API change), Light (UX interaction risk on fast-path — clarifies what must feel instant, what shows loading, scope risks; returns control to Team Lead), or Skipped (fast-path + no UX risk). Team Lead selects the mode; Product Agent never selects its own mode or advances the pipeline.
+- **Product Agent** runs in three modes: Full (new feature, API change), Light (UX interaction risk on fast-path — clarifies what must feel instant, what shows loading, scope risks; returns control to Team Lead), or Skipped (fast-path Triggers 1–4 + no UX risk, OR fast-path Trigger 5 DevEx). Trigger 5 applies when the requirement changes only developer-local/tooling behavior with no end-user product impact; skipping Product via Trigger 5 does not skip Architecture. Team Lead selects the mode; Product Agent never selects its own mode or advances the pipeline.
 - **Architect** owns structure (domain model, API contract, folder layout) — never environment setup or implementation.
 - **Java Backend Agent** owns JUnit 5 unit tests for domain and service layer **and `@WebMvcTest` controller tests** — no separate backend unit test agent. `@WebMvcTest` is the default for all controller-layer tests (HTTP status, JSON shape, `@Valid` firing, error body). `backend-integration-tests-agent` is exception-only for cross-layer flows and profile-specific wiring where `@WebMvcTest` is insufficient. See `.claude/policies/backend-test-ownership-policy.md`.
 - **Frontend API Agent** owns Vitest unit tests for `api/`, `hooks/`, and `types/` — co-located in those directories.

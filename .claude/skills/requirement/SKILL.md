@@ -18,12 +18,19 @@ Load `.claude/policies/agent-responsibility-boundaries-policy.md`.
 
 **Requirement Intake expands customer intent into user-facing language only. It must not design the solution.**
 
-May define: user-visible behavior, user journey, product-level scope, product-level risks and ambiguities, user-facing acceptance criteria.
+May define: user-visible behavior, user journey, product-level scope, product-level risks and ambiguities, user-facing acceptance criteria. For developer-experience / infrastructure / local-tooling requirements, intake writes operational acceptance criteria and routing hints rather than product language — see below.
 
 Must NOT decide or mention as decisions: storage technology (localStorage, sessionStorage, Redis, in-memory), repository patterns, backend enum values, API endpoint paths, frontend implementation mechanism, test frameworks, E2E mode, quality gates, `Architecture Required: Yes`, or agent routing decisions.
 
 ✅ "The game should survive browser refresh and allow the player to return later."  
 ❌ "Use localStorage. Add GET /players/{id}/active-game."
+
+**Developer-experience and infrastructure requirements:** If the requirement is clearly about local-dev scripts, `.run/*` launchers, Docker local-dev behavior, CI/test tooling, developer-only health checks, local port management, local process lifecycle, build/package scripts, developer-visible terminal output, local-dev documentation, repository governance, or agent governance — and it does not affect end-user product/game/application behavior — then:
+- Do NOT write a `## Notes For Product` section. Use `## Routing Hints` instead.
+- Write acceptance criteria in operational/technical terms (e.g. "given port free → backend starts normally"), not product-UX terms.
+- In `## Routing Hints`, note that Product Agent is likely not required and name the appropriate downstream owners (Architecture, Infrastructure, Backend, Docs).
+- Do NOT imply Product Agent is required. Do NOT pre-frame the requirement as product work.
+- The template's `## Routing Hints` section is the correct destination for these notes.
 
 ## Team Lead Contract
 
@@ -470,7 +477,11 @@ Then stop. Mark lock `"status": "blocked"`.
 
 Load `.claude/templates/requirements-template.md` and fill in all sections. Write the result to `reports/runs/<workflow-run-id>/requirements.md`.
 
-Required sections: Raw User Request, Visual Analysis (if images attached — omit if none), Requirement Summary, Initial Scope, Acceptance Criteria, Initial Risks, Notes For Product, Workflow Metadata.
+Required sections: Raw User Request, Visual Analysis (if images attached — omit if none), Requirement Summary, Initial Scope, Acceptance Criteria, Initial Risks, Workflow Metadata.
+
+**Conditional section — choose exactly one:**
+- `## Notes For Product` — when the requirement affects end-user product/game/application behavior. Include anything the Product Agent should know or watch for.
+- `## Routing Hints` — when the requirement is developer-experience / infrastructure / local-tooling / governance only and does not affect end-user behavior. Include: requirement subject classification, whether Product Agent is likely required (with reason), primary downstream owners, and any notes for Team Lead, Architecture, Infrastructure, or Backend. Do NOT use this section for product requirements; do NOT use `## Notes For Product` for DevEx/infra requirements.
 
 Continue autonomously to Team Lead when the smallest safe interpretation is implementable.
 

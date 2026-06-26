@@ -43,7 +43,9 @@ Load when any question arises about which agent owns a type of decision.
 ---
 
 ### Product Agent
-**Owns:** Product semantics — what users experience, not how it is implemented.
+**Owns:** Product semantics — what **end-users of the deployed application** experience, not how it is implemented.
+
+**Does NOT own:** developer-experience, local-dev tooling, startup scripts, CI/build behavior, Docker local-dev behavior, developer-only health checks, local port management, developer-visible terminal output, local-dev documentation, repository governance, or agent governance. These route directly to Architecture, Infrastructure, and Backend under Team Lead's Trigger 5 fast-path. Product Agent does not run for developer-tooling or local-infrastructure requirements unless they also affect end-user product behavior.
 
 **May define:**
 - Product intent and user problem
