@@ -8,9 +8,10 @@ describe('TurnIndicator', () => {
     expect(screen.getByText(/waiting for opponent/i)).toBeInTheDocument();
   });
 
-  it('shows "Your Turn" when it is my turn and opponent is ready', () => {
-    render(<TurnIndicator isMyTurn={true} opponentReady={true} />);
-    expect(screen.getByText(/your turn/i)).toBeInTheDocument();
+  it('renders nothing persistent when it is my turn and opponent is ready', () => {
+    const { container } = render(<TurnIndicator isMyTurn={true} opponentReady={true} />);
+    expect(screen.queryByText(/your turn/i)).toBeNull();
+    expect(container).toBeEmptyDOMElement();
   });
 
   it('shows opponent turn message when it is not my turn', () => {
@@ -18,9 +19,9 @@ describe('TurnIndicator', () => {
     expect(screen.getByText(/opponent's turn/i)).toBeInTheDocument();
   });
 
-  it('applies my-turn CSS class when it is my turn', () => {
+  it('renders no turn-indicator element when it is my turn', () => {
     const { container } = render(<TurnIndicator isMyTurn={true} opponentReady={true} />);
-    expect(container.firstChild).toHaveClass('turn-indicator--my-turn');
+    expect(container.querySelector('.turn-indicator')).toBeNull();
   });
 
   it('applies opponent-turn CSS class when it is not my turn', () => {
