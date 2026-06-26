@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { ShotResult, ShipType } from '../../../types/game';
 import { SHIP_DISPLAY_NAMES } from '../../../types/game';
+import { RESULT_TOAST_HIT_MS, RESULT_TOAST_MISS_MS } from '../../../utils/turnTiming';
 import './ShotResultToast.css';
 
 interface ShotResultToastProps {
@@ -14,7 +15,10 @@ export function ShotResultToast({ result, sunkShipType }: ShotResultToastProps):
   useEffect(() => {
     if (result) {
       setVisible(true);
-      const timer = setTimeout(() => setVisible(false), 2500);
+      // A successful shot (HIT/SUNK) lingers ~0.5s longer than a MISS; both are shorter
+      // than the previous flat 2.5s. SUNK is treated as a hit for timing.
+      const duration = result === 'MISS' ? RESULT_TOAST_MISS_MS : RESULT_TOAST_HIT_MS;
+      const timer = setTimeout(() => setVisible(false), duration);
       return () => clearTimeout(timer);
     }
   }, [result]);

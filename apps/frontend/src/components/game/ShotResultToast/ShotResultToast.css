@@ -1,15 +1,23 @@
+/* Rendered in the notice zone between the header and the boards (see Game.css), so it
+   sits BELOW the persistent turn title and never covers it (AC: popups must not obscure
+   the turn title). Layout/centering is applied by the .game-page notice-zone rule. */
 .shot-result-toast {
-  position: fixed;
-  top: 1.5rem;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 1rem 2rem;
+  padding: 0.6rem 1.5rem;
   border-radius: var(--radius);
-  font-size: 1.4rem;
+  font-size: 1.3rem;
   font-weight: 700;
-  z-index: 1000;
+  text-align: center;
   animation: toastIn 0.2s ease;
   pointer-events: none;
+}
+
+@keyframes toastIn {
+  from { transform: scale(0.9); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shot-result-toast { animation: none; }
 }
 
 .shot-result-toast--hit { background: var(--color-danger); color: #fff; }

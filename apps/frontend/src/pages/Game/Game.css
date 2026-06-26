@@ -13,9 +13,12 @@
   margin-bottom: 1rem;
 }
 
-/* Pending-shot and turn-transition feedback sit centered between the header and boards. */
+/* All transient notices (pending-shot, turn-transition, result, blocked-fire) sit
+   centered in a zone BELOW the header so they never cover the turn title. */
 .game-page > .firing-indicator,
-.game-page > .your-turn-toast {
+.game-page > .your-turn-toast,
+.game-page > .shot-result-toast,
+.game-page > .cant-shoot-toast {
   display: flex;
   margin: 0 auto 0.75rem;
   width: fit-content;

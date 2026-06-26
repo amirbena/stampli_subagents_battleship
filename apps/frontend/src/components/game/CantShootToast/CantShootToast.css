@@ -1,0 +1,11 @@
+/* Rendered in the notice zone below the header (see Game.css) so it never covers the
+   turn title. Layout/centering comes from the .game-page notice-zone rule. */
+.cant-shoot-toast {
+  padding: 0.5rem 1.2rem;
+  border-radius: 999px;
+  background: rgba(239, 71, 111, 0.15);
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
