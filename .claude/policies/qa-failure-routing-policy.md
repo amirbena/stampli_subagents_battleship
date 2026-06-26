@@ -26,6 +26,21 @@ Read the failing file path:
 - `components/`, `pages/`, `utils/`, `*.css` → `frontend-ui-agent`
 - TypeScript compile error: follow the same path rule for the error's source file
 
+## Frontend-Only Reclassification Guard
+
+When `frontend-ui-agent` returns `REQUIRES_CHANGES` citing missing or insufficient state under a frontend-only classification, Team Lead must reclassify before re-routing.
+
+| Finding | Agent response | Team Lead action |
+|---|---|---|
+| Reliable state exists in current hooks/props/store | Implement within frontend-only scope | Continue existing route |
+| Reliable state is missing or insufficient | Stop — return `REQUIRES_CHANGES` with the missing capability described | Reclassify; route Architecture, Frontend API, or Backend as needed |
+
+Applies to: turn ownership, permissions, loading/recovery status, identity/session state, and any capability-driven UI behavior that cannot be safely inferred from existing frontend data.
+
+**Never instruct `frontend-ui-agent` to invent timing logic, timeout assumptions, or missing contract fields.** If those are absent, the classification is wrong — reclassify first.
+
+---
+
 ## Routing Rules
 
 1. **Always read the failure output before routing.** Do not route by visible symptom alone — a UI symptom can have a backend root cause and vice versa.

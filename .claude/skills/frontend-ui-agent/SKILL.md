@@ -299,6 +299,39 @@ If smoke fails, self-heal (fix the component) up to 3 cycles before escalating t
 
 ---
 
+## Frontend-Only Reclassification Guard
+
+This agent runs only when Team Lead has classified the change as frontend-only. Before implementing, verify that the required state is reliably available from existing frontend data (props, hooks, or shared store).
+
+**Allowed:**
+- Use existing reliable state exposed by current hooks, props, or the existing store.
+- Implement UI behavior driven by that existing state.
+
+**Not allowed under a frontend-only classification:**
+- Invent timing logic, timeout assumptions, permission checks, identity/session fields, or loading-state fields that are not already present in the data layer.
+- Assume a contract field exists that is not visible in `types/game.ts` or in the existing hook return values.
+- Introduce API calls, new hooks, or backend changes as a side-effect of a frontend-only assignment.
+
+**When reliable state is missing or insufficient:**
+
+Stop immediately. Do not guess or invent a workaround. Return `REQUIRES_CHANGES` to Team Lead with:
+- What state or capability is missing
+- Why it cannot be safely inferred from existing frontend data
+- What layer (Backend, Frontend API, or Architecture) must provide it
+
+Team Lead then reclassifies and routes the correct agent(s) before returning this task to `frontend-ui-agent`.
+
+**Routing table:**
+
+| Finding | This agent's response | Team Lead action |
+|---|---|---|
+| Reliable state exists in current hooks/props/store | Implement within frontend-only scope | Continue existing route |
+| Reliable state is missing or insufficient | Stop — return `REQUIRES_CHANGES` with the missing capability described | Reclassify; route to Architecture, Frontend API, or Backend as needed |
+
+Applies to: turn ownership, permissions, loading/recovery status, identity/session state, and any other capability-driven UI behavior.
+
+---
+
 ## Scalability Rules
 - Components receive data as props — never call `gameApi.ts` directly.
 - `utils/boardHelpers.ts` is the only place board-cell mapping logic lives.

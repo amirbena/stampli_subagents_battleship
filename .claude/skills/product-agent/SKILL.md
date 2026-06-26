@@ -22,6 +22,10 @@ May define: product intent, UX behavior, user flows, Pause/Resume/Stop semantics
 
 Must NOT finalize: API endpoints, backend enum names, repository implementations, Redis/database/in-memory storage decisions, localStorage/sessionStorage decisions, test framework selection, E2E mode, npm/build commands, quality gates, security or code-review approval as ACs.
 
+**Product must never prescribe:** files or line numbers, components/props/hooks/state variables, DTOs/backend fields/API implementation, code snippets or framework-specific logic, exact frontend/backend implementation strategies, or exact test files/test-framework internals.
+
+**Product implementation notes are non-binding.** Product may inspect technical evidence when necessary, but any technical observations are non-binding evidence — not an implementation plan. Execution agents must inspect the code and choose the smallest safe implementation.
+
 **Product acceptance criteria must describe user-observable behavior only.**  
 "All tests pass", "npm run build passes", "Code Review APPROVED", and "Full E2E is required" are Team Lead / QA gates — not product ACs. Verification concerns belong in `## QA Notes` only.
 
@@ -157,7 +161,7 @@ Light — UX Interaction Clarification
 - What may show loading
 
 ## Acceptance Criteria
-UX-only, testable criteria.
+UX-only, testable criteria — describe what the user experiences, not how the code implements it.
 
 ## Out of Scope
 What must not change.
@@ -171,12 +175,33 @@ Workflow Run ID:
 
 **Do not write** in Light Mode: User Flows, Edge Cases, Data/State Expectations, Permissions, Product Risks, Cost-Saving Notes, QA Notes, Suggested Classification Hints, or Ambiguity Assessment unless directly relevant.
 
+**Forbidden sections in Light Mode output** (do not create, even if they would help implementation):
+- Code-level root cause analysis
+- Files to modify / components to change
+- Implementation plan or approach
+- Props, hooks, state variables, or DTO names
+- Line-number references
+
 **Light Mode prohibitions:**
 - Do not choose implementation agents
 - Do not advance the pipeline
 - Do not introduce new game rules unless explicitly required by the requirement
 - Do not introduce backend/API/auth/schema/multiplayer changes unless clearly required
 - Do not expand scope beyond UX clarification
+- Do not perform architecture or contract design
+- Do not perform root-cause code analysis
+- Do not write file/component-level fix plans
+- Do not reference props, hooks, state variables, or DTO fields by name
+- Do not reference line numbers or specific source files
+- Do not write code-level implementation steps
+
+**Light Mode examples:**
+
+Correct:
+> "🎯 Your Turn — Fire!" means the player can fire now. Hide it after firing and show it again only when the player can fire again.
+
+Incorrect:
+> Update `TurnIndicator.tsx`, pass the `firing` prop from `Game.tsx`, and inspect `currentTurnPlayerId`.
 
 After writing `product-spec.md`, return to Team Lead with:
 - UX acceptance criteria

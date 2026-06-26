@@ -72,9 +72,25 @@ Load when any question arises about which agent owns a type of decision.
 - `npm run build passes` as a product acceptance criterion
 - `All tests pass` as a product acceptance criterion
 
+**Product must never prescribe:**
+- Files or line numbers
+- Components, props, hooks, or state variables
+- DTOs, backend fields, or API implementation details
+- Code snippets or framework-specific logic
+- Exact frontend/backend implementation strategies
+- Exact test files or test-framework internals
+
+**Product implementation notes are non-binding.** Product may inspect technical evidence when necessary, but any technical observations Product makes are non-binding evidence — not an implementation plan. Execution agents must inspect the code and choose the smallest safe implementation.
+
+**Rule:** Product defines what the user should experience, not how the code must implement it.
+
 **Correct wording example:**  
 ✅ "The game should survive browser restart in the same browser."  
 ❌ "Use localStorage to persist game state across browser restarts."
+
+**Correct wording example:**  
+✅ "'🎯 Your Turn — Fire!' means the player can fire now. Hide it after firing and show it again only when the player can fire again."  
+❌ "Update `TurnIndicator.tsx`, pass the `firing` prop from `Game.tsx`, and inspect `currentTurnPlayerId`."
 
 **Product acceptance criteria must describe user-observable behavior only.**  
 Criteria like "All tests pass", "npm run build passes", "Code Review APPROVED", "Full E2E is required"
