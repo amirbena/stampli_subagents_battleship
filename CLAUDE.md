@@ -181,6 +181,26 @@ If production code changed after the last review, a delta or full re-review is r
 
 When `code-review-agent` returns `REQUIRES_CHANGES`, Team Lead stops the release flow, reads the failure category and required owner from the structured output, routes the fix to the relevant agent, and re-runs code review after correction. No Code Review bypass is allowed. See `.claude/skills/team-lead/SKILL.md` Step 9 for the full routing table.
 
+## Governance Findings Queue
+
+Agents may discover governance gaps (missing policy, missing ownership, routing friction, validation inconsistency) during execution. These must not be silently ignored or fixed inline as part of a business delivery run.
+
+**During execution:**
+- Any agent that discovers a governance gap emits a structured Governance Finding using `.claude/templates/governance-finding-template.md`.
+- Findings are appended to `reports/runs/<id>/governance-findings-queue.md` by Team Lead.
+- Shared governance files (`CLAUDE.md`, `.claude/policies/`, `.claude/templates/`, other agents' SKILL.md) must NOT be modified during a business delivery run.
+- Business delivery continues uninterrupted. Governance findings are advisory.
+
+**Self-improvement exception:** an agent may improve its own SKILL.md, own reporting format, or own internal execution patterns only when that file is not shared with or read by other agents.
+
+**After the business PR is created (Step 14.5):**
+- Team Lead reads the queue and assigns each finding a disposition: `Ignored`, `Backlog`, `Governance Task`, or `Governance Draft PR`.
+- High/Critical findings with a clear scope result in a new `governance/<slug>` branch and a Draft PR opened independently from the business PR.
+- Governance Draft PRs are never merged as part of the business delivery.
+
+See `.claude/policies/governance-findings-policy.md` for the full rules, finding format, disposition table, and Draft PR procedure.
+See `.claude/templates/governance-finding-template.md` for the GF-XXX finding format.
+
 ## Artifact and Gitignore Compliance
 
 `reports/` is evidence, not truth. All files under `reports/` are local execution artifacts — never staged, committed, or pushed.

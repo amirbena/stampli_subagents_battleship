@@ -20,6 +20,7 @@ Team Lead remains the orchestrator.
 | Policy | Purpose | Primary loader |
 |---|---|---|
 | `agent-communication-policy.md` | Strict tree topology — prohibits SendMessage, run_in_background, and lateral peer contact for all execution agents | All execution agents (Team Lead Contract) |
+| `governance-findings-policy.md` | Rules for emitting governance findings during execution without modifying shared governance; Team Lead collection, disposition table, self-improvement exception, and Governance Draft PR opening rules | Team Lead (Step 6, Step 14.5), all execution agents |
 | `background-agent-policy.md` | Governs Team Lead's use of run_in_background — result-collection rule, no gate advance while background outstanding | Team Lead (Step 6) |
 | `dependency-addition-policy.md` | Governs dependency changes in `package.json` and `pom.xml`: visibility, reporting, validation, Team Lead authorization, Architecture/Security escalation triggers, and lockfile rules | java-backend-agent, frontend-ui-agent, frontend-api-agent, Team Lead (Dependency Policy), security-agent |
 | `documentation-parity-policy.md` | Change-trigger matrix for keeping agent tables, file-ownership, routes, and policy README in sync | Team Lead (Step 0.5 and Step 14) |
