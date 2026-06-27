@@ -424,6 +424,16 @@ Reason: <one sentence>
 
 Load `.claude/policies/background-agent-policy.md` before using `run_in_background` on any agent invocation. If any agent is spawned with `run_in_background: true`, record the agent name and expected output path in `team-lead-plan.md`. No gate may be marked complete while a background agent result is outstanding — collect and confirm every background result before advancing.
 
+> **Wakeup vs. task-notification:** Harness-tracked background agents (those
+> spawned via the `Agent` tool with `run_in_background: true`) emit a
+> `task-notification` on completion and re-invoke Team Lead automatically.
+> Do not call `ScheduleWakeup` for these agents — it creates a redundant
+> second re-entry path and may trigger duplicate workflow activity.
+> Do not ask the user to manually wake the workflow for harness-tracked
+> background agents. Reserve `ScheduleWakeup` for work the harness cannot
+> track: CI runs, deployments, remote APIs, external queues, or shell
+> subprocesses started with `&` (e.g. the E2E warmup in `e2e-warmup.md`).
+
 Assign only agents listed in `team-lead-plan.md`. Each agent runs with:
 - Current workflow-run-id
 - Their specific assignment

@@ -39,3 +39,34 @@ instructions or data to any agent, and must not be used to contact a peer agent.
 If Team Lead cannot safely proceed without a background agent's result:
 pause the current gate → wait for completion → validate result → resume.
 Do not advance gates optimistically.
+
+## Completion signal — task-notification vs. ScheduleWakeup
+
+When Team Lead spawns an agent with `run_in_background: true`, the harness
+tracks it and emits a `task-notification` when the agent completes. Team Lead
+is re-invoked automatically — no polling and no `ScheduleWakeup` call is
+needed.
+
+**Rules:**
+
+- Do not call `ScheduleWakeup` while waiting for a harness-tracked background
+  agent. The `task-notification` is the correct and sufficient completion signal.
+- Do not ask the user to manually wake the workflow for harness-tracked
+  background agents. Manual user wakeup is a failure mode, not the intended
+  coordination mechanism.
+- `ScheduleWakeup` is only appropriate for work the harness cannot track:
+  CI pipelines, deployments, remote APIs, external queues, or long-running
+  shell subprocesses launched with `&` (such as the E2E backend warmup in
+  `e2e-warmup.md`).
+
+**Intended flows:**
+
+```
+Harness-tracked work:
+  Team Lead → run_in_background agent → harness tracks → task-notification
+  → Team Lead resumes automatically
+
+External / non-harness work:
+  Team Lead → CI / deploy / shell subprocess / remote API
+  → harness cannot track → ScheduleWakeup or shell poll loop is appropriate
+```
