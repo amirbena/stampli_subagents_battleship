@@ -148,3 +148,34 @@ If `backend-contract-changed: yes`, confirm types/game.ts matches the locked arc
 - `useGamePolling.ts` is the only file that contains polling logic.
 - Hooks do not import from `components/` or `pages/`.
 - `types/game.ts` mirrors backend DTOs exactly — no client-only fields mixed in.
+
+---
+
+## npm Dependency Governance
+
+**Default: do not add npm packages.**
+
+Do not run `npm install <package-name>` to add a new dependency.
+
+If a package appears necessary:
+
+1. **Stop** — do not install.
+2. **Report to Team Lead** with:
+   - Package name (and version if known)
+   - Reason existing dependencies are insufficient
+   - Alternatives considered
+   - Whether Architecture or Security review may be required
+3. **Wait** for explicit Team Lead authorization before modifying `package.json`.
+
+Never stage `package-lock.json`.
+
+### Dependency validation (required after authorized change)
+
+After Team Lead authorizes a `package.json` change, run in order:
+
+1. `npm install` — verify dependency resolution succeeds without errors
+2. `npm audit` — record findings by severity; include full summary in execution report
+
+Include the `## Dependency Report` block (load `.claude/templates/dependency-report-template.md`) in the execution report. Do not omit even when no findings are present.
+
+Load `.claude/policies/dependency-addition-policy.md` for full governance, escalation, and reporting rules.

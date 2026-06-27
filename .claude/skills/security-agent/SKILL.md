@@ -109,6 +109,28 @@ Every finding must include:
 
 Only Critical findings block PR. High/Medium/Low findings should be documented. Team Lead decides whether to fix or document them.
 
+## Dependency Security Review
+
+Team Lead may invoke this agent to review a dependency change when any of the following applies:
+- A new production-scoped dependency was added
+- A major version upgrade was authorized
+- Dependency validation (`npm audit` / OWASP check) reported findings
+- Team Lead identified elevated risk
+
+When invoked for dependency review, this agent acts as an independent verification layer:
+
+1. Read the `## Dependency Report` block from the implementing agent's execution report.
+2. Run available dependency security tooling if not already run by the implementing agent:
+   - `npm audit` (frontend) — record findings by severity
+   - `./mvnw org.owasp:dependency-check-maven:check` (backend) — only if plugin is already configured
+3. Perform a dependency sanity review: is the dependency from a maintained, reputable source? Is the scope appropriate?
+4. Verify the validation results the implementing agent reported are consistent with what this agent observes.
+5. Include dependency findings in `security-report.md` using the standard finding format.
+
+If findings are present, return them to Team Lead with owner routing. Team Lead routes remediation to the implementing agent and tracks resolution.
+
+If Team Lead indicated Security review should reuse an already-running review pass (dependency change falls within existing scope), incorporate the dependency check into that pass rather than producing a separate report.
+
 ## Delta Mode
 
 When Team Lead invokes this agent with `Review Mode: delta`, review only the files listed in `Delta Changed Files` (the diff between `Delta Base SHA` and HEAD) for security-sensitive changes. For any change touching identity, session, auth, hidden-data boundary, or input sanitization — always run a targeted re-review even if the change is labeled Small.
