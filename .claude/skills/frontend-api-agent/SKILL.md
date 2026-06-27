@@ -167,4 +167,15 @@ If a package appears necessary:
    - Whether Architecture or Security review may be required
 3. **Wait** for explicit Team Lead authorization before modifying `package.json`.
 
-Never stage `package-lock.json`. Load `.claude/policies/dependency-addition-policy.md` for full governance rules.
+Never stage `package-lock.json`.
+
+### Dependency validation (required after authorized change)
+
+After Team Lead authorizes a `package.json` change, run in order:
+
+1. `npm install` — verify dependency resolution succeeds without errors
+2. `npm audit` — record findings by severity; include full summary in execution report
+
+Include the `## Dependency Report` block (load `.claude/templates/dependency-report-template.md`) in the execution report. Do not omit even when no findings are present.
+
+Load `.claude/policies/dependency-addition-policy.md` for full governance, escalation, and reporting rules.

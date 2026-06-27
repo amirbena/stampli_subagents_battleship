@@ -23,6 +23,7 @@ agents:
     owns:
       - apps/backend/src/main/java/
       - apps/backend/src/test/**/*Test.java  # unit tests only — NOT *IntegrationTest.java
+      - apps/backend/pom.xml  # implementation owner; Team Lead authorization required before changes
 
   backend-integration-tests-agent:
     owns:
@@ -42,6 +43,7 @@ agents:
       - apps/frontend/src/styles/
       - apps/frontend/src/main.tsx
       - apps/frontend/src/**/*.css
+      - apps/frontend/public/  # render-layer assets (images, audio, fonts); see asset ownership model in SKILL.md
 
   infrastructure-agent:
     owns:
@@ -74,8 +76,8 @@ agents:
 
 shared_files:
   - README.md
-  - package.json
-  - package-lock.json
+  - package.json  # Team Lead authorization required before changes; see dependency-addition-policy.md
+  - package-lock.json  # local-only; never staged or committed
   - pnpm-lock.yaml
   - yarn.lock
   - docker-compose.yml

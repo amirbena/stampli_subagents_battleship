@@ -1109,9 +1109,21 @@ Team Lead decides shared file edits autonomously and records every shared file c
 
 ## Dependency Policy
 
-Default: do not add dependencies. Prefer native implementation and existing dependencies. Any new dependency must be documented in PR summary with reason, risk, and alternatives considered.
+Default: prefer existing dependencies and platform capabilities. Dependency changes are allowed when justified — the goal is visibility, reporting, validation, and risk-based review.
 
-When a requirement or agent response implies adding or updating a dependency (frontend `package.json` or backend `pom.xml`), load `.claude/policies/dependency-addition-policy.md` before authorizing or rejecting. The policy defines Architecture Review and Security Review trigger conditions, lockfile rules, and enforcement points.
+When a requirement or agent response implies adding, removing, or updating a dependency (frontend `package.json` or backend `pom.xml`), load `.claude/policies/dependency-addition-policy.md` before authorizing or rejecting. The policy defines Architecture Review and Security Review trigger conditions, validation requirements, lockfile rules, and enforcement points.
+
+### Team Lead Dependency Review Workflow
+
+When an agent reports a dependency change or submits an execution report containing a `## Dependency Report` block:
+
+1. Read the `## Dependency Report` block — manifest changed, dependencies added/removed/updated, validation tool used, and findings.
+2. Record the change under `## Dependency Changes` in `reports/runs/<workflow-run-id>/team-lead-plan.md`.
+3. Apply Architecture escalation triggers (see policy). If triggered, route to Architecture Agent before authorizing.
+4. Apply Security escalation triggers (see policy). Decide: reuse existing Security review (if it naturally covers the change) or trigger an additional Security pass.
+5. Include the dependency change in the final PR summary with validation result summary and reviews performed.
+
+Dependency changes must be visible in Team Lead decision records and the PR summary. No change may be silently authorized.
 
 ---
 

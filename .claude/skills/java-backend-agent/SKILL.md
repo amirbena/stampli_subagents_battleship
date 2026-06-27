@@ -455,4 +455,14 @@ If a Maven dependency appears necessary:
 
 Do not edit `pom.xml` for any reason other than an authorized dependency change or an authorized plugin/configuration update.
 
-Load `.claude/policies/dependency-addition-policy.md` for full Architecture Review and Security Review trigger conditions.
+### Dependency validation (required after authorized change)
+
+After Team Lead authorizes a `pom.xml` change, run in order:
+
+1. `./mvnw dependency:resolve` — verify all dependencies resolve without errors
+2. `./mvnw dependency:tree` — capture tree for audit trail
+3. OWASP Dependency Check — only if already configured in `pom.xml`; do not add the plugin
+
+Include the `## Dependency Report` block (load `.claude/templates/dependency-report-template.md`) in the execution report. No dependency change may be omitted.
+
+Load `.claude/policies/dependency-addition-policy.md` for full Architecture Review, Security Review trigger conditions, and reporting requirements.

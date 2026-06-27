@@ -60,6 +60,21 @@ If infra change appears required: route to infrastructure-agent only if explicit
 
 ## QA Plan
 
+## Dependency Changes
+
+Dependency changes detected: Yes / No
+
+If Yes — complete this section; otherwise write "No dependency changes in this run."
+
+| Manifest | Change Type | Package / Artifact | Version | Scope | Reason |
+|---|---|---|---|---|---|
+| `package.json` / `pom.xml` | Added / Removed / Updated | `example-lib` | `1.2.3` | `dependencies` / `compile` | ... |
+
+Validation results received: Yes / No
+Architecture escalation required: Yes / No — reason:
+Security escalation required: Yes / No — reason:
+Security reuse decision: Reuse existing / Trigger additional / Not required
+
 ## Security Review Required
 
 Yes/No and reason.
