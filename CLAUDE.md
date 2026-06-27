@@ -133,9 +133,11 @@ See `.claude/policies/requirement-similarity-policy.md` for full signal definiti
 
 ## Requirement Intent Classification
 
-Before applying fast-path triggers, Team Lead classifies every requirement as a **WHAT-change** (new or extended behavior), a **DevEx WHAT-change** (new behavior but audience is exclusively developers — local scripts, `.run/*`, Docker local-dev, CI, dev-only health checks, local-dev docs, repo/agent governance; routes to Trigger 5 fast-path, Product skipped, Architecture preserved), or a **HOW-change** (same outcome, different mechanism → refactor candidate with scope-specific routing). The word "refactor" may not appear in the requirement — intent is inferred from what changes for users and the API surface.
+Before applying fast-path triggers, Team Lead classifies every requirement as a **WHAT-change** (new or extended behavior), a **DevEx WHAT-change** (new behavior but audience is exclusively developers — local scripts, `.run/*`, Docker local-dev, CI, dev-only health checks, local-dev docs, repo/agent governance; routes to Trigger 5 fast-path, Product skipped, Architecture preserved), a **HOW-change** (same outcome, different mechanism → refactor candidate with scope-specific routing), or a **Governance Change** (factory governance artifacts only — policies, ownership tables, agent SKILL.md contracts, CLAUDE.md, reporting templates; routes to Trigger 6 non-delivery path; Product skipped, Architecture skipped by default, delivery agents skipped; branch + commit + PR still required). The word "refactor" may not appear in the requirement — intent is inferred from what changes for users and the API surface.
 
-See `.claude/policies/requirement-intent-classification-policy.md` for signal phrases, DevEx sub-type conditions, refactor scope table (test-only / single-layer / cross-layer / domain-model / full-flow), contract-change escalation rules, and the required `Intent Classification` block in `team-lead-classification.md`.
+When a requirement is ambiguous between Governance Change and delivery work, default to the standard delivery path. The cost of running the full factory on a governance task is wasted agent time; the cost of misrouting a delivery requirement as governance is a PR that bypassed Product and Architecture.
+
+See `.claude/policies/requirement-intent-classification-policy.md` for signal phrases, Governance Change sub-conditions, DevEx sub-type conditions, refactor scope table (test-only / single-layer / cross-layer / domain-model / full-flow), contract-change escalation rules, and the required `Intent Classification` block in `team-lead-classification.md`.
 
 ## File Ownership Rule
 Agents must not edit files outside their ownership domain without explicit Team Lead approval.
@@ -192,6 +194,8 @@ When `code-review-agent` returns `REQUIRES_CHANGES`, Team Lead stops the release
 See `.claude/policies/reports-and-artifacts-policy.md` and `.claude/policies/gitignore-compliance-policy.md`.
 
 ## Quality Gates (all required before PR, run in this order)
+
+**Delivery path (standard / DevEx / HOW / fast-path Triggers 1–5):**
 - [ ] No `reports/**` or gitignored files are staged (enforced by `release-pr-agent` pre-commit gate and `code-review-agent` checklist)
 - [ ] `./mvnw test` passes (backend unit tests — if backend touched)
 - [ ] `npm run test` + `npm run build` pass (frontend — if frontend touched): single-agent path: running agent owns gate; split path: Team Lead runs once after both agents finish
@@ -202,6 +206,14 @@ See `.claude/policies/reports-and-artifacts-policy.md` and `.claude/policies/git
 - [ ] `reports/runs/<id>/code-review-report.md` verdict: APPROVED
 - [ ] `README.md` documents how to run the full app
 - [ ] `reports/runs/<id>/release-summary.md` exists
+
+**Governance Change path (Trigger 6 / Non-Delivery Change):**
+- [ ] No `reports/**` or gitignored files are staged
+- [ ] Changed-file ownership check: every file in the diff is within the governance artifact boundary (`.claude/**`, `CLAUDE.md`, governance READMEs); any application file in the diff stops the run and reclassifies to standard delivery path
+- [ ] Documentation parity check: `documentation-parity-policy.md` loaded and parity impact recorded
+- [ ] `reports/runs/<id>/code-review-report.md` verdict: APPROVED (lightweight governance review)
+- [ ] `reports/runs/<id>/release-summary.md` exists
+- [ ] Runtime gates (tests, build, E2E, security review) are NOT required unless the change incidentally touches application files (which would trigger reclassification)
 
 ## Release Strategy
 All PRs are opened via **GitHub CLI (`gh`)** — not GitHub MCP.

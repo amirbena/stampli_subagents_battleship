@@ -52,11 +52,11 @@ If evidence is missing, write `Evidence not found.` Do not invent files, scripts
 
 **Documentation parity check:** If this requirement modifies any file under `.claude/skills/`, `.claude/policies/`, `.claude/metadata/`, `.claude/templates/`, `CLAUDE.md`, or changes agent ownership, a route, an execution mode, or a quality gate — load `.claude/policies/documentation-parity-policy.md` and identify which documentation must be updated in this run. Record required updates and their severity in `reports/runs/<workflow-run-id>/team-lead-classification.md` under `## Documentation Parity Impact`. Skip this check (and record "No parity impact") for application-only changes.
 
-**First: classify the requirement intent.** Load `.claude/policies/requirement-intent-classification-policy.md` to determine whether the requirement is a WHAT-change (new behavior → standard path) or HOW-change (same outcome, different mechanism → refactor candidate). Record the intent classification in `team-lead-classification.md` before applying fast-path triggers. A HOW-change that also changes an API contract must still run Architecture Agent — scope classification does not bypass contract-change gates.
+**First: classify the requirement intent.** Load `.claude/policies/requirement-intent-classification-policy.md` to determine whether the requirement is a WHAT-change (new behavior → standard path), HOW-change (same outcome, different mechanism → refactor candidate), or **Governance Change** (factory governance artifacts only → non-delivery path, Trigger 6 below). Record the intent classification in `team-lead-classification.md` before applying fast-path triggers. A HOW-change that also changes an API contract must still run Architecture Agent — scope classification does not bypass contract-change gates. A Governance Change that touches cross-agent contracts or routing invariants must still invoke limited Architecture review for governance consistency.
 
 Read `reports/runs/<workflow-run-id>/requirements.md`. Evaluate whether the requirement is **infra-only or docs-only** using the checklist below. This pre-classification takes ~30 s and can save ~1.5 min by eliminating the product-agent entirely on routes where it adds no value.
 
-### Fast-path triggers — skip Product only when the change fits exactly one of these five categories
+### Fast-path triggers — skip Product (and optionally Architecture) when the change fits one of these six categories
 
 1. **Pure infra** — change is limited to infrastructure concerns: Dockerfile, docker-compose files,
    shell scripts (.sh), CI config, developer tooling, OR documentation (README, ARCHITECTURE.md, etc.)
@@ -100,7 +100,63 @@ Read `reports/runs/<workflow-run-id>/requirements.md`. Evaluate whether the requ
    still runs when the change introduces a new endpoint, route, shared contract, system boundary
    decision, or cross-platform local-dev contract. The only thing Trigger 5 skips is Product Agent.
 
-If the change does not clearly and completely fit one of the five categories → standard path. Spawn product-agent.
+6. **Governance Change / Non-Delivery repository change** — the requirement modifies only factory
+   governance artifacts and does not change any product, runtime, API, or user-facing behavior.
+   ALL five sub-conditions must be true; if any is uncertain → standard delivery path.
+
+   - Changed files are exclusively governance artifacts: `.claude/policies/**`, `.claude/metadata/**`,
+     `.claude/templates/**`, `.claude/runbooks/**`, agent `SKILL.md` files, `CLAUDE.md`, governance
+     README files, ownership documentation, reporting templates.
+   - No application runtime code changes — nothing under `apps/backend/src/`, `apps/frontend/src/`,
+     or application test directories is modified.
+   - No product behavior changes — nothing a player sees or experiences in the application is affected.
+   - No API contract changes — no request/response fields, status codes, or endpoint paths change.
+   - No runtime behavior changes — no server, API endpoint, frontend component, or database interaction
+     is altered by this change.
+
+   **When Trigger 6 applies:**
+   - Product Agent: skipped entirely.
+   - Architecture Agent: skipped by default. Required (limited scope, governance consistency only,
+     no AC-to-Test Coverage Matrix) when the change affects cross-agent contracts, routing invariants,
+     delivery-path semantics, or the file ownership model for a system boundary.
+   - Delivery agents (java-backend-agent, frontend-api-agent, frontend-ui-agent, playwright-e2e-agent,
+     backend-integration-tests-agent): all skipped.
+   - Infrastructure Agent: skipped unless the change modifies infrastructure governance documentation
+     that the Infrastructure Agent owns.
+   - Security Agent: skipped unless the change modifies security-relevant governance (e.g. data
+     visibility policies, auth governance documentation).
+   - Code Review Agent: **required** — lightweight governance review, not runtime safety review.
+   - Direct execution by Team Lead or a single general-purpose agent is permitted.
+
+   **Gate rules for Trigger 6 (Non-Delivery Change PR):**
+
+   Do NOT require:
+   - Backend unit tests
+   - Frontend build or unit tests
+   - E2E (Smoke or Full)
+   - AC-to-Test Coverage Matrix
+   - Product spec
+   - Architecture document
+
+   DO require:
+   - Git safety (branch safety gate, no dirty main, standard branch naming)
+   - Documentation parity check (always — governance changes are the primary source of parity debt)
+   - Changed-file ownership check (confirm changed files are within the governance artifact boundary;
+     if any application file is in the diff, stop and reclassify to the standard delivery path)
+   - Lightweight governance/code review (`code-review-agent` or inline Team Lead review)
+   - PR summary written to `reports/runs/<workflow-run-id>/release-summary.md`
+   - Lock closed as `"status": "complete"` on PR open
+
+   **Branch and PR:** standard branch naming (`governance/<slug>`), standard commit hygiene, PR opened
+   via `gh pr create`. PR description must include: what governance artifact(s) changed, why, and
+   which downstream workflows are affected by the change.
+
+   **Misclassification guard:** Before executing, Team Lead must confirm that no file in the planned
+   changeset falls outside the governance artifact boundary defined above. If a runtime code file
+   would be changed to implement the governance update, stop and reclassify to the standard delivery
+   path. Governance changes must not silently become delivery changes.
+
+If the change does not clearly and completely fit one of the six categories → standard path. Spawn product-agent.
 
 ### If ALL triggers are met → run UX Interaction Risk Check before applying fast-path
 
@@ -152,6 +208,8 @@ After Product Agent finishes, read `reports/runs/<workflow-run-id>/product-spec.
 
 Skip this step only when **full fast-path applied and Product was fully skipped** (no UX interaction risk was found in Step 0.5). Do not skip when Product Light Mode ran — Product Light still writes `product-spec.md` and Team Lead must read it.
 
+**Governance Change (Trigger 6) path:** Skip this step entirely. Product Agent was not invoked; `product-spec.md` does not exist for this run. Proceed directly to Step 1b.
+
 ---
 
 ## Step 1b — Scope Validation
@@ -170,7 +228,7 @@ Fast-Path Reason: <all triggers met / trigger X absent>
 
 | Agent | Required? | Reason |
 |-------|-----------|--------|
-| product-agent | Yes — full / Yes — light mode (UX clarification only) / No — skipped (fast-path Trigger 1–4) / No — skipped (fast-path Trigger 5 DevEx) | ... |
+| product-agent | Yes — full / Yes — light mode (UX clarification only) / No — skipped (fast-path Trigger 1–4) / No — skipped (fast-path Trigger 5 DevEx) / No — skipped (Trigger 6 Governance Change) | ... |
 | java-backend-agent | Yes / No | ... |
 | frontend-api-agent | Yes / No | owns api/, hooks/, types/ |
 | frontend-ui-agent | Yes / No | owns components/, pages/, utils/, CSS |
@@ -182,7 +240,7 @@ Fast-Path Reason: <all triggers met / trigger X absent>
 
 ### Scope Classification
 
-Change is: backend-only / frontend-only / full-stack / docs-only / config-only
+Change is: backend-only / frontend-only / full-stack / docs-only / config-only / governance-only
 
 ### Architecture Review Required: Yes / No
 Reason:
@@ -214,6 +272,7 @@ Classify the requirement immediately after reading Product Spec. Load `.claude/t
 ### Decision Rules
 
 ```
+Governance Change (Trigger 6 applied)  -> governance-only route; no delivery agents; PR required
 Docs-only                              -> no Architecture, cheap
 UI-only / copy / color / sound / simple popup -> no Architecture, cheap
 Java backend behavior changed          -> java-backend-only or backend-and-frontend
