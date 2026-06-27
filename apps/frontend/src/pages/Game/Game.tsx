@@ -22,7 +22,7 @@ import {
   COMPUTER_PLAYING_HOLD_MS,
   YOUR_TURN_AGAIN_MS,
 } from '../../utils/turnTiming';
-import type { ShotResult, ShipType, CellState, Coordinate } from '../../types/game';
+import type { ShotResult, ShipType, CellState } from '../../types/game';
 import './Game.css';
 
 export function Game(): React.ReactElement {
@@ -40,8 +40,6 @@ export function Game(): React.ReactElement {
   const [firing, setFiring] = useState(false);
   // True while a Pause/Stop request is in flight, so the session controls disable.
   const [sessionBusy, setSessionBusy] = useState(false);
-  // The cell the player just fired at, shown as a pending shot until the result arrives.
-  const [pendingShot, setPendingShot] = useState<Coordinate | null>(null);
   const [lastResult, setLastResult] = useState<ShotResult | null>(null);
   const [lastSunkShip, setLastSunkShip] = useState<ShipType | null>(null);
   // Optimistic overlay for computer's shot on my board before next poll
@@ -224,7 +222,6 @@ export function Game(): React.ReactElement {
     // Accepted shot — give immediate feedback as a direct result of the gesture.
     playShotSound();
     setError(null);
-    setPendingShot({ row, col });
     setFiring(true);
     void submitShot(row, col);
   };
@@ -238,16 +235,10 @@ export function Game(): React.ReactElement {
       setLastResult(res.result);
       setLastSunkShip(res.sunkShipType);
 
-      // AC-7/AC-8/AC-9: the player's OWN shot result must land immediately — both the
-      // hit/miss/sunk feedback (set above) AND the authoritative board marker on the
-      // fired cell. Pull the authoritative board right now, BEFORE any "Computer is
-      // playing" pacing delay, so the player's own marker is never gated behind the
-      // computer-reveal window. The intentional delay below applies ONLY to revealing
-      // the computer's shot. The opponent-board pending overlay is also released here
-      // (pendingShot cleared) so the fired cell upgrades from 'pending' to its real
-      // hit/miss/sunk state in the same beat as the click.
+      // AC-7/AC-8/AC-9: pull the authoritative board immediately after the player's
+      // own shot resolves — BEFORE any "Computer is playing" pacing delay. The delay
+      // applies only to revealing the computer's response shot.
       setFiring(false);
-      setPendingShot(null);
       await refresh();
       if (!mountedRef.current) return;
 
@@ -294,10 +285,8 @@ export function Game(): React.ReactElement {
       // Never leave the player stuck in a "Computer is playing" lock on failure.
       setComputerPlaying(false);
     } finally {
-      // Always clear pending + unlock the board, even on failure, so the
-      // indicator never sticks and the player can fire again.
+      // Always unlock the board on failure so the player can fire again.
       setFiring(false);
-      setPendingShot(null);
     }
   };
 
@@ -311,15 +300,8 @@ export function Game(): React.ReactElement {
         ),
       )
     : myBoardCellsBase;
-  // Overlay the pending shot onto the opponent board so the target cell shows a
-  // loading state immediately, before the backend result replaces it.
-  const opponentBoardCellsWithPending = opponentBoardCells && pendingShot
-    ? opponentBoardCells.map((rowArr, r) =>
-        rowArr.map((cell, c) =>
-          r === pendingShot.row && c === pendingShot.col ? 'pending' : cell,
-        ),
-      )
-    : opponentBoardCells;
+  // No per-cell pending overlay: fired cells resolve directly to hit/miss/sunk
+  // once the backend responds. The firing guard still prevents duplicate shots.
   const opponentSunkTypes = gameState ? getSunkShipTypes(gameState.opponentBoard) : [];
 
   if (isLoading && !gameState) {
@@ -370,9 +352,9 @@ export function Game(): React.ReactElement {
 
       <div className="game-layout">
         <div className="game-boards">
-          {opponentBoardCellsWithPending && (
+          {opponentBoardCells && (
             <GameBoard
-              cells={opponentBoardCellsWithPending}
+              cells={opponentBoardCells}
               onCellClick={handleFireShot}
               interactive={isMyTurn && !firing && !computerPlaying}
               label="Enemy Waters"

@@ -92,7 +92,9 @@ afterEach(() => {
 });
 
 describe('Game — shot responsiveness', () => {
-  it('marks the target cell pending immediately on fire (AC1)', async () => {
+  it('does NOT overlay a pending state on the target cell while in-flight (AC-3)', async () => {
+    // The per-cell spinner/pending overlay was removed. The cell stays empty while the
+    // shot is in-flight; it resolves directly to hit/miss/sunk when the result lands.
     const user = userEvent.setup();
     let resolveFire: (v: FireShotResponse) => void = () => {};
     fireShotMock.mockReturnValue(new Promise<FireShotResponse>((r) => { resolveFire = r; }));
@@ -100,7 +102,9 @@ describe('Game — shot responsiveness', () => {
     renderGame();
     await user.click(within(enemyBoard()).getByLabelText('Row 1 Col 1: empty'));
 
-    expect(within(enemyBoard()).getByLabelText('Row 1 Col 1: pending')).toBeInTheDocument();
+    // The cell must NOT show a pending state — it remains empty until the result lands.
+    expect(within(enemyBoard()).queryByLabelText('Row 1 Col 1: pending')).toBeNull();
+    expect(within(enemyBoard()).getByLabelText('Row 1 Col 1: empty')).toBeInTheDocument();
     await act(async () => { resolveFire(HIT_RESULT); });
   });
 
