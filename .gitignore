@@ -1,6 +1,9 @@
 # Pipeline reports — generated artifacts, not source code
 reports/
 
+# Presentation workspace — local-only generated material, never staged or committed
+presentation/
+
 # Dependency lockfiles — local-only, never committed
 package-lock.json
 **/package-lock.json
