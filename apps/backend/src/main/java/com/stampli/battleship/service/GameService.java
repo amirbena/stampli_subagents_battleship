@@ -8,7 +8,9 @@ import com.stampli.battleship.repository.PlayerRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -31,6 +33,8 @@ public class GameService {
     private final PlayerRepository playerRepository;
     private final MoveRepository moveRepository;
     private final ComputerMoveDelay computerMoveDelay;
+    // Cryptographically strong source for per-seat session tokens (belonging secrets).
+    private final SecureRandom secureRandom = new SecureRandom();
 
     public GameService(GameRepository gameRepository,
                        PlacementValidationService placementValidationService,
@@ -84,19 +88,24 @@ public class GameService {
         String gameId = generateGameId();
         String resolvedPlayerId = resolvePlayerId(playerId);
 
-        Player playerA = new Player(resolvedPlayerId, gameId);
+        // Mint the creator's per-seat belonging secret ONCE here; it is returned exactly once
+        // in this response and never re-disclosed by any read endpoint.
+        String sessionToken = generateSessionToken();
+        Player playerA = new Player(resolvedPlayerId, gameId, sessionToken);
         Game game = new Game(gameId, playerA, mode);
 
         if (mode == GameMode.COMPUTER) {
             String computerId = "COMPUTER-" + UUID.randomUUID().toString();
-            Player computerPlayer = new Player(computerId, gameId);
+            // Computer seat carries no token — no browser ever authenticates as the computer.
+            Player computerPlayer = new Player(computerId, gameId, null);
             computerPlayerService.placeShipsRandomly(computerPlayer.getBoard());
             computerPlayer.confirmReady();
             game.addPlayerB(computerPlayer);
         }
 
         gameRepository.save(game);
-        return new CreateGameResponse(gameId, resolvedPlayerId, game.getStatus().name(), mode.name());
+        return new CreateGameResponse(gameId, resolvedPlayerId, game.getStatus().name(), mode.name(),
+                sessionToken);
     }
 
     /**
@@ -127,20 +136,22 @@ public class GameService {
         Game game = findGameOrThrow(gameId);
         // Synchronize to prevent two concurrent joins filling the same slot
         synchronized (game) {
-            if (game.getStatus() != GameStatus.WAITING_FOR_PLAYERS) {
-                if (game.getPlayerB() != null) {
-                    throw new GameException("Game is full", "GAME_FULL", HttpStatus.CONFLICT);
-                }
-                throw new GameException("Game has already started", "GAME_ALREADY_STARTED", HttpStatus.CONFLICT);
-            }
-            if (game.getPlayerB() != null) {
-                throw new GameException("Game is full", "GAME_FULL", HttpStatus.CONFLICT);
+            // Belonging contract: every non-admit case (COMPUTER game with no open seat / full /
+            // already started / second seat taken) collapses to the SAME generic 404 so no seat
+            // state, game type, or existence is leaked to a non-admit caller (AC-10, AC-11).
+            // COMPUTER games always have playerB pre-filled, so they fall through here too — a
+            // join is therefore never offered for COMPUTER games.
+            if (game.getStatus() != GameStatus.WAITING_FOR_PLAYERS || game.getPlayerB() != null) {
+                throw notJoinable();
             }
             String resolvedPlayerId = resolvePlayerId(playerId);
-            Player playerB = new Player(resolvedPlayerId, gameId);
+            // Mint the joiner's OWN per-seat secret — never Player A's. The joiner belongs as a
+            // brand-new, distinct identity; it can never inherit the creator's seat or token.
+            String sessionToken = generateSessionToken();
+            Player playerB = new Player(resolvedPlayerId, gameId, sessionToken);
             game.addPlayerB(playerB);
             gameRepository.save(game);
-            return new JoinGameResponse(gameId, resolvedPlayerId, game.getStatus().name());
+            return new JoinGameResponse(gameId, resolvedPlayerId, game.getStatus().name(), sessionToken);
         }
     }
 
@@ -180,10 +191,11 @@ public class GameService {
      * @throws GameException 409 if the game is in progress or finished
      * @throws GameException 400 if placement is out of bounds or overlaps another ship
      */
-    public PlaceShipResponse placeShip(String gameId, String playerId, ShipType shipType,
-                                       Coordinate anchor, Orientation orientation) {
+    public PlaceShipResponse placeShip(String gameId, String playerId, String sessionToken,
+                                       ShipType shipType, Coordinate anchor, Orientation orientation) {
         Game game = findGameOrThrow(gameId);
         synchronized (game) {
+            requireOwnership(game, playerId, sessionToken);
             // Allow placement in both WAITING_FOR_PLAYERS (Player A pre-places before opponent joins)
             // and PLACING_SHIPS (both players present). Block only once the game is underway.
             if (game.getStatus() == GameStatus.IN_PROGRESS || game.getStatus() == GameStatus.FINISHED) {
@@ -217,9 +229,10 @@ public class GameService {
      * @throws GameException 409 if the game is in progress or finished
      * @throws GameException 400 if the ship has not been placed yet
      */
-    public void removeShip(String gameId, String playerId, ShipType shipType) {
+    public void removeShip(String gameId, String playerId, String sessionToken, ShipType shipType) {
         Game game = findGameOrThrow(gameId);
         synchronized (game) {
+            requireOwnership(game, playerId, sessionToken);
             // Mirror placeShip policy: removal is allowed in pre-game phases so players can reposition.
             if (game.getStatus() == GameStatus.IN_PROGRESS || game.getStatus() == GameStatus.FINISHED) {
                 throw new GameException("Ships can only be removed before the game starts",
@@ -250,9 +263,10 @@ public class GameService {
      * @throws GameException 409 if game is not in PLACING_SHIPS phase or player is already ready
      * @throws GameException 400 if the player has not placed all 5 ships
      */
-    public ConfirmReadyResponse setReady(String gameId, String playerId) {
+    public ConfirmReadyResponse setReady(String gameId, String playerId, String sessionToken) {
         Game game = findGameOrThrow(gameId);
         synchronized (game) {
+            requireOwnership(game, playerId, sessionToken);
             if (game.getStatus() != GameStatus.PLACING_SHIPS) {
                 throw new GameException("Cannot confirm ready outside of PLACING_SHIPS phase",
                         "WRONG_PHASE", HttpStatus.CONFLICT);
@@ -299,10 +313,12 @@ public class GameService {
      * @throws GameException 409 if game is not IN_PROGRESS or it is not this player's turn
      * @throws GameException 400 if coordinate is out of bounds or already targeted
      */
-    public FireShotResponse fireShot(String gameId, String playerId, Coordinate coordinate) {
+    public FireShotResponse fireShot(String gameId, String playerId, String sessionToken,
+                                     Coordinate coordinate) {
         Game game = findGameOrThrow(gameId);
         // Synchronize on the Game to prevent two concurrent shots corrupting the same turn
         synchronized (game) {
+            requireOwnership(game, playerId, sessionToken);
             if (game.getStatus() != GameStatus.IN_PROGRESS) {
                 throw new GameException("Cannot fire outside of IN_PROGRESS phase",
                         "WRONG_PHASE", HttpStatus.CONFLICT);
@@ -461,9 +477,14 @@ public class GameService {
      * @return sanitised game state safe to deliver to the client
      * @throws GameException 404 if game not found, 403 if player is not in this game
      */
-    public GameStateResponse getGameState(String gameId, String playerId) {
+    public GameStateResponse getGameState(String gameId, String playerId, String sessionToken) {
         Game game = findGameOrThrow(gameId);
-        Player me = getPlayerOrThrow(game, playerId);
+        // SECURITY: the state read returns boards/turn. A non-owner must receive the SAME generic
+        // 404 as a missing game, so an outsider cannot confirm the game exists or whose turn it is.
+        if (!game.ownsSeat(playerId, sessionToken)) {
+            throw notFound();
+        }
+        Player me = game.getPlayer(playerId);
         Player opponent = game.getOpponent(playerId);
 
         BoardStateDto myBoardDto = buildMyBoardDto(me.getBoard());
@@ -502,18 +523,25 @@ public class GameService {
      * @return the session pointer for the resolved COMPUTER game
      * @throws GameException 404 GAME_NOT_FOUND if the game does not exist or is not a COMPUTER game
      */
-    public RestoreGameResponse restoreGame(String code) {
-        Game game = findGameOrThrow(code);
-        // Computer-only restore: a human game is reported as plain not-found so we do not
-        // disclose that a game with this code exists or what type it is.
-        if (game.getGameMode() != GameMode.COMPUTER) {
-            // Identical message to the missing-game path so the two 404s are indistinguishable.
-            throw new GameException("Game not found: " + code, "GAME_NOT_FOUND", HttpStatus.NOT_FOUND);
+    public RestoreGameResponse restoreGame(String code, String playerId, String sessionToken) {
+        Optional<Game> gameOpt = gameRepository.findById(code);
+        // Generic not-found for a missing game — never disclose existence to an unproven caller.
+        if (gameOpt.isEmpty()) {
+            throw notFound();
         }
-        // For a COMPUTER game the human is deterministically stored as playerA.
+        Game game = gameOpt.get();
+        // Belonging is required: the caller must already hold the seat's minted token. Missing
+        // game, terminal game, and any non-owning caller (incl. foreign browser, COMPUTER seat
+        // attempt, stolen playerId without token) all surface the SAME generic 404 — no identity,
+        // mode, status, or seat data leaks. Restore serves BOTH modes (Team Lead decision): once
+        // belonging is token-proven it only ever confirms the caller's own seat, never discovers one.
+        if (game.getStatus() == GameStatus.FINISHED || !game.ownsSeat(playerId, sessionToken)) {
+            throw notFound();
+        }
+        // The returned playerId is the caller's OWN proven id, echoed back — never discovered.
         return new RestoreGameResponse(
                 game.getId(),
-                game.getPlayerA().getId(),
+                playerId,
                 game.getGameMode().name(),
                 game.getStatus().name());
     }
@@ -531,11 +559,11 @@ public class GameService {
      * @throws GameException 403 PLAYER_NOT_IN_GAME if the caller is not a participant
      * @throws GameException 409 WRONG_PHASE if the game is already PAUSED or FINISHED
      */
-    public PauseResumeResponse pauseGame(String gameId, String playerId) {
+    public PauseResumeResponse pauseGame(String gameId, String playerId, String sessionToken) {
         Game game = findGameOrThrow(gameId);
         // Synchronize so a pause cannot race a concurrent shot/join on the same game
         synchronized (game) {
-            getPlayerOrThrow(game, playerId);
+            requireOwnership(game, playerId, sessionToken);
             GameStatus previous = game.getStatus();
             try {
                 game.pause();
@@ -558,10 +586,10 @@ public class GameService {
      * @throws GameException 403 PLAYER_NOT_IN_GAME if the caller is not a participant
      * @throws GameException 409 WRONG_PHASE if the game is not currently PAUSED
      */
-    public PauseResumeResponse resumeGame(String gameId, String playerId) {
+    public PauseResumeResponse resumeGame(String gameId, String playerId, String sessionToken) {
         Game game = findGameOrThrow(gameId);
         synchronized (game) {
-            getPlayerOrThrow(game, playerId);
+            requireOwnership(game, playerId, sessionToken);
             try {
                 game.resume();
             } catch (IllegalStateException e) {
@@ -584,7 +612,7 @@ public class GameService {
      * @param playerId the requesting participant
      * @throws GameException 403 PLAYER_NOT_IN_GAME if the game exists but the caller is not a participant
      */
-    public void stopGame(String gameId, String playerId) {
+    public void stopGame(String gameId, String playerId, String sessionToken) {
         Optional<Game> gameOpt = gameRepository.findById(gameId);
         // Idempotent: a missing game is already stopped — no error, no-op
         if (gameOpt.isEmpty()) {
@@ -592,8 +620,9 @@ public class GameService {
         }
         Game game = gameOpt.get();
         synchronized (game) {
-            // Ownership is enforced only while the game still exists
-            getPlayerOrThrow(game, playerId);
+            // Belonging is enforced only while the game still exists; stop stays idempotent for
+            // the rightful owner but a non-owner (bad/absent token) is rejected with 403.
+            requireOwnership(game, playerId, sessionToken);
             gameRepository.delete(gameId);
         }
     }
@@ -606,6 +635,40 @@ public class GameService {
         return gameRepository.findById(gameId)
                 .orElseThrow(() -> new GameException("Game not found: " + gameId,
                         "GAME_NOT_FOUND", HttpStatus.NOT_FOUND));
+    }
+
+    /**
+     * Enforces seat belonging before any membership/turn/phase logic on an authenticated action.
+     * A stolen or guessed {@code playerId} without the matching per-seat token is rejected with
+     * {@code 403 NOT_AUTHORIZED}, exposing no board, turn, or hidden-ship data.
+     *
+     * @throws GameException 403 NOT_AUTHORIZED if the caller does not own the seat
+     */
+    private void requireOwnership(Game game, String playerId, String sessionToken) {
+        if (!game.ownsSeat(playerId, sessionToken)) {
+            throw new GameException("Not authorized for this seat", "NOT_AUTHORIZED", HttpStatus.FORBIDDEN);
+        }
+    }
+
+    /** The single generic not-found/not-belonging response — identical body in every case (no leakage). */
+    private GameException notFound() {
+        return new GameException("Game not found or not joinable", "GAME_NOT_FOUND", HttpStatus.NOT_FOUND);
+    }
+
+    /** Generic not-joinable response for every non-admit join case — same shape as {@link #notFound()}. */
+    private GameException notJoinable() {
+        return notFound();
+    }
+
+    /**
+     * Generates an opaque, high-entropy per-seat session token (32 SecureRandom bytes,
+     * base64url, no padding → ~256 bits, 43 chars). Distinct from the playerId and never
+     * re-disclosed after the single mint response.
+     */
+    private String generateSessionToken() {
+        byte[] bytes = new byte[32];
+        secureRandom.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
     private Player getPlayerOrThrow(Game game, String playerId) {

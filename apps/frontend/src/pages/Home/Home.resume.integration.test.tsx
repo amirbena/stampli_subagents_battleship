@@ -21,6 +21,15 @@ vi.mock('../../hooks/useResumeGame', () => ({
   useResumeGame: () => ({ resume: resumeMock, isResuming: false }),
 }));
 
+// Belonging probe is the network/seam boundary — mocked. useActiveGame + ResumeGameModal +
+// the Home probe→clear wiring stay REAL so this exercises the load-time eligibility seam
+// (architecture §6.2 / AC-13): real localStorage record → real probe-outcome handling →
+// real modal render/clear, which a per-layer unit test cannot exercise together.
+const probeMock = vi.fn();
+vi.mock('../../hooks/useBelongingProbe', () => ({
+  useBelongingProbe: () => ({ probe: probeMock, isProbing: false }),
+}));
+
 const stopGameMock = vi.fn();
 vi.mock('../../api/gameApi', () => ({
   createGame: vi.fn(),
@@ -41,7 +50,8 @@ vi.mock('../../hooks/usePlayerIdentity', () => ({
 function setPointer() {
   window.localStorage.setItem(
     ACTIVE_GAME_KEY,
-    JSON.stringify({ gameId: 'g-1', playerId: 'p-1', gameMode: 'HUMAN' }),
+    // Non-empty sessionToken → step-1 belonging holds; the probe outcome then gates the popup.
+    JSON.stringify({ gameId: 'g-1', playerId: 'p-1', gameMode: 'HUMAN', sessionToken: 'tok-1' }),
   );
 }
 
@@ -75,28 +85,50 @@ describe('Home resume seam (AC-5/6/7/14)', () => {
     window.localStorage.clear();
     resumeMock.mockReset();
     stopGameMock.mockReset();
+    probeMock.mockReset();
+    // Default: belonging probe confirms a resumable seat so the modal-bearing tests render it.
+    probeMock.mockResolvedValue('eligible');
   });
 
-  it('shows the resume modal ONLY when the active-game pointer is non-null (AC-5)', () => {
+  it('shows the resume modal ONLY when a belonging record exists (AC-1/AC-5)', () => {
     renderHome();
-    // Clean Home — no pointer, no modal.
+    // Clean Home — no belonging record, no probe, no modal.
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('renders the verbatim modal when a pointer exists', () => {
+  it('renders the verbatim modal after a successful belonging probe', async () => {
     setPointer();
     renderHome();
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
     expect(
       screen.getByText('Do you want to continue your existing game?'),
     ).toBeInTheDocument();
+  });
+
+  it('probe→clear seam: a cleared (404/not-owned) probe quietly removes the record and shows no modal (AC-13)', async () => {
+    setPointer();
+    probeMock.mockResolvedValue('cleared');
+    renderHome();
+    // Real load-time probe → real outcome handling → real useActiveGame clear → real modal gate.
+    await waitFor(() => expect(window.localStorage.getItem(ACTIVE_GAME_KEY)).toBeNull());
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('probe→preserve seam: a transient (5xx) probe keeps the record but shows no modal', async () => {
+    setPointer();
+    probeMock.mockResolvedValue('transient');
+    renderHome();
+    await waitFor(() => expect(probeMock).toHaveBeenCalled());
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    // Belonging survives a connectivity blip.
+    expect(window.localStorage.getItem(ACTIVE_GAME_KEY)).not.toBeNull();
   });
 
   it('Yes/Resume → IN_PROGRESS routes to /game (AC-6)', async () => {
     setPointer();
     resumeMock.mockResolvedValue(stateWith('IN_PROGRESS'));
     renderHome();
-    await userEvent.click(screen.getByRole('button', { name: /resume/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /resume/i }));
     await waitFor(() => expect(screen.getByText('Game Page')).toBeInTheDocument());
     expect(resumeMock).toHaveBeenCalledWith(
       expect.objectContaining({ gameId: 'g-1', playerId: 'p-1' }),
@@ -107,7 +139,7 @@ describe('Home resume seam (AC-5/6/7/14)', () => {
     setPointer();
     resumeMock.mockResolvedValue(stateWith('PLACING_SHIPS'));
     renderHome();
-    await userEvent.click(screen.getByRole('button', { name: /resume/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /resume/i }));
     await waitFor(() => expect(screen.getByText('Lobby Page')).toBeInTheDocument());
   });
 
@@ -117,7 +149,7 @@ describe('Home resume seam (AC-5/6/7/14)', () => {
     // modal disappears — the resume hook only cleared its separate instance (cross-layer seam).
     resumeMock.mockResolvedValue(null);
     renderHome();
-    await userEvent.click(screen.getByRole('button', { name: /resume/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /resume/i }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(screen.queryByText('Game Page')).not.toBeInTheDocument();
     expect(screen.queryByText('Lobby Page')).not.toBeInTheDocument();
@@ -128,9 +160,9 @@ describe('Home resume seam (AC-5/6/7/14)', () => {
     setPointer();
     stopGameMock.mockResolvedValue(undefined);
     renderHome();
-    await userEvent.click(screen.getByRole('button', { name: /stop/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /stop/i }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(stopGameMock).toHaveBeenCalledWith('g-1', 'p-1');
+    expect(stopGameMock).toHaveBeenCalledWith('g-1', 'p-1', 'tok-1');
     expect(window.localStorage.getItem(ACTIVE_GAME_KEY)).toBeNull();
   });
 });

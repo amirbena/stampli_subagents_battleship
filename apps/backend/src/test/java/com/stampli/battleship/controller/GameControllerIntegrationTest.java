@@ -44,7 +44,10 @@ class GameControllerIntegrationTest {
     // ─────────────────────────────────────────────
     // Helper — place all 5 ships for a player (non-overlapping positions)
     // ─────────────────────────────────────────────
-    private void placeAllShips(String gameId, String playerId) throws Exception {
+    // Belonging-contract header carrying the per-seat session token on authenticated requests.
+    private static final String SESSION_HEADER = "X-Session-Token";
+
+    private void placeAllShips(String gameId, String playerId, String token) throws Exception {
         record Ship(String type, int row, int col, String orientation) {}
         var ships = new Ship[]{
             new Ship("CARRIER",    0, 0, "HORIZONTAL"),
@@ -55,6 +58,7 @@ class GameControllerIntegrationTest {
         };
         for (var s : ships) {
             mockMvc.perform(post("/games/{gameId}/players/{playerId}/ships", gameId, playerId)
+                    .header(SESSION_HEADER, token)
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("""
                         {"shipType":"%s","row":%d,"col":%d,"orientation":"%s"}
@@ -69,32 +73,37 @@ class GameControllerIntegrationTest {
     // so opponent ship cells are known and HIT/MISS targets are predictable.
     // playerA always takes the first turn once the game starts.
     // ─────────────────────────────────────────────
-    private record HumanGame(String gameId, String playerA, String playerB) {}
+    private record HumanGame(String gameId, String playerA, String tokenA, String playerB, String tokenB) {}
 
     private HumanGame startHumanGame() throws Exception {
         MvcResult create = mockMvc.perform(post("/games").param("mode", "HUMAN"))
             .andExpect(status().isCreated()).andReturn();
         String gameId = field(create, "gameId");
         String playerA = field(create, "playerId");
+        String tokenA = field(create, "sessionToken");
 
         MvcResult join = mockMvc.perform(post("/games/{gameId}/join", gameId))
             .andExpect(status().isOk()).andReturn();
         String playerB = field(join, "playerId");
+        String tokenB = field(join, "sessionToken");
 
-        placeAllShips(gameId, playerA);
-        placeAllShips(gameId, playerB);
+        placeAllShips(gameId, playerA, tokenA);
+        placeAllShips(gameId, playerB, tokenB);
 
-        mockMvc.perform(post("/games/{gameId}/players/{playerId}/ready", gameId, playerA))
+        mockMvc.perform(post("/games/{gameId}/players/{playerId}/ready", gameId, playerA)
+                .header(SESSION_HEADER, tokenA))
             .andExpect(status().isOk());
-        mockMvc.perform(post("/games/{gameId}/players/{playerId}/ready", gameId, playerB))
+        mockMvc.perform(post("/games/{gameId}/players/{playerId}/ready", gameId, playerB)
+                .header(SESSION_HEADER, tokenB))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("IN_PROGRESS"));
 
-        return new HumanGame(gameId, playerA, playerB);
+        return new HumanGame(gameId, playerA, tokenA, playerB, tokenB);
     }
 
-    private void fire(String gameId, String playerId, int row, int col) throws Exception {
+    private void fire(String gameId, String playerId, String token, int row, int col) throws Exception {
         mockMvc.perform(post("/games/{gameId}/players/{playerId}/fire", gameId, playerId)
+                .header(SESSION_HEADER, token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"row\":%d,\"col\":%d}".formatted(row, col)))
             .andExpect(status().isOk());
@@ -166,17 +175,18 @@ class GameControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("returns 409 when third player tries to join a full room")
-        void roomFullReturns409() throws Exception {
+        @DisplayName("returns generic 404 when third player tries to join a full room (no seat-state leak)")
+        void roomFullReturnsGeneric404() throws Exception {
             MvcResult create = mockMvc.perform(post("/games"))
                 .andExpect(status().isCreated()).andReturn();
             String gameId = field(create, "gameId");
 
             mockMvc.perform(post("/games/{gameId}/join", gameId)).andReturn();
 
+            // Belonging contract: full/started/missing all collapse to the same generic 404.
             mockMvc.perform(post("/games/{gameId}/join", gameId))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.error").isNotEmpty());
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("GAME_NOT_FOUND"));
         }
 
         @Test
@@ -203,17 +213,20 @@ class GameControllerIntegrationTest {
                 .andExpect(status().isCreated()).andReturn();
             String gameId  = field(create, "gameId");
             String playerId = field(create, "playerId");
+            String token = field(create, "sessionToken");
 
             // 2. Place all 5 ships
-            placeAllShips(gameId, playerId);
+            placeAllShips(gameId, playerId, token);
 
             // 3. Ready up → game starts (computer auto-places and is already ready)
-            mockMvc.perform(post("/games/{gameId}/players/{playerId}/ready", gameId, playerId))
+            mockMvc.perform(post("/games/{gameId}/players/{playerId}/ready", gameId, playerId)
+                    .header(SESSION_HEADER, token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("IN_PROGRESS"));
 
             // 4. Fire a shot — must return HIT or MISS
             mockMvc.perform(post("/games/{gameId}/players/{playerId}/fire", gameId, playerId)
+                    .header(SESSION_HEADER, token)
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("{\"row\":5,\"col\":5}"))
                 .andExpect(status().isOk())
@@ -228,18 +241,22 @@ class GameControllerIntegrationTest {
                 .andExpect(status().isCreated()).andReturn();
             String gameId  = field(create, "gameId");
             String playerId = field(create, "playerId");
+            String token = field(create, "sessionToken");
 
-            placeAllShips(gameId, playerId);
+            placeAllShips(gameId, playerId, token);
 
-            mockMvc.perform(post("/games/{gameId}/players/{playerId}/ready", gameId, playerId))
+            mockMvc.perform(post("/games/{gameId}/players/{playerId}/ready", gameId, playerId)
+                    .header(SESSION_HEADER, token))
                 .andExpect(status().isOk());
 
             String body = "{\"row\":0,\"col\":0}";
             mockMvc.perform(post("/games/{gameId}/players/{playerId}/fire", gameId, playerId)
+                    .header(SESSION_HEADER, token)
                     .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isOk());
 
             mockMvc.perform(post("/games/{gameId}/players/{playerId}/fire", gameId, playerId)
+                    .header(SESSION_HEADER, token)
                     .contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").isNotEmpty());
@@ -294,9 +311,11 @@ class GameControllerIntegrationTest {
                 .andExpect(status().isCreated()).andReturn();
             String gameId  = field(create, "gameId");
             String playerId = field(create, "playerId");
+            String token = field(create, "sessionToken");
 
             mockMvc.perform(get("/games/{gameId}/state", gameId)
-                    .param("playerId", playerId))
+                    .param("playerId", playerId)
+                    .header(SESSION_HEADER, token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.gameId").value(gameId))
                 .andExpect(jsonPath("$.status").isNotEmpty())
@@ -451,8 +470,8 @@ class GameControllerIntegrationTest {
         }
 
         @Test
-        @DisplayName("AC-14: 409 when room is full, even with a valid playerId")
-        void fullRoomReturns409EvenWithValidPlayer() throws Exception {
+        @DisplayName("AC-11: generic 404 when room is full, even with a valid playerId (no seat-state leak)")
+        void fullRoomReturnsGeneric404EvenWithValidPlayer() throws Exception {
             MvcResult create = mockMvc.perform(post("/games").param("mode", "HUMAN"))
                     .andExpect(status().isCreated()).andReturn();
             String gameId = field(create, "gameId");
@@ -466,8 +485,8 @@ class GameControllerIntegrationTest {
             mockMvc.perform(post("/games/{gameId}/join", gameId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"playerId\":\"%s\"}".formatted(thirdPlayerId)))
-                    .andExpect(status().isConflict())
-                    .andExpect(jsonPath("$.error").isNotEmpty());
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("GAME_NOT_FOUND"));
         }
 
         @Test
@@ -512,10 +531,11 @@ class GameControllerIntegrationTest {
             HumanGame g = startHumanGame();
 
             // playerA fires (0,0) — hits CARRIER but does not sink it
-            fire(g.gameId(), g.playerA(), 0, 0);
+            fire(g.gameId(), g.playerA(), g.tokenA(), 0, 0);
 
             mockMvc.perform(get("/games/{gameId}/state", g.gameId())
-                    .param("playerId", g.playerA()))
+                    .param("playerId", g.playerA())
+                    .header(SESSION_HEADER, g.tokenA()))
                 .andExpect(status().isOk())
                 // exactly one hit, and it is (0,0)
                 .andExpect(jsonPath("$.opponentBoard.hits", org.hamcrest.Matchers.hasSize(1)))
@@ -529,10 +549,11 @@ class GameControllerIntegrationTest {
             HumanGame g = startHumanGame();
 
             // hit only (0,0) of the 5-cell CARRIER → cells (0,1)..(0,4) remain un-hit & hidden
-            fire(g.gameId(), g.playerA(), 0, 0);
+            fire(g.gameId(), g.playerA(), g.tokenA(), 0, 0);
 
             MvcResult state = mockMvc.perform(get("/games/{gameId}/state", g.gameId())
-                    .param("playerId", g.playerA()))
+                    .param("playerId", g.playerA())
+                    .header(SESSION_HEADER, g.tokenA()))
                 .andExpect(status().isOk())
                 // ship is not sunk, so no ships are exposed on the opponent board at all
                 .andExpect(jsonPath("$.opponentBoard.ships", org.hamcrest.Matchers.hasSize(0)))
@@ -557,12 +578,13 @@ class GameControllerIntegrationTest {
             HumanGame g = startHumanGame();
 
             // A hits (0,0) → turn to B; B misses to return turn to A; A misses (9,9)
-            fire(g.gameId(), g.playerA(), 0, 0);
-            fire(g.gameId(), g.playerB(), 9, 0); // empty cell → MISS, turn returns to A
-            fire(g.gameId(), g.playerA(), 9, 9); // empty cell → MISS
+            fire(g.gameId(), g.playerA(), g.tokenA(), 0, 0);
+            fire(g.gameId(), g.playerB(), g.tokenB(), 9, 0); // empty cell → MISS, turn returns to A
+            fire(g.gameId(), g.playerA(), g.tokenA(), 9, 9); // empty cell → MISS
 
             mockMvc.perform(get("/games/{gameId}/state", g.gameId())
-                    .param("playerId", g.playerA()))
+                    .param("playerId", g.playerA())
+                    .header(SESSION_HEADER, g.tokenA()))
                 .andExpect(status().isOk())
                 // the miss is recorded in missedShots
                 .andExpect(jsonPath("$.opponentBoard.missedShots", org.hamcrest.Matchers.hasSize(1)))
@@ -579,10 +601,11 @@ class GameControllerIntegrationTest {
         void myBoardHitsIsEmpty() throws Exception {
             HumanGame g = startHumanGame();
 
-            fire(g.gameId(), g.playerA(), 0, 0);
+            fire(g.gameId(), g.playerA(), g.tokenA(), 0, 0);
 
             mockMvc.perform(get("/games/{gameId}/state", g.gameId())
-                    .param("playerId", g.playerA()))
+                    .param("playerId", g.playerA())
+                    .header(SESSION_HEADER, g.tokenA()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.myBoard.hits").isArray())
                 .andExpect(jsonPath("$.myBoard.hits", org.hamcrest.Matchers.hasSize(0)));

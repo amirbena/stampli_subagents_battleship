@@ -47,12 +47,14 @@ class GameServiceTest {
 
     private static final String GAME_ID = "GAME01";
     private static final String PLAYER_A_ID = "player-a";
+    private static final String TOKEN_A = "token-a";
+    private static final String TOKEN_B = "token-b";
 
     private Game gameWaitingForPlayers;
 
     @BeforeEach
     void setUp() {
-        Player playerA = new Player(PLAYER_A_ID, GAME_ID);
+        Player playerA = new Player(PLAYER_A_ID, GAME_ID, TOKEN_A);
         // Game starts in WAITING_FOR_PLAYERS — Player B has not joined yet
         gameWaitingForPlayers = new Game(GAME_ID, playerA);
     }
@@ -69,7 +71,7 @@ class GameServiceTest {
         doNothing().when(placementValidationService).validate(any(), any(), any(), any());
 
         PlaceShipResponse response = gameService.placeShip(
-                GAME_ID, PLAYER_A_ID,
+                GAME_ID, PLAYER_A_ID, TOKEN_A,
                 ShipType.DESTROYER,
                 new Coordinate(0, 0),
                 Orientation.HORIZONTAL
@@ -83,7 +85,7 @@ class GameServiceTest {
     @Test
     void placeShip_succeedsWhenGameIsInPlacingShipsPhase() {
         // Transition to PLACING_SHIPS by adding Player B
-        Player playerB = new Player("player-b", GAME_ID);
+        Player playerB = new Player("player-b", GAME_ID, TOKEN_B);
         gameWaitingForPlayers.addPlayerB(playerB);
         assertThat(gameWaitingForPlayers.getStatus()).isEqualTo(GameStatus.PLACING_SHIPS);
 
@@ -92,7 +94,7 @@ class GameServiceTest {
         doNothing().when(placementValidationService).validate(any(), any(), any(), any());
 
         PlaceShipResponse response = gameService.placeShip(
-                GAME_ID, PLAYER_A_ID,
+                GAME_ID, PLAYER_A_ID, TOKEN_A,
                 ShipType.DESTROYER,
                 new Coordinate(0, 0),
                 Orientation.HORIZONTAL
@@ -105,7 +107,7 @@ class GameServiceTest {
     @Test
     void placeShip_throwsWhenGameIsInProgress() {
         // Transition: add Player B → PLACING_SHIPS, then startGame → IN_PROGRESS
-        Player playerB = new Player("player-b", GAME_ID);
+        Player playerB = new Player("player-b", GAME_ID, TOKEN_B);
         gameWaitingForPlayers.addPlayerB(playerB);
         gameWaitingForPlayers.startGame();
         assertThat(gameWaitingForPlayers.getStatus()).isEqualTo(GameStatus.IN_PROGRESS);
@@ -113,7 +115,7 @@ class GameServiceTest {
         when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(gameWaitingForPlayers));
 
         assertThatThrownBy(() -> gameService.placeShip(
-                GAME_ID, PLAYER_A_ID,
+                GAME_ID, PLAYER_A_ID, TOKEN_A,
                 ShipType.DESTROYER,
                 new Coordinate(0, 0),
                 Orientation.HORIZONTAL
@@ -139,20 +141,20 @@ class GameServiceTest {
         when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(gameWaitingForPlayers));
 
         // Should not throw
-        gameService.removeShip(GAME_ID, PLAYER_A_ID, ShipType.DESTROYER);
+        gameService.removeShip(GAME_ID, PLAYER_A_ID, TOKEN_A, ShipType.DESTROYER);
 
         verify(gameRepository).save(gameWaitingForPlayers);
     }
 
     @Test
     void removeShip_throwsWhenGameIsInProgress() {
-        Player playerB = new Player("player-b", GAME_ID);
+        Player playerB = new Player("player-b", GAME_ID, TOKEN_B);
         gameWaitingForPlayers.addPlayerB(playerB);
         gameWaitingForPlayers.startGame();
 
         when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(gameWaitingForPlayers));
 
-        assertThatThrownBy(() -> gameService.removeShip(GAME_ID, PLAYER_A_ID, ShipType.DESTROYER))
+        assertThatThrownBy(() -> gameService.removeShip(GAME_ID, PLAYER_A_ID, TOKEN_A, ShipType.DESTROYER))
                 .isInstanceOf(GameException.class)
                 .hasMessageContaining("before the game starts");
     }
@@ -168,7 +170,7 @@ class GameServiceTest {
      * horizontally at (0,0)-(0,2). Returns the game; caller wires the shot history.
      */
     private Game inProgressGameWithOpponentCruiser() {
-        Player playerB = new Player(PLAYER_B_ID, GAME_ID);
+        Player playerB = new Player(PLAYER_B_ID, GAME_ID, TOKEN_B);
         gameWaitingForPlayers.addPlayerB(playerB);
 
         Coordinate anchor = new Coordinate(0, 0);
@@ -192,7 +194,7 @@ class GameServiceTest {
 
         when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(game));
 
-        GameStateResponse state = gameService.getGameState(GAME_ID, PLAYER_A_ID);
+        GameStateResponse state = gameService.getGameState(GAME_ID, PLAYER_A_ID, TOKEN_A);
 
         assertThat(state.getOpponentBoard().getHits())
                 .extracting("row", "col")
@@ -211,7 +213,7 @@ class GameServiceTest {
 
         when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(game));
 
-        GameStateResponse state = gameService.getGameState(GAME_ID, PLAYER_A_ID);
+        GameStateResponse state = gameService.getGameState(GAME_ID, PLAYER_A_ID, TOKEN_A);
 
         // Un-fired ship cells (0,1) and (0,2) must NOT appear in hits or ships
         assertThat(state.getOpponentBoard().getHits())
@@ -235,7 +237,7 @@ class GameServiceTest {
 
         when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(game));
 
-        GameStateResponse state = gameService.getGameState(GAME_ID, PLAYER_A_ID);
+        GameStateResponse state = gameService.getGameState(GAME_ID, PLAYER_A_ID, TOKEN_A);
 
         assertThat(state.getOpponentBoard().getHits())
                 .extracting("row", "col")
@@ -253,51 +255,83 @@ class GameServiceTest {
 
         when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(game));
 
-        GameStateResponse state = gameService.getGameState(GAME_ID, PLAYER_A_ID);
+        GameStateResponse state = gameService.getGameState(GAME_ID, PLAYER_A_ID, TOKEN_A);
 
         // Own-board hits flow via ships[].hits, so the flat myBoard.hits array is always empty
         assertThat(state.getMyBoard().getHits()).isEmpty();
     }
 
     // -------------------------------------------------------------------------
-    // restoreGame — restore-by-code (COMPUTER games only)
+    // restoreGame — restore-by-code (belonging required; BOTH modes)
     // -------------------------------------------------------------------------
 
     @Test
-    void restoreGame_returnsPlayerAAndComputerModeForExistingComputerGame() {
-        Player human = new Player(PLAYER_A_ID, GAME_ID);
+    void restoreGame_ownerOfComputerGameGetsOwnSeatEchoedBack() {
+        Player human = new Player(PLAYER_A_ID, GAME_ID, TOKEN_A);
         Game computerGame = new Game(GAME_ID, human, GameMode.COMPUTER);
-        computerGame.addPlayerB(new Player("COMPUTER-xyz", GAME_ID));
+        computerGame.addPlayerB(new Player("COMPUTER-xyz", GAME_ID, null));
         computerGame.startGame();
         when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(computerGame));
 
-        RestoreGameResponse response = gameService.restoreGame(GAME_ID);
+        RestoreGameResponse response = gameService.restoreGame(GAME_ID, PLAYER_A_ID, TOKEN_A);
 
         assertThat(response.getGameId()).isEqualTo(GAME_ID);
+        // The caller's OWN id is echoed back — never discovered.
         assertThat(response.getPlayerId()).isEqualTo(PLAYER_A_ID);
         assertThat(response.getGameMode()).isEqualTo("COMPUTER");
         assertThat(response.getStatus()).isEqualTo("IN_PROGRESS");
     }
 
     @Test
+    void restoreGame_ownerOfHumanGameAlsoSucceeds_bothModesServed() {
+        // Team Lead decision: restore serves BOTH modes once belonging is token-proven.
+        Player human = new Player(PLAYER_A_ID, GAME_ID, TOKEN_A);
+        Game humanGame = new Game(GAME_ID, human, GameMode.HUMAN);
+        when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(humanGame));
+
+        RestoreGameResponse response = gameService.restoreGame(GAME_ID, PLAYER_A_ID, TOKEN_A);
+
+        assertThat(response.getPlayerId()).isEqualTo(PLAYER_A_ID);
+        assertThat(response.getGameMode()).isEqualTo("HUMAN");
+        assertThat(response.getStatus()).isEqualTo("WAITING_FOR_PLAYERS");
+    }
+
+    @Test
     void restoreGame_throws404ForUnknownCode() {
         when(gameRepository.findById("NOPE99")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> gameService.restoreGame("NOPE99"))
+        assertThatThrownBy(() -> gameService.restoreGame("NOPE99", PLAYER_A_ID, TOKEN_A))
                 .isInstanceOf(GameException.class)
                 .extracting(e -> ((GameException) e).getErrorCode())
                 .isEqualTo("GAME_NOT_FOUND");
     }
 
     @Test
-    void restoreGame_throws404ForExistingHumanGame() {
-        // A HUMAN game must be reported as plain not-found — restore-by-code is computer-only
-        // and we do not disclose the existence/type of human games.
-        Player human = new Player(PLAYER_A_ID, GAME_ID);
-        Game humanGame = new Game(GAME_ID, human, GameMode.HUMAN);
-        when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(humanGame));
+    void restoreGame_throws404ForForeignCallerWithWrongToken() {
+        // Knowing the code is not belonging: a caller whose token does not match the seat
+        // gets the generic 404 and learns nothing (no identity, mode, or existence disclosure).
+        Player human = new Player(PLAYER_A_ID, GAME_ID, TOKEN_A);
+        Game game = new Game(GAME_ID, human, GameMode.COMPUTER);
+        game.addPlayerB(new Player("COMPUTER-xyz", GAME_ID, null));
+        when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(game));
 
-        assertThatThrownBy(() -> gameService.restoreGame(GAME_ID))
+        assertThatThrownBy(() -> gameService.restoreGame(GAME_ID, PLAYER_A_ID, "wrong-token"))
+                .isInstanceOf(GameException.class)
+                .extracting(e -> ((GameException) e).getErrorCode())
+                .isEqualTo("GAME_NOT_FOUND");
+    }
+
+    @Test
+    void restoreGame_throws404ForTerminalFinishedGameEvenForOwner() {
+        // A FINISHED game is not resumable: even the rightful owner gets the generic 404.
+        Player human = new Player(PLAYER_A_ID, GAME_ID, TOKEN_A);
+        Game game = new Game(GAME_ID, human, GameMode.COMPUTER);
+        game.addPlayerB(new Player("COMPUTER-xyz", GAME_ID, null));
+        game.startGame();
+        game.finishGame(PLAYER_A_ID);
+        when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(game));
+
+        assertThatThrownBy(() -> gameService.restoreGame(GAME_ID, PLAYER_A_ID, TOKEN_A))
                 .isInstanceOf(GameException.class)
                 .extracting(e -> ((GameException) e).getErrorCode())
                 .isEqualTo("GAME_NOT_FOUND");

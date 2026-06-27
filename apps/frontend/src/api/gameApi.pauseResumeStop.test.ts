@@ -1,6 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { api, __resetLoaderStore, pauseGame, resumeGame, stopGame, GameNotFoundError } from './gameApi';
+import {
+  api,
+  __resetLoaderStore,
+  pauseGame,
+  resumeGame,
+  stopGame,
+  GameNotFoundError,
+  NotAuthorizedError,
+} from './gameApi';
 import type { PauseResumeResponse } from '../types/game';
+
+const TOKEN = 'seat-token-abc';
 
 const pauseResp: PauseResumeResponse = {
   gameId: 'g-123',
@@ -29,23 +39,33 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('pauseGame', () => {
-  it('POSTs to the pause endpoint and returns the PauseResumeResponse body', async () => {
+  it('POSTs to the pause endpoint with the token header and returns the PauseResumeResponse body', async () => {
     let url = '';
-    const spy = vi.spyOn(api, 'post').mockImplementationOnce((u) => {
+    let cfg: { headers?: Record<string, string> } = {};
+    const spy = vi.spyOn(api, 'post').mockImplementationOnce((u, _b, c) => {
       url = u;
+      cfg = (c ?? {}) as { headers?: Record<string, string> };
       return Promise.resolve(resolved(200, pauseResp));
     });
 
-    const result = await pauseGame('g-123', 'p-1');
+    const result = await pauseGame('g-123', 'p-1', TOKEN);
 
     expect(url).toBe('/games/g-123/players/p-1/pause');
+    expect(cfg.headers?.['X-Session-Token']).toBe(TOKEN);
     expect(result).toEqual(pauseResp);
     spy.mockRestore();
   });
 
   it('propagates the backend error message on 409 WRONG_PHASE', async () => {
     vi.spyOn(api, 'post').mockRejectedValueOnce(new Error('Game is not in a pausable phase'));
-    await expect(pauseGame('g-123', 'p-1')).rejects.toThrow('not in a pausable phase');
+    await expect(pauseGame('g-123', 'p-1', TOKEN)).rejects.toThrow('not in a pausable phase');
+  });
+
+  it('throws NotAuthorizedError on 403 NOT_AUTHORIZED', async () => {
+    vi.spyOn(api, 'post').mockResolvedValueOnce(
+      resolved(403, { error: 'Not authorized', code: 'NOT_AUTHORIZED' }),
+    );
+    await expect(pauseGame('g-123', 'p-1', 'wrong')).rejects.toBeInstanceOf(NotAuthorizedError);
   });
 });
 
@@ -54,16 +74,19 @@ describe('pauseGame', () => {
 // ---------------------------------------------------------------------------
 
 describe('resumeGame', () => {
-  it('POSTs to the resume endpoint and returns the restored PauseResumeResponse', async () => {
+  it('POSTs to the resume endpoint with the token header and returns the restored response', async () => {
     let url = '';
-    const spy = vi.spyOn(api, 'post').mockImplementationOnce((u) => {
+    let cfg: { headers?: Record<string, string> } = {};
+    const spy = vi.spyOn(api, 'post').mockImplementationOnce((u, _b, c) => {
       url = u;
+      cfg = (c ?? {}) as { headers?: Record<string, string> };
       return Promise.resolve(resolved(200, resumeResp));
     });
 
-    const result = await resumeGame('g-123', 'p-1');
+    const result = await resumeGame('g-123', 'p-1', TOKEN);
 
     expect(url).toBe('/games/g-123/players/p-1/resume');
+    expect(cfg.headers?.['X-Session-Token']).toBe(TOKEN);
     expect(result).toEqual(resumeResp);
     spy.mockRestore();
   });
@@ -74,20 +97,27 @@ describe('resumeGame', () => {
       resolved(404, { error: 'Game not found', code: 'GAME_NOT_FOUND' }),
     );
 
-    await expect(resumeGame('g-404', 'p-1')).rejects.toBeInstanceOf(GameNotFoundError);
+    await expect(resumeGame('g-404', 'p-1', TOKEN)).rejects.toBeInstanceOf(GameNotFoundError);
+  });
+
+  it('throws NotAuthorizedError when the backend returns 403', async () => {
+    vi.spyOn(api, 'post').mockResolvedValueOnce(
+      resolved(403, { error: 'Not authorized', code: 'NOT_AUTHORIZED' }),
+    );
+    await expect(resumeGame('g-123', 'p-1', 'wrong')).rejects.toBeInstanceOf(NotAuthorizedError);
   });
 
   it('GameNotFoundError message includes the gameId', async () => {
     vi.spyOn(api, 'post').mockResolvedValueOnce(
       resolved(404, { error: 'Game not found', code: 'GAME_NOT_FOUND' }),
     );
-    await expect(resumeGame('g-missing', 'p-1')).rejects.toThrow('g-missing');
+    await expect(resumeGame('g-missing', 'p-1', TOKEN)).rejects.toThrow('g-missing');
   });
 
   it('throws a plain Error (not GameNotFoundError) on 409 WRONG_PHASE', async () => {
     vi.spyOn(api, 'post').mockRejectedValueOnce(new Error('Game is not paused'));
 
-    const thrown = await resumeGame('g-123', 'p-1').catch((e: unknown) => e);
+    const thrown = await resumeGame('g-123', 'p-1', TOKEN).catch((e: unknown) => e);
     expect(thrown).toBeInstanceOf(Error);
     expect(thrown).not.toBeInstanceOf(GameNotFoundError);
   });
@@ -98,15 +128,18 @@ describe('resumeGame', () => {
 // ---------------------------------------------------------------------------
 
 describe('stopGame', () => {
-  it('POSTs to the stop endpoint and resolves void on 204', async () => {
+  it('POSTs to the stop endpoint with the token header and resolves void on 204', async () => {
     let url = '';
-    const spy = vi.spyOn(api, 'post').mockImplementationOnce((u) => {
+    let cfg: { headers?: Record<string, string> } = {};
+    const spy = vi.spyOn(api, 'post').mockImplementationOnce((u, _b, c) => {
       url = u;
+      cfg = (c ?? {}) as { headers?: Record<string, string> };
       return Promise.resolve(resolved(204, undefined));
     });
 
-    await expect(stopGame('g-123', 'p-1')).resolves.toBeUndefined();
+    await expect(stopGame('g-123', 'p-1', TOKEN)).resolves.toBeUndefined();
     expect(url).toBe('/games/g-123/players/p-1/stop');
+    expect(cfg.headers?.['X-Session-Token']).toBe(TOKEN);
     spy.mockRestore();
   });
 
@@ -116,11 +149,19 @@ describe('stopGame', () => {
       resolved(404, { error: 'Game not found', code: 'GAME_NOT_FOUND' }),
     );
 
-    await expect(stopGame('g-gone', 'p-1')).resolves.toBeUndefined();
+    await expect(stopGame('g-gone', 'p-1', TOKEN)).resolves.toBeUndefined();
   });
 
-  it('propagates the backend error message on 403 PLAYER_NOT_IN_GAME', async () => {
-    vi.spyOn(api, 'post').mockRejectedValueOnce(new Error('Player is not in this game'));
-    await expect(stopGame('g-123', 'p-x')).rejects.toThrow('not in this game');
+  it('treats a 403 NOT_AUTHORIZED as an idempotent stop (clean-Home, no blocking error)', async () => {
+    vi.spyOn(api, 'post').mockResolvedValueOnce(
+      resolved(403, { error: 'Not authorized', code: 'NOT_AUTHORIZED' }),
+    );
+
+    await expect(stopGame('g-123', 'p-x', 'wrong')).resolves.toBeUndefined();
+  });
+
+  it('propagates a transient Error on 5xx/network', async () => {
+    vi.spyOn(api, 'post').mockRejectedValueOnce(new Error('Network Error'));
+    await expect(stopGame('g-123', 'p-1', TOKEN)).rejects.toThrow('Network Error');
   });
 });

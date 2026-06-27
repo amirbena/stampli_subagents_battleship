@@ -7,8 +7,11 @@ import {
   getActiveRequestCount,
   isLoaderVisible,
   __resetLoaderStore,
+  NotAuthorizedError,
 } from './gameApi';
 import type { PlaceShipRequest } from '../types/game';
+
+const TOKEN = 'seat-token-abc';
 
 /**
  * Captures the request config the real wrappers hand to axios (so we can assert the
@@ -48,10 +51,12 @@ describe('placeShip — silent flag + loader exclusion', () => {
     const cap = capturingAdapter({ cells: [] });
     vi.spyOn(api.defaults, 'adapter', 'get').mockReturnValue(cap.adapter);
 
-    await placeShip('GAME01', 'p1', SHIP, true);
+    await placeShip('GAME01', 'p1', SHIP, TOKEN, true);
 
     expect(cap.seen[0].silent).toBe(true);
     expect(cap.seen[0].url).toBe('/games/GAME01/players/p1/ships');
+    // The per-seat belonging token rides in the X-Session-Token header.
+    expect(cap.seen[0].headers['X-Session-Token']).toBe(TOKEN);
     // Silent placement must never register on the global loader.
     expect(getActiveRequestCount()).toBe(0);
     expect(isLoaderVisible()).toBe(false);
@@ -61,7 +66,7 @@ describe('placeShip — silent flag + loader exclusion', () => {
     const cap = capturingAdapter({ cells: [] });
     vi.spyOn(api.defaults, 'adapter', 'get').mockReturnValue(cap.adapter);
 
-    const p = placeShip('GAME01', 'p1', SHIP);
+    const p = placeShip('GAME01', 'p1', SHIP, TOKEN);
     // Request interceptor is synchronous: counter is already 1 before the response settles.
     expect(getActiveRequestCount()).toBe(1);
     expect(isLoaderVisible()).toBe(true);
@@ -70,6 +75,20 @@ describe('placeShip — silent flag + loader exclusion', () => {
     expect(cap.seen[0].silent).toBeFalsy();
     expect(getActiveRequestCount()).toBe(0);
   });
+
+  it('throws NotAuthorizedError on 403 NOT_AUTHORIZED (bad/absent token)', async () => {
+    vi.spyOn(api, 'post').mockResolvedValueOnce({
+      data: { error: 'Not authorized', code: 'NOT_AUTHORIZED' },
+      status: 403,
+      statusText: '403',
+      headers: {},
+      config: {},
+    } as never);
+
+    await expect(placeShip('GAME01', 'p1', SHIP, 'wrong')).rejects.toBeInstanceOf(
+      NotAuthorizedError,
+    );
+  });
 });
 
 describe('removeShip — silent flag + loader exclusion', () => {
@@ -77,10 +96,11 @@ describe('removeShip — silent flag + loader exclusion', () => {
     const cap = capturingAdapter(undefined);
     vi.spyOn(api.defaults, 'adapter', 'get').mockReturnValue(cap.adapter);
 
-    await removeShip('GAME01', 'p1', 'CARRIER', true);
+    await removeShip('GAME01', 'p1', 'CARRIER', TOKEN, true);
 
     expect(cap.seen[0].silent).toBe(true);
     expect(cap.seen[0].url).toBe('/games/GAME01/players/p1/ships/CARRIER');
+    expect(cap.seen[0].headers['X-Session-Token']).toBe(TOKEN);
     expect(getActiveRequestCount()).toBe(0);
     expect(isLoaderVisible()).toBe(false);
   });
@@ -89,12 +109,26 @@ describe('removeShip — silent flag + loader exclusion', () => {
     const cap = capturingAdapter(undefined);
     vi.spyOn(api.defaults, 'adapter', 'get').mockReturnValue(cap.adapter);
 
-    const p = removeShip('GAME01', 'p1', 'CARRIER');
+    const p = removeShip('GAME01', 'p1', 'CARRIER', TOKEN);
     expect(getActiveRequestCount()).toBe(1);
 
     await p;
     expect(cap.seen[0].silent).toBeFalsy();
     expect(getActiveRequestCount()).toBe(0);
+  });
+
+  it('throws NotAuthorizedError on 403 NOT_AUTHORIZED (bad/absent token)', async () => {
+    vi.spyOn(api, 'delete').mockResolvedValueOnce({
+      data: { error: 'Not authorized', code: 'NOT_AUTHORIZED' },
+      status: 403,
+      statusText: '403',
+      headers: {},
+      config: {},
+    } as never);
+
+    await expect(removeShip('GAME01', 'p1', 'CARRIER', 'wrong')).rejects.toBeInstanceOf(
+      NotAuthorizedError,
+    );
   });
 });
 
@@ -103,8 +137,8 @@ describe('overlapping silent placement does not flicker the loader for a concurr
     const cap = capturingAdapter({ cells: [] });
     vi.spyOn(api.defaults, 'adapter', 'get').mockReturnValue(cap.adapter);
 
-    const silent = placeShip('GAME01', 'p1', SHIP, true);
-    const loud = placeShip('GAME01', 'p1', SHIP, false);
+    const silent = placeShip('GAME01', 'p1', SHIP, TOKEN, true);
+    const loud = placeShip('GAME01', 'p1', SHIP, TOKEN, false);
 
     // Only the non-silent placement is counted.
     expect(getActiveRequestCount()).toBe(1);

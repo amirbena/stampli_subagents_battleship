@@ -27,6 +27,9 @@ export function Lobby(): React.ReactElement {
   const { pointer, clear: clearActiveGame } = useActiveGame();
   const gameId = pointer?.gameId ?? '';
   const playerId = pointer?.playerId ?? '';
+  // Per-seat belonging secret threaded into every gated call (architecture §4.5). Same
+  // source as gameId/playerId; '' when absent → the call 403s and existing error handling runs.
+  const sessionToken = pointer?.sessionToken ?? '';
   const gameMode = pointer?.gameMode ?? 'HUMAN';
   const isVsComputer = gameMode === 'COMPUTER';
   const [placementToastError, setPlacementToastError] = useState<string | null>(null);
@@ -36,7 +39,7 @@ export function Lobby(): React.ReactElement {
   const [sessionBusy, setSessionBusy] = useState(false);
 
   const placement = usePlacement(gameId);
-  const { gameState, isLoading } = useGamePolling(gameId, playerId, true);
+  const { gameState, isLoading } = useGamePolling(gameId, playerId, sessionToken, true);
 
   // One-time guard so hydration runs exactly once per Lobby mount.
   const hydratedRef = useRef(false);
@@ -156,14 +159,14 @@ export function Lobby(): React.ReactElement {
         row,
         col,
         orientation: placement.orientation,
-      }, true);
+      }, sessionToken, true);
     } catch (e) {
       // Roll back local placement on backend rejection
       placement.removeShip(placed.shipType);
       const raw = e instanceof Error ? e.message : 'Placement failed';
       setPlacementToastError(toFriendlyPlacementError(raw));
     }
-  }, [placement, gameId, playerId]);
+  }, [placement, gameId, playerId, sessionToken]);
 
   const handleRemoveShip = useCallback(async (type: ShipType) => {
     userInteractedRef.current = true;
@@ -171,11 +174,11 @@ export function Lobby(): React.ReactElement {
     try {
       // `silent: true` excludes removal from the app-wide top-bar loader — removing/
       // repositioning a ship is a high-frequency in-game action that must feel instant (AC group 1).
-      await removeShip(gameId, playerId, type, true);
+      await removeShip(gameId, playerId, type, sessionToken, true);
     } catch (e) {
       setGeneralError(e instanceof Error ? e.message : 'Remove failed');
     }
-  }, [placement, gameId, playerId]);
+  }, [placement, gameId, playerId, sessionToken]);
 
   // Pause: backend marks PAUSED, the pointer is KEPT, and we return Home where the resume
   // modal will appear (AC-8). Stop is NOT involved — pause never clears the pointer.
@@ -183,13 +186,13 @@ export function Lobby(): React.ReactElement {
     setSessionBusy(true);
     setGeneralError(null);
     try {
-      await pauseGame(gameId, playerId);
+      await pauseGame(gameId, playerId, sessionToken);
       navigate('/');
     } catch (e) {
       setGeneralError(e instanceof Error ? e.message : 'Could not pause the game. Please try again.');
       setSessionBusy(false);
     }
-  }, [gameId, playerId, navigate]);
+  }, [gameId, playerId, sessionToken, navigate]);
 
   // Stop: backend deletes the session, we CLEAR the pointer, and return to a clean Home with
   // no resume modal (AC-9, AC-14). Stop is idempotent on the backend (204 even when gone).
@@ -197,7 +200,7 @@ export function Lobby(): React.ReactElement {
     setSessionBusy(true);
     setGeneralError(null);
     try {
-      await stopGame(gameId, playerId);
+      await stopGame(gameId, playerId, sessionToken);
     } catch (e) {
       setGeneralError(e instanceof Error ? e.message : 'Could not stop the game. Please try again.');
       setSessionBusy(false);
@@ -205,7 +208,7 @@ export function Lobby(): React.ReactElement {
     }
     clearActiveGame();
     navigate('/');
-  }, [gameId, playerId, navigate, clearActiveGame]);
+  }, [gameId, playerId, sessionToken, navigate, clearActiveGame]);
 
   // Synchronous duplicate-submission guard. `submitting` (state) disables the button on the
   // next render, but rapid clicks within a single tick all fire before React re-renders — the
@@ -218,7 +221,7 @@ export function Lobby(): React.ReactElement {
     setSubmitting(true);
     setGeneralError(null);
     try {
-      await setReady(gameId, playerId);
+      await setReady(gameId, playerId, sessionToken);
     } catch (e) {
       setGeneralError(e instanceof Error ? e.message : 'Failed to confirm ready');
     } finally {

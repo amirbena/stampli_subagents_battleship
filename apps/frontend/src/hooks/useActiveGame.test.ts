@@ -10,6 +10,7 @@ const pointer: ActiveGamePointer = {
   gameId: 'g-123',
   playerId: 'p-1',
   gameMode: 'HUMAN',
+  sessionToken: 'seat-token-abc',
 };
 
 beforeEach(() => {
@@ -40,6 +41,8 @@ describe('setPointer', () => {
     expect(result.current.pointer).toEqual(pointer);
     const stored = JSON.parse(window.localStorage.getItem(ACTIVE_GAME_KEY) ?? 'null');
     expect(stored).toEqual(pointer);
+    // The minted per-seat belonging secret must persist in the pointer (eligibility step 1).
+    expect(stored.sessionToken).toBe('seat-token-abc');
   });
 });
 

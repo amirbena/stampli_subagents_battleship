@@ -7,10 +7,19 @@ import type { Player } from '../../types/game';
 
 // Mock the API layer — this is the UI agent's boundary (no HTTP in component tests).
 vi.mock('../../api/gameApi', () => ({
-  createGame: vi.fn().mockResolvedValue({ gameId: 'ABC123', playerId: 'p1', status: 'PLACING_SHIPS' }),
+  createGame: vi.fn().mockResolvedValue({
+    gameId: 'ABC123', playerId: 'p1', status: 'PLACING_SHIPS', sessionToken: 'tok-mint',
+  }),
   stopGame: vi.fn().mockResolvedValue(undefined),
   restoreGameByCode: vi.fn(),
   GameNotFoundError: class GameNotFoundError extends Error {},
+}));
+
+// Belonging probe hook (data layer, owned by frontend-api-agent) — mocked at the UI boundary.
+// Default outcome 'cleared' so Home renders a clean default (no popup) unless a test arms it.
+const probeMock = vi.fn().mockResolvedValue('cleared');
+vi.mock('../../hooks/useBelongingProbe', () => ({
+  useBelongingProbe: vi.fn(() => ({ probe: probeMock, isProbing: false })),
 }));
 
 const navigateMock = vi.fn();
@@ -30,6 +39,25 @@ const restoreState = {
 };
 vi.mock('../../hooks/useRestoreGame', () => ({
   useRestoreGame: vi.fn(() => restoreState),
+}));
+
+// Join-by-code hook (data layer, owned by frontend-api-agent) — mocked at the UI boundary.
+// The UI agent owns only nav/pointer wiring; the hook owns the request, loading, notFound.
+const joinMock = vi.fn();
+const joinState = {
+  join: joinMock,
+  isLoading: false,
+  notFound: false,
+  error: null as string | null,
+};
+vi.mock('../../hooks/useJoinGame', () => ({
+  useJoinGame: vi.fn(() => joinState),
+}));
+
+// Resume sequence hook (data layer) — mocked so the modal's Yes/Resume path never hits HTTP.
+const resumeMock = vi.fn();
+vi.mock('../../hooks/useResumeGame', () => ({
+  useResumeGame: vi.fn(() => ({ resume: resumeMock, isResuming: false })),
 }));
 
 // ---- usePlayerIdentity mock ----
@@ -69,8 +97,25 @@ beforeEach(() => {
   restoreState.notFound = false;
   restoreState.error = null;
   restoreState.isLoading = false;
+  resumeMock.mockReset();
+  joinMock.mockReset();
+  joinState.notFound = false;
+  joinState.error = null;
+  joinState.isLoading = false;
+  probeMock.mockReset();
+  probeMock.mockResolvedValue('cleared');
   vi.mocked(usePlayerIdentity).mockReturnValue({ ...defaultReturn });
 });
+
+// Belonging-record helper: writes the active-game pointer localStorage blob the real
+// useActiveGame reads. `token` controls step-1 eligibility (empty = no belonging).
+const ACTIVE_GAME_KEY = 'battleship_active_game';
+function setBelonging(token: string, gameId = 'G1', gameMode: 'COMPUTER' | 'HUMAN' = 'COMPUTER') {
+  localStorage.setItem(
+    ACTIVE_GAME_KEY,
+    JSON.stringify({ gameId, playerId: 'pX', gameMode, sessionToken: token }),
+  );
+}
 
 describe('Home — renders required elements', () => {
   it('renders Play vs Computer button', () => {
@@ -84,11 +129,22 @@ describe('Home — renders required elements', () => {
     expect(screen.getByLabelText('Game code')).toBeInTheDocument();
   });
 
-  it('renders the disabled Coming Soon multiplayer button (AC-14)', () => {
+  it('renders the human-vs-human button enabled and free of "Coming Soon" (AC-1/AC-2/AC-3)', () => {
+    mockIdentity({
+      status: 'identified',
+      player: { playerId: 'uuid-123', displayName: 'Alex', createdAt: '2026-01-01T00:00:00Z' },
+    });
     renderHome();
     const btn = screen.getByRole('button', { name: /play against another user/i });
-    expect(btn).toBeDisabled();
-    expect(btn).toHaveTextContent(/coming soon/i);
+    expect(btn).toBeInTheDocument();
+    expect(btn).not.toBeDisabled();
+    expect(btn).not.toHaveTextContent(/coming soon/i);
+  });
+
+  it('renders the Join Game submit button and code input (AC-5)', () => {
+    renderHome();
+    expect(screen.getByRole('button', { name: /join game/i })).toBeInTheDocument();
+    expect(screen.getByLabelText('Game code to join')).toBeInTheDocument();
   });
 });
 
@@ -116,13 +172,19 @@ describe('Home — identity gate (AC-01, AC-15)', () => {
     expect(screen.getByRole('button', { name: /play vs computer/i })).not.toBeDisabled();
   });
 
-  it('keeps the multiplayer button disabled regardless of identity (AC-14)', () => {
+  it('disables the human-vs-human button when status is needs-name (identity gate)', () => {
+    mockIdentity({ status: 'needs-name' });
+    renderHome();
+    expect(screen.getByRole('button', { name: /play against another user/i })).toBeDisabled();
+  });
+
+  it('enables the human-vs-human button when identified (AC-2)', () => {
     mockIdentity({
       status: 'identified',
       player: { playerId: 'uuid-123', displayName: 'Alex', createdAt: '2026-01-01T00:00:00Z' },
     });
     renderHome();
-    expect(screen.getByRole('button', { name: /play against another user/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /play against another user/i })).not.toBeDisabled();
   });
 });
 
@@ -222,7 +284,9 @@ describe('Home — restore-by-code (AC-7/8/9/10)', () => {
     // is exercised (' ab12 ' → 'ab12').
     await userEvent.type(screen.getByLabelText('Game code'), ' ab12 ');
     await userEvent.click(screen.getByRole('button', { name: /restore game/i }));
-    expect(restoreSubmitMock).toHaveBeenCalledWith('ab12');
+    // Restore is now a belonging probe: code plus the caller's own playerId + sessionToken
+    // (empty here — a fresh browser with no stored belonging, which the backend 404s).
+    expect(restoreSubmitMock).toHaveBeenCalledWith('ab12', '', '');
   });
 
   it('valid IN_PROGRESS code navigates to /game (AC-8)', async () => {
@@ -271,6 +335,78 @@ describe('Home — restore-by-code (AC-7/8/9/10)', () => {
   });
 });
 
+describe('Home — resume-popup belonging gating (AC-1/AC-2/AC-8/AC-12/AC-13)', () => {
+  function identified() {
+    mockIdentity({
+      status: 'identified',
+      player: { playerId: 'uuid-123', displayName: 'Alex', createdAt: '2026-01-01T00:00:00Z' },
+    });
+  }
+
+  it('no belonging record at all → no probe, no popup (AC-1)', async () => {
+    identified();
+    renderHome();
+    // No pointer in localStorage → step 1 fails → probe never called, dialog never shows.
+    await waitFor(() => expect(probeMock).not.toHaveBeenCalled());
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('pointer WITHOUT a sessionToken → never popup-eligible, probe not called (AC-2/AC-8)', async () => {
+    identified();
+    setBelonging(''); // a browser that merely typed a code: pointer exists, token empty
+    renderHome();
+    // Step 1 (non-empty token) fails, so the probe is never run and the popup never shows —
+    // knowing a code is not belonging.
+    await waitFor(() => expect(probeMock).not.toHaveBeenCalled());
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('token present but probe NOT eligible (cleared) → no popup (AC-12/AC-13)', async () => {
+    identified();
+    setBelonging('tok-1');
+    probeMock.mockResolvedValue('cleared');
+    renderHome();
+    await waitFor(() => expect(probeMock).toHaveBeenCalled());
+    // Probe ran but reported the seat is gone/terminal/not-owned → no popup, record cleared.
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(localStorage.getItem(ACTIVE_GAME_KEY)).toBeNull();
+  });
+
+  it('token present AND probe eligible → popup shown (AC-3)', async () => {
+    identified();
+    setBelonging('tok-1');
+    probeMock.mockResolvedValue('eligible');
+    renderHome();
+    // Only after a successful belonging probe does the personal welcome-back dialog appear.
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    expect(probeMock).toHaveBeenCalledWith(
+      expect.objectContaining({ gameId: 'G1', sessionToken: 'tok-1' }),
+    );
+  });
+
+  it('404/not-owned probe (cleared) quietly clears the stale record, clean Home, no error (AC-13)', async () => {
+    identified();
+    setBelonging('stale-tok');
+    probeMock.mockResolvedValue('cleared');
+    renderHome();
+    await waitFor(() => expect(localStorage.getItem(ACTIVE_GAME_KEY)).toBeNull());
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    // No blocking error surfaced — stale belonging resolves silently to a clean Home.
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('5xx/network probe (transient) PRESERVES the record and shows no popup (Error States)', async () => {
+    identified();
+    setBelonging('tok-1');
+    probeMock.mockResolvedValue('transient');
+    renderHome();
+    await waitFor(() => expect(probeMock).toHaveBeenCalled());
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    // Belonging is never downgraded by a connectivity blip — record stays for a later retry.
+    expect(localStorage.getItem(ACTIVE_GAME_KEY)).not.toBeNull();
+  });
+});
+
 describe('Home — code popup on computer-game start (AC-5/AC-6)', () => {
   it('shows the code popup after creating a computer game, then proceeds on acknowledge', async () => {
     mockIdentity({
@@ -285,5 +421,120 @@ describe('Home — code popup on computer-game start (AC-5/AC-6)', () => {
     // Acknowledging proceeds into the game (computer game starts in the lobby).
     await userEvent.click(screen.getByRole('button', { name: /got it, start playing/i }));
     await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/lobby'));
+  });
+});
+
+import { createGame } from '../../api/gameApi';
+
+describe('Home — create human-vs-human game (AC-4/AC-5/AC-6)', () => {
+  function identified() {
+    mockIdentity({
+      status: 'identified',
+      player: { playerId: 'uuid-123', displayName: 'Alex', createdAt: '2026-01-01T00:00:00Z' },
+    });
+  }
+
+  it('clicking the button creates a HUMAN game and navigates to /lobby (AC-4)', async () => {
+    identified();
+    renderHome();
+    await userEvent.click(screen.getByRole('button', { name: /play against another user/i }));
+    // create-HUMAN handler mirrors computer create but mode 'HUMAN' (AC-4).
+    await waitFor(() => expect(createGame).toHaveBeenCalledWith('HUMAN', 'uuid-123'));
+    // Human game starts WAITING_FOR_PLAYERS/PLACING_SHIPS → creator routes into the lobby
+    // (where the shareable code + waiting banner surface — AC-6). No code popup for HUMAN.
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/lobby'));
+  });
+
+  it('persists the belonging pointer with the minted sessionToken after create (PR #58)', async () => {
+    identified();
+    // After setPointer, the load-time belonging probe re-runs; 'transient' preserves the
+    // record (a 'cleared' outcome would wipe it — not what we assert here).
+    probeMock.mockResolvedValue('transient');
+    renderHome();
+    await userEvent.click(screen.getByRole('button', { name: /play against another user/i }));
+    await waitFor(() => {
+      const raw = localStorage.getItem(ACTIVE_GAME_KEY);
+      expect(raw).not.toBeNull();
+      const ptr = JSON.parse(raw as string);
+      expect(ptr).toMatchObject({
+        gameId: 'ABC123',
+        playerId: 'p1',
+        gameMode: 'HUMAN',
+        sessionToken: 'tok-mint',
+      });
+    });
+  });
+});
+
+describe('Home — join human game by code (AC-5/AC-6c/AC-6d)', () => {
+  function identified() {
+    mockIdentity({
+      status: 'identified',
+      player: { playerId: 'uuid-123', displayName: 'Alex', createdAt: '2026-01-01T00:00:00Z' },
+    });
+  }
+
+  it('empty join submit shows a validation hint and does not call join or navigate', async () => {
+    identified();
+    renderHome();
+    await userEvent.click(screen.getByRole('button', { name: /join game/i }));
+    expect(screen.getByText(/please enter a game code/i)).toBeInTheDocument();
+    expect(joinMock).not.toHaveBeenCalled();
+    expect(navigateMock).not.toHaveBeenCalled();
+  });
+
+  it('valid join navigates to /lobby and persists a distinct-identity pointer (AC-6c)', async () => {
+    identified();
+    // useJoinGame mints a brand-new distinct identity (PR #58): p2 + its own token.
+    joinMock.mockResolvedValue({
+      gameId: 'ABC123', playerId: 'p2', status: 'PLACING_SHIPS', sessionToken: 'tok-join',
+    });
+    // 'transient' preserves the just-written pointer through the load-time probe re-run.
+    probeMock.mockResolvedValue('transient');
+    renderHome();
+    await userEvent.type(screen.getByLabelText('Game code to join'), 'ABC123');
+    await userEvent.click(screen.getByRole('button', { name: /join game/i }));
+    await waitFor(() => expect(joinMock).toHaveBeenCalledWith('ABC123', 'uuid-123'));
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/lobby'));
+    const ptr = JSON.parse(localStorage.getItem(ACTIVE_GAME_KEY) as string);
+    expect(ptr).toMatchObject({
+      gameId: 'ABC123', playerId: 'p2', gameMode: 'HUMAN', sessionToken: 'tok-join',
+    });
+  });
+
+  it('valid IN_PROGRESS join navigates to /game (AC-6c)', async () => {
+    identified();
+    joinMock.mockResolvedValue({
+      gameId: 'ABC123', playerId: 'p2', status: 'IN_PROGRESS', sessionToken: 'tok-join',
+    });
+    renderHome();
+    await userEvent.type(screen.getByLabelText('Game code to join'), 'ABC123');
+    await userEvent.click(screen.getByRole('button', { name: /join game/i }));
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/game'));
+  });
+
+  it('not-joinable code shows the inline message and stays on Home — no nav (AC-6d)', async () => {
+    identified();
+    // useJoinGame resolves null and sets notFound on a bad/full/started/unknown code.
+    joinMock.mockResolvedValue(null);
+    joinState.notFound = true;
+    renderHome();
+    await userEvent.type(screen.getByLabelText('Game code to join'), 'NOPE12');
+    await userEvent.click(screen.getByRole('button', { name: /join game/i }));
+    expect(await screen.findByText(/game not found or no longer available/i)).toBeInTheDocument();
+    expect(navigateMock).not.toHaveBeenCalled();
+    // No belonging pointer written on a failed join (no distinct identity minted).
+    expect(localStorage.getItem(ACTIVE_GAME_KEY)).toBeNull();
+  });
+
+  it('transient join error renders inline and stays on Home (no nav)', async () => {
+    identified();
+    joinMock.mockRejectedValue(new Error('Network down'));
+    joinState.error = 'Network down';
+    renderHome();
+    await userEvent.type(screen.getByLabelText('Game code to join'), 'ABC123');
+    await userEvent.click(screen.getByRole('button', { name: /join game/i }));
+    expect(await screen.findByText(/network down/i)).toBeInTheDocument();
+    expect(navigateMock).not.toHaveBeenCalled();
   });
 });

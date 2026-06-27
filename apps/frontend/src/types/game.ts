@@ -56,12 +56,24 @@ export interface CreateGameResponse {
   playerId: string;
   status: GameStatus;
   gameMode?: GameMode;
+  /**
+   * Per-seat belonging secret, minted ONCE for the creator's seat. Opaque bearer
+   * token (not the playerId). Sent back on every belonging-gated request via the
+   * `X-Session-Token` header. Never returned by any read endpoint — store it from
+   * this mint response only.
+   */
+  sessionToken: string;
 }
 
 export interface JoinGameResponse {
   gameId: string;
   playerId: string;
   status: GameStatus;
+  /**
+   * Per-seat belonging secret, minted ONCE for the joining seat (a brand-new,
+   * distinct identity — never the creator's). See CreateGameResponse.sessionToken.
+   */
+  sessionToken: string;
 }
 
 /**
@@ -130,6 +142,13 @@ export interface ActiveGamePointer {
   gameId: string;
   playerId: string;
   gameMode: GameMode;
+  /**
+   * Per-seat belonging secret for THIS browser's seat. Set ONLY from a create or
+   * join mint response — never from a read/restore. Its presence is what proves
+   * this browser belongs to the game (resume-popup eligibility step 1). A browser
+   * that merely typed a code has no token and is never eligible for the popup.
+   */
+  sessionToken: string;
 }
 
 /** Response body for POST .../pause and POST .../resume. (Stop returns 204 No Content.) */

@@ -46,6 +46,10 @@ class GameServiceComputerTest {
     private ComputerPlayerService computerPlayerService;
     private GameService gameService;
 
+    // Per-seat belonging tokens for the human seats constructed in test helpers.
+    private static final String HUMAN_TOKEN = "human-token";
+    private static final String PLAYER_B_TOKEN = "player-b-token";
+
     @BeforeEach
     void setUp() {
         placementValidationService = new PlacementValidationService();
@@ -120,7 +124,7 @@ class GameServiceComputerTest {
         placeAllShips(game.getPlayerA().getBoard());
         when(gameRepository.findById(game.getId())).thenReturn(Optional.of(game));
 
-        ConfirmReadyResponse response = gameService.setReady(game.getId(), humanId);
+        ConfirmReadyResponse response = gameService.setReady(game.getId(), humanId, HUMAN_TOKEN);
 
         assertThat(response.getStatus()).isEqualTo("IN_PROGRESS");
     }
@@ -132,7 +136,7 @@ class GameServiceComputerTest {
         placeAllShips(game.getPlayerA().getBoard());
         when(gameRepository.findById(game.getId())).thenReturn(Optional.of(game));
 
-        ConfirmReadyResponse response = gameService.setReady(game.getId(), humanId);
+        ConfirmReadyResponse response = gameService.setReady(game.getId(), humanId, HUMAN_TOKEN);
 
         assertThat(response.getCurrentTurnPlayerId()).isEqualTo(humanId);
     }
@@ -149,7 +153,7 @@ class GameServiceComputerTest {
         Coordinate target = findEmptyCell(game.getPlayerB().getBoard());
         when(gameRepository.findById(game.getId())).thenReturn(Optional.of(game));
 
-        FireShotResponse response = gameService.fireShot(game.getId(), humanId, target);
+        FireShotResponse response = gameService.fireShot(game.getId(), humanId, HUMAN_TOKEN, target);
 
         assertThat(response.getComputerShot()).isNotNull();
     }
@@ -161,7 +165,7 @@ class GameServiceComputerTest {
         Coordinate target = findEmptyCell(game.getPlayerB().getBoard());
         when(gameRepository.findById(game.getId())).thenReturn(Optional.of(game));
 
-        FireShotResponse response = gameService.fireShot(game.getId(), humanId, target);
+        FireShotResponse response = gameService.fireShot(game.getId(), humanId, HUMAN_TOKEN, target);
 
         assertThat(response.getComputerShot()).isNotNull();
         int compRow = response.getComputerShot().getRow();
@@ -187,7 +191,7 @@ class GameServiceComputerTest {
         Coordinate lastCell = findLastUnsunkCell(computerBoard);
         when(gameRepository.findById(game.getId())).thenReturn(Optional.of(game));
 
-        FireShotResponse response = gameService.fireShot(game.getId(), humanId, lastCell);
+        FireShotResponse response = gameService.fireShot(game.getId(), humanId, HUMAN_TOKEN, lastCell);
 
         assertThat(response.getWinnerId()).isEqualTo(humanId);
         assertThat(response.getComputerShot()).isNull();
@@ -200,7 +204,7 @@ class GameServiceComputerTest {
         Coordinate target = findEmptyCell(game.getPlayerB().getBoard());
         when(gameRepository.findById(game.getId())).thenReturn(Optional.of(game));
 
-        FireShotResponse response = gameService.fireShot(game.getId(), humanId, target);
+        FireShotResponse response = gameService.fireShot(game.getId(), humanId, HUMAN_TOKEN, target);
 
         // Human always retains the next turn in COMPUTER mode
         assertThat(response.getNextTurnPlayerId()).isEqualTo(humanId);
@@ -214,7 +218,7 @@ class GameServiceComputerTest {
         Coordinate target = findEmptyCell(game.getPlayerB().getBoard());
         when(gameRepository.findById(game.getId())).thenReturn(Optional.of(game));
 
-        FireShotResponse response = gameService.fireShot(game.getId(), humanAId, target);
+        FireShotResponse response = gameService.fireShot(game.getId(), humanAId, HUMAN_TOKEN, target);
 
         assertThat(response.getComputerShot()).isNull();
     }
@@ -231,7 +235,7 @@ class GameServiceComputerTest {
         Coordinate target = findEmptyCell(game.getPlayerB().getBoard());
         when(gameRepository.findById(game.getId())).thenReturn(Optional.of(game));
 
-        gameService.fireShot(game.getId(), humanId, target);
+        gameService.fireShot(game.getId(), humanId, HUMAN_TOKEN, target);
 
         verify(computerMoveDelay, times(1)).await();
     }
@@ -244,7 +248,7 @@ class GameServiceComputerTest {
         Coordinate target = findEmptyCell(game.getPlayerB().getBoard());
         when(gameRepository.findById(game.getId())).thenReturn(Optional.of(game));
 
-        gameService.fireShot(game.getId(), humanAId, target);
+        gameService.fireShot(game.getId(), humanAId, HUMAN_TOKEN, target);
 
         verify(computerMoveDelay, never()).await();
     }
@@ -259,7 +263,7 @@ class GameServiceComputerTest {
         Coordinate lastCell = findLastUnsunkCell(computerBoard);
         when(gameRepository.findById(game.getId())).thenReturn(Optional.of(game));
 
-        FireShotResponse response = gameService.fireShot(game.getId(), humanId, lastCell);
+        FireShotResponse response = gameService.fireShot(game.getId(), humanId, HUMAN_TOKEN, lastCell);
 
         assertThat(response.getWinnerId()).isEqualTo(humanId);
         assertThat(response.getComputerShot()).isNull();
@@ -276,7 +280,7 @@ class GameServiceComputerTest {
         String humanId = game.getPlayerA().getId();
         when(gameRepository.findById(game.getId())).thenReturn(Optional.of(game));
 
-        GameStateResponse state = gameService.getGameState(game.getId(), humanId);
+        GameStateResponse state = gameService.getGameState(game.getId(), humanId, HUMAN_TOKEN);
 
         assertThat(state.getGameMode()).isEqualTo("COMPUTER");
     }
@@ -288,7 +292,7 @@ class GameServiceComputerTest {
         String humanId = game.getPlayerA().getId();
         when(gameRepository.findById(game.getId())).thenReturn(Optional.of(game));
 
-        GameStateResponse state = gameService.getGameState(game.getId(), humanId);
+        GameStateResponse state = gameService.getGameState(game.getId(), humanId, HUMAN_TOKEN);
 
         // Computer has 5 un-sunk ships; opponentBoard.ships must be empty
         assertThat(state.getOpponentBoard().getShips()).isEmpty();
@@ -301,12 +305,12 @@ class GameServiceComputerTest {
     /** Creates a COMPUTER game in PLACING_SHIPS state (computer already ready, human not yet). */
     private Game buildComputerGameInPlacingShips() {
         String gameId = "COMPG1";
-        Player humanPlayer = new Player("human-player", gameId);
+        Player humanPlayer = new Player("human-player", gameId, HUMAN_TOKEN);
         Game game = new Game(gameId, humanPlayer, GameMode.COMPUTER);
 
         // Set up computer player (mirrors GameService.createGame logic)
         String computerId = "COMPUTER-test-001";
-        Player computerPlayer = new Player(computerId, gameId);
+        Player computerPlayer = new Player(computerId, gameId, null);
         computerPlayerService.placeShipsRandomly(computerPlayer.getBoard());
         computerPlayer.confirmReady();
         game.addPlayerB(computerPlayer);
@@ -326,10 +330,10 @@ class GameServiceComputerTest {
     /** Creates a HUMAN game in IN_PROGRESS state with ships on both boards. */
     private Game buildHumanGameInProgress() {
         String gameId = "HUMANG1";
-        Player playerA = new Player("human-a", gameId);
+        Player playerA = new Player("human-a", gameId, HUMAN_TOKEN);
         Game game = new Game(gameId, playerA, GameMode.HUMAN);
 
-        Player playerB = new Player("human-b", gameId);
+        Player playerB = new Player("human-b", gameId, PLAYER_B_TOKEN);
         game.addPlayerB(playerB);
 
         placeAllShips(game.getPlayerA().getBoard());

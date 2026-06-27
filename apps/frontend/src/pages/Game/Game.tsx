@@ -22,7 +22,7 @@ import {
   COMPUTER_PLAYING_HOLD_MS,
   YOUR_TURN_AGAIN_MS,
 } from '../../utils/turnTiming';
-import type { ShotResult, ShipType, CellState, Coordinate } from '../../types/game';
+import type { ShotResult, ShipType, CellState } from '../../types/game';
 import './Game.css';
 
 export function Game(): React.ReactElement {
@@ -32,12 +32,14 @@ export function Game(): React.ReactElement {
   const { pointer, clear: clearActiveGame } = useActiveGame();
   const gameId = pointer?.gameId ?? '';
   const playerId = pointer?.playerId ?? '';
+  // Per-seat belonging secret threaded into every gated call (architecture §4.5). Sourced
+  // from the same active-game pointer as gameId/playerId; '' when absent (the call then 403s,
+  // which the existing error/recovery paths already handle as "session no longer valid").
+  const sessionToken = pointer?.sessionToken ?? '';
   const [error, setError] = useState<string | null>(null);
   const [firing, setFiring] = useState(false);
   // True while a Pause/Stop request is in flight, so the session controls disable.
   const [sessionBusy, setSessionBusy] = useState(false);
-  // The cell the player just fired at, shown as a pending shot until the result arrives.
-  const [pendingShot, setPendingShot] = useState<Coordinate | null>(null);
   const [lastResult, setLastResult] = useState<ShotResult | null>(null);
   const [lastSunkShip, setLastSunkShip] = useState<ShipType | null>(null);
   // Optimistic overlay for computer's shot on my board before next poll
@@ -51,7 +53,7 @@ export function Game(): React.ReactElement {
   // True while the transient "Your turn again" cue is shown after control returns.
   const [yourTurnAgain, setYourTurnAgain] = useState(false);
 
-  const { gameState, isLoading, gameGone, refresh } = useGamePolling(gameId, playerId, true);
+  const { gameState, isLoading, gameGone, refresh } = useGamePolling(gameId, playerId, sessionToken, true);
 
   // Guards against state updates after unmount during the (longer) vs-computer choreography.
   const mountedRef = useRef(true);
@@ -124,7 +126,7 @@ export function Game(): React.ReactElement {
     setLeaveBusy(true);
     setError(null);
     try {
-      await stopGame(gameId, playerId);
+      await stopGame(gameId, playerId, sessionToken);
     } catch (e) {
       // Backend is source of truth: if Stop genuinely failed, surface it and keep the
       // player in the game rather than navigating to a possibly-still-live game (no double
@@ -138,7 +140,7 @@ export function Game(): React.ReactElement {
     setShowLeaveConfirm(false);
     setLeaveBusy(false);
     navigate('/', { replace: true });
-  }, [gameId, playerId, clearActiveGame, navigate]);
+  }, [gameId, playerId, sessionToken, clearActiveGame, navigate]);
 
   // On FINISHED, clear the active-game pointer BEFORE navigating to game-over so a
   // finished game never re-triggers the resume modal on a later Home visit (AC-14).
@@ -154,20 +156,20 @@ export function Game(): React.ReactElement {
     setSessionBusy(true);
     setError(null);
     try {
-      await pauseGame(gameId, playerId);
+      await pauseGame(gameId, playerId, sessionToken);
       navigate('/');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not pause the game. Please try again.');
       setSessionBusy(false);
     }
-  }, [gameId, playerId, navigate]);
+  }, [gameId, playerId, sessionToken, navigate]);
 
   // Stop: backend deletes the session, pointer CLEARED, clean Home, no resume modal — AC-9.
   const handleStop = useCallback(async () => {
     setSessionBusy(true);
     setError(null);
     try {
-      await stopGame(gameId, playerId);
+      await stopGame(gameId, playerId, sessionToken);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not stop the game. Please try again.');
       setSessionBusy(false);
@@ -175,7 +177,7 @@ export function Game(): React.ReactElement {
     }
     clearActiveGame();
     navigate('/');
-  }, [gameId, playerId, navigate, clearActiveGame]);
+  }, [gameId, playerId, sessionToken, navigate, clearActiveGame]);
 
   // Clear the optimistic computer-shot overlay once the poll updates my board
   useEffect(() => {
@@ -220,7 +222,6 @@ export function Game(): React.ReactElement {
     // Accepted shot — give immediate feedback as a direct result of the gesture.
     playShotSound();
     setError(null);
-    setPendingShot({ row, col });
     setFiring(true);
     void submitShot(row, col);
   };
@@ -230,18 +231,24 @@ export function Game(): React.ReactElement {
       // `silent: true` keeps firing off the app-wide top-bar loader — a shot is a
       // high-frequency in-game action that must feel instant and leave the board
       // interactive. Localized "Firing…" feedback (FiringIndicator) covers pending state.
-      const res = await fireShot(gameId, playerId, row, col, true);
+      const res = await fireShot(gameId, playerId, row, col, sessionToken, true);
       setLastResult(res.result);
       setLastSunkShip(res.sunkShipType);
 
+      // AC-7/AC-8/AC-9: pull the authoritative board immediately after the player's
+      // own shot resolves — BEFORE any "Computer is playing" pacing delay. The delay
+      // applies only to revealing the computer's response shot.
+      setFiring(false);
+      await refresh();
+      if (!mountedRef.current) return;
+
       const cs = res.computerShot;
       if (cs) {
-        // The computer is taking its turn. Present a visible, locked "Computer is
-        // playing" phase (board cannot fire) BEFORE revealing the computer's shot,
-        // then return control with a "Your turn again" cue. The backend already
-        // resolved both shots — this is purely the player-facing choreography.
-        setFiring(false);
-        setPendingShot(null);
+        // The computer is taking its turn. The player's own result is already on the
+        // board (refresh above). Now present a visible, locked "Computer is playing"
+        // phase (board cannot fire) BEFORE revealing the computer's shot, then return
+        // control with a "Your turn again" cue. The backend already resolved both
+        // shots — this is purely the player-facing choreography for the COMPUTER's move.
         setComputerPlaying(true);
 
         await delay(COMPUTER_PLAYING_REVEAL_MS);
@@ -249,7 +256,7 @@ export function Game(): React.ReactElement {
 
         const cellState: CellState = cs.result === 'MISS' ? 'miss' : 'hit';
         setComputerShotOverlay({ row: cs.row, col: cs.col, state: cellState });
-        // Pull the authoritative board so the computer's shot shows for real.
+        // Pull the authoritative board again so the computer's shot shows for real.
         await refresh();
         if (!mountedRef.current) return;
 
@@ -267,21 +274,19 @@ export function Game(): React.ReactElement {
 
         setComputerPlaying(false);
         setYourTurnAgain(true);
-      } else {
-        // No computer turn (HUMAN multiplayer, or the player's shot ended the game).
-        // Pull the authoritative board immediately so the result shows without
-        // waiting for the next poll interval.
-        await refresh();
       }
+      // No `else` branch needed: when there is no computer shot (HUMAN multiplayer, or
+      // the player's shot ended the game / won — AC-13a), the immediate refresh() above
+      // already pulled the authoritative board with the player's own result, with no
+      // computer-response wait and no "Computer is playing" phase. The FINISHED-status
+      // effect drives navigation to game-over on a winning shot.
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Shot failed. Please try again.');
       // Never leave the player stuck in a "Computer is playing" lock on failure.
       setComputerPlaying(false);
     } finally {
-      // Always clear pending + unlock the board, even on failure, so the
-      // indicator never sticks and the player can fire again.
+      // Always unlock the board on failure so the player can fire again.
       setFiring(false);
-      setPendingShot(null);
     }
   };
 
@@ -295,15 +300,8 @@ export function Game(): React.ReactElement {
         ),
       )
     : myBoardCellsBase;
-  // Overlay the pending shot onto the opponent board so the target cell shows a
-  // loading state immediately, before the backend result replaces it.
-  const opponentBoardCellsWithPending = opponentBoardCells && pendingShot
-    ? opponentBoardCells.map((rowArr, r) =>
-        rowArr.map((cell, c) =>
-          r === pendingShot.row && c === pendingShot.col ? 'pending' : cell,
-        ),
-      )
-    : opponentBoardCells;
+  // No per-cell pending overlay: fired cells resolve directly to hit/miss/sunk
+  // once the backend responds. The firing guard still prevents duplicate shots.
   const opponentSunkTypes = gameState ? getSunkShipTypes(gameState.opponentBoard) : [];
 
   if (isLoading && !gameState) {
@@ -354,9 +352,9 @@ export function Game(): React.ReactElement {
 
       <div className="game-layout">
         <div className="game-boards">
-          {opponentBoardCellsWithPending && (
+          {opponentBoardCells && (
             <GameBoard
-              cells={opponentBoardCellsWithPending}
+              cells={opponentBoardCells}
               onCellClick={handleFireShot}
               interactive={isMyTurn && !firing && !computerPlaying}
               label="Enemy Waters"

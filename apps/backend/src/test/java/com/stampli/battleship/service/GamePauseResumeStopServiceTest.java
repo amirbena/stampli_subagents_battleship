@@ -41,13 +41,16 @@ class GamePauseResumeStopServiceTest {
     private static final String PLAYER_A_ID = "player-a";
     private static final String PLAYER_B_ID = "player-b";
     private static final String OUTSIDER_ID = "outsider";
+    private static final String TOKEN_A = "token-a";
+    private static final String TOKEN_B = "token-b";
+    private static final String WRONG_TOKEN = "wrong-token";
 
     private Game inProgressGame;
 
     @BeforeEach
     void setUp() {
-        inProgressGame = new Game(GAME_ID, new Player(PLAYER_A_ID, GAME_ID));
-        inProgressGame.addPlayerB(new Player(PLAYER_B_ID, GAME_ID));
+        inProgressGame = new Game(GAME_ID, new Player(PLAYER_A_ID, GAME_ID, TOKEN_A));
+        inProgressGame.addPlayerB(new Player(PLAYER_B_ID, GAME_ID, TOKEN_B));
         inProgressGame.startGame();
     }
 
@@ -57,7 +60,7 @@ class GamePauseResumeStopServiceTest {
     void pauseGameHappyPathReturnsPausedAndPriorStatusAndSaves() {
         when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(inProgressGame));
 
-        PauseResumeResponse response = gameService.pauseGame(GAME_ID, PLAYER_A_ID);
+        PauseResumeResponse response = gameService.pauseGame(GAME_ID, PLAYER_A_ID, TOKEN_A);
 
         assertThat(response.getGameId()).isEqualTo(GAME_ID);
         assertThat(response.getStatus()).isEqualTo(GameStatus.PAUSED);
@@ -67,12 +70,12 @@ class GamePauseResumeStopServiceTest {
     }
 
     @Test
-    void pauseGameByNonParticipantThrowsPlayerNotInGame() {
+    void pauseGameByNonOwnerThrowsNotAuthorized() {
         when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(inProgressGame));
 
-        assertThatThrownBy(() -> gameService.pauseGame(GAME_ID, OUTSIDER_ID))
+        assertThatThrownBy(() -> gameService.pauseGame(GAME_ID, OUTSIDER_ID, WRONG_TOKEN))
                 .isInstanceOf(GameException.class)
-                .extracting("errorCode").isEqualTo("PLAYER_NOT_IN_GAME");
+                .extracting("errorCode").isEqualTo("NOT_AUTHORIZED");
         verify(gameRepository, never()).save(inProgressGame);
     }
 
@@ -80,7 +83,7 @@ class GamePauseResumeStopServiceTest {
     void pauseGameNotFoundThrowsGameNotFound() {
         when(gameRepository.findById(GAME_ID)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> gameService.pauseGame(GAME_ID, PLAYER_A_ID))
+        assertThatThrownBy(() -> gameService.pauseGame(GAME_ID, PLAYER_A_ID, TOKEN_A))
                 .isInstanceOf(GameException.class)
                 .extracting("errorCode").isEqualTo("GAME_NOT_FOUND");
     }
@@ -90,7 +93,7 @@ class GamePauseResumeStopServiceTest {
         inProgressGame.pause();
         when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(inProgressGame));
 
-        assertThatThrownBy(() -> gameService.pauseGame(GAME_ID, PLAYER_A_ID))
+        assertThatThrownBy(() -> gameService.pauseGame(GAME_ID, PLAYER_A_ID, TOKEN_A))
                 .isInstanceOf(GameException.class)
                 .extracting("errorCode").isEqualTo("WRONG_PHASE");
     }
@@ -102,7 +105,7 @@ class GamePauseResumeStopServiceTest {
         inProgressGame.pause();
         when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(inProgressGame));
 
-        PauseResumeResponse response = gameService.resumeGame(GAME_ID, PLAYER_A_ID);
+        PauseResumeResponse response = gameService.resumeGame(GAME_ID, PLAYER_A_ID, TOKEN_A);
 
         assertThat(response.getGameId()).isEqualTo(GAME_ID);
         assertThat(response.getStatus()).isEqualTo(GameStatus.IN_PROGRESS);
@@ -112,20 +115,20 @@ class GamePauseResumeStopServiceTest {
     }
 
     @Test
-    void resumeGameByNonParticipantThrowsPlayerNotInGame() {
+    void resumeGameByNonOwnerThrowsNotAuthorized() {
         inProgressGame.pause();
         when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(inProgressGame));
 
-        assertThatThrownBy(() -> gameService.resumeGame(GAME_ID, OUTSIDER_ID))
+        assertThatThrownBy(() -> gameService.resumeGame(GAME_ID, OUTSIDER_ID, WRONG_TOKEN))
                 .isInstanceOf(GameException.class)
-                .extracting("errorCode").isEqualTo("PLAYER_NOT_IN_GAME");
+                .extracting("errorCode").isEqualTo("NOT_AUTHORIZED");
     }
 
     @Test
     void resumeGameNotFoundThrowsGameNotFound() {
         when(gameRepository.findById(GAME_ID)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> gameService.resumeGame(GAME_ID, PLAYER_A_ID))
+        assertThatThrownBy(() -> gameService.resumeGame(GAME_ID, PLAYER_A_ID, TOKEN_A))
                 .isInstanceOf(GameException.class)
                 .extracting("errorCode").isEqualTo("GAME_NOT_FOUND");
     }
@@ -134,7 +137,7 @@ class GamePauseResumeStopServiceTest {
     void resumeGameWhenNotPausedThrowsWrongPhase() {
         when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(inProgressGame));
 
-        assertThatThrownBy(() -> gameService.resumeGame(GAME_ID, PLAYER_A_ID))
+        assertThatThrownBy(() -> gameService.resumeGame(GAME_ID, PLAYER_A_ID, TOKEN_A))
                 .isInstanceOf(GameException.class)
                 .extracting("errorCode").isEqualTo("WRONG_PHASE");
     }
@@ -145,18 +148,18 @@ class GamePauseResumeStopServiceTest {
     void stopGameWhenPresentValidatesOwnerAndDeletes() {
         when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(inProgressGame));
 
-        gameService.stopGame(GAME_ID, PLAYER_A_ID);
+        gameService.stopGame(GAME_ID, PLAYER_A_ID, TOKEN_A);
 
         verify(gameRepository).delete(GAME_ID);
     }
 
     @Test
-    void stopGameByNonParticipantThrowsPlayerNotInGameAndDoesNotDelete() {
+    void stopGameByNonOwnerThrowsNotAuthorizedAndDoesNotDelete() {
         when(gameRepository.findById(GAME_ID)).thenReturn(Optional.of(inProgressGame));
 
-        assertThatThrownBy(() -> gameService.stopGame(GAME_ID, OUTSIDER_ID))
+        assertThatThrownBy(() -> gameService.stopGame(GAME_ID, OUTSIDER_ID, WRONG_TOKEN))
                 .isInstanceOf(GameException.class)
-                .extracting("errorCode").isEqualTo("PLAYER_NOT_IN_GAME");
+                .extracting("errorCode").isEqualTo("NOT_AUTHORIZED");
         verify(gameRepository, never()).delete(GAME_ID);
     }
 
@@ -164,7 +167,7 @@ class GamePauseResumeStopServiceTest {
     void stopGameWhenAbsentIsIdempotentNoOp() {
         when(gameRepository.findById(GAME_ID)).thenReturn(Optional.empty());
 
-        gameService.stopGame(GAME_ID, PLAYER_A_ID);
+        gameService.stopGame(GAME_ID, PLAYER_A_ID, TOKEN_A);
 
         verify(gameRepository, never()).delete(GAME_ID);
     }

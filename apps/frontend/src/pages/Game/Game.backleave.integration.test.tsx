@@ -66,7 +66,7 @@ function renderApp() {
 beforeEach(() => {
   localStorage.setItem(
     'battleship_active_game',
-    JSON.stringify({ gameId: 'G1', playerId: 'me', gameMode: 'COMPUTER' }),
+    JSON.stringify({ gameId: 'G1', playerId: 'me', gameMode: 'COMPUTER', sessionToken: 'tok-G1' }),
   );
   stopGameMock.mockReset();
   stopGameMock.mockResolvedValue(undefined);
@@ -89,7 +89,7 @@ describe('Game Back/Leave seam (integration)', () => {
 
     await user.click(screen.getByRole('button', { name: /^leave$/i }));
 
-    await waitFor(() => expect(stopGameMock).toHaveBeenCalledWith('G1', 'me'));
+    await waitFor(() => expect(stopGameMock).toHaveBeenCalledWith('G1', 'me', 'tok-G1'));
     // Real router navigation lands on Home; pointer cleared so no re-entry loop (AC-4 alignment).
     expect(await screen.findByText('Home Screen')).toBeInTheDocument();
     expect(localStorage.getItem('battleship_active_game')).toBeNull();

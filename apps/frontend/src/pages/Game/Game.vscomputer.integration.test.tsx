@@ -184,6 +184,46 @@ describe('Game vs-computer — turn choreography', () => {
     expect(screen.queryByText(/your turn again/i)).toBeNull();
   });
 
+  it("reveals the player's OWN shot result immediately, BEFORE the computer-reveal delay (AC-7/AC-8/AC-9)", async () => {
+    // This is the core responsiveness ordering guarantee. The player's own authoritative
+    // board marker is pulled via refresh(); that refresh must fire as soon as the shot
+    // resolves — NOT be gated behind COMPUTER_PLAYING_REVEAL_MS. The computer's own shot
+    // reveal is the only thing the delay applies to (a SECOND refresh after the delay).
+    fireShotMock.mockResolvedValue(responseWithComputerShot());
+    renderGame();
+
+    act(() => { fireEvent.click(within(enemyBoard()).getByLabelText('Row 1 Col 1: empty')); });
+    await flush(0); // resolve fireShot — player's own result + marker must be in by now
+
+    // The player's own board refresh already happened (immediate), even though we have NOT
+    // yet advanced the computer-reveal timer.
+    expect(refreshMock).toHaveBeenCalledTimes(1);
+    // The "Computer is playing" phase is showing, but its reveal delay has not elapsed.
+    expect(screen.getByText('Computer is playing')).toBeInTheDocument();
+
+    // Now advance the computer-reveal window: the SECOND refresh (computer's shot) lands.
+    await flush(COMPUTER_PLAYING_REVEAL_MS);
+    expect(refreshMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('winning player shot resolves immediately with one refresh and no computer phase (AC-13a)', async () => {
+    // The player's shot wins: backend returns no computerShot. The board must refresh
+    // immediately (player's own result) with NO "Computer is playing" phase and NO delay.
+    fireShotMock.mockResolvedValue({
+      row: 0, col: 0, result: 'SUNK', sunkShipType: 'DESTROYER',
+      nextTurnPlayerId: null, gameStatus: 'FINISHED', winnerId: 'me',
+      computerShot: null,
+    });
+    renderGame();
+
+    act(() => { fireEvent.click(within(enemyBoard()).getByLabelText('Row 1 Col 1: empty')); });
+    await flush(0);
+
+    // Immediate refresh of the player's own winning result — no computer choreography.
+    expect(refreshMock).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Computer is playing')).toBeNull();
+  });
+
   it('recovers to an active turn (no stuck lock) when the shot request fails', async () => {
     fireShotMock.mockRejectedValue(new Error('Network down'));
     renderGame();

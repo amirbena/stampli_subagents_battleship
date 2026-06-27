@@ -8,6 +8,12 @@ import { test, expect } from '@playwright/test';
  *  - "Create Game"      → disabled "Play Against Another User (Coming Soon)" (AC-14).
  *  - "Join Game" + "Room code" input → restore-by-code "Game code" input (AC-7).
  * These checks track that new surface so a regression in the Home shell fails here.
+ *
+ * Updated for the Human-vs-Human entry addendum
+ * (Workflow Run ID: 20260627-164723-ddf33ca): Home now renders TWO code inputs — the
+ * second-player "Game code to join" input (Join Game) and the existing Restore "Game
+ * code" input. The Restore input must therefore be matched EXACTLY so the locator does
+ * not collide with the new join input.
  */
 
 test('home page renders the Play vs Computer button', async ({ page }) => {
@@ -17,7 +23,8 @@ test('home page renders the Play vs Computer button', async ({ page }) => {
 
 test('home page shows the restore-by-code (Game code) input', async ({ page }) => {
   await page.goto('/');
-  // The restore input replaces the old room-code/join input (AC-7).
-  await expect(page.getByLabel('Game code')).toBeVisible();
+  // The restore input replaces the old room-code/join input (AC-7). Exact match
+  // disambiguates it from the addendum's "Game code to join" (Join Game) input.
+  await expect(page.getByLabel('Game code', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: /restore game/i })).toBeVisible();
 });

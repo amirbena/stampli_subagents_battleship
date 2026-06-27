@@ -81,29 +81,35 @@ async function createPlayerViaApi(
   return res.json() as Promise<{ playerId: string }>;
 }
 
-/** Create a vs-COMPUTER game; returns { gameId, playerId }. Starts in PLACING_SHIPS. */
+/**
+ * Create a vs-COMPUTER game; returns { gameId, playerId, sessionToken }. Starts in
+ * PLACING_SHIPS. PR #58 mints a per-seat sessionToken on create; every subsequent gated
+ * call (place / ready / fire / stop) MUST carry it as the X-Session-Token header, exactly
+ * as the app's gameApi.ts does — without it the backend returns 403 NOT_AUTHORIZED.
+ */
 async function createComputerGame(
   request: APIRequestContext,
   playerId: string,
-): Promise<{ gameId: string; playerId: string }> {
+): Promise<{ gameId: string; playerId: string; sessionToken: string }> {
   const res = await request.post(`${API_BASE}/games`, {
     params: { mode: 'COMPUTER' },
     data: { playerId },
   });
   if (!res.ok()) throw new Error(`POST /games failed ${res.status()}: ${await res.text()}`);
-  const body = (await res.json()) as { gameId: string; playerId: string };
-  return { gameId: body.gameId, playerId: body.playerId };
+  const body = (await res.json()) as { gameId: string; playerId: string; sessionToken: string };
+  return { gameId: body.gameId, playerId: body.playerId, sessionToken: body.sessionToken };
 }
 
 async function placeAllShips(
   request: APIRequestContext,
   gameId: string,
   playerId: string,
+  sessionToken: string,
 ): Promise<void> {
   for (const ship of SHIP_PLACEMENTS) {
     const res = await request.post(
       `${API_BASE}/games/${gameId}/players/${playerId}/ships`,
-      { data: ship },
+      { data: ship, headers: { 'X-Session-Token': sessionToken } },
     );
     if (!res.ok()) throw new Error(`Place ${ship.shipType} failed: ${res.status()} ${await res.text()}`);
   }
@@ -113,8 +119,11 @@ async function markReady(
   request: APIRequestContext,
   gameId: string,
   playerId: string,
+  sessionToken: string,
 ): Promise<void> {
-  const res = await request.post(`${API_BASE}/games/${gameId}/players/${playerId}/ready`);
+  const res = await request.post(`${API_BASE}/games/${gameId}/players/${playerId}/ready`, {
+    headers: { 'X-Session-Token': sessionToken },
+  });
   if (!res.ok()) throw new Error(`Ready failed: ${res.status()} ${await res.text()}`);
 }
 
@@ -124,10 +133,11 @@ async function fireOneShot(
   playerId: string,
   row: number,
   col: number,
+  sessionToken: string,
 ): Promise<void> {
   const res = await request.post(
     `${API_BASE}/games/${gameId}/players/${playerId}/fire`,
-    { data: { row, col } },
+    { data: { row, col }, headers: { 'X-Session-Token': sessionToken } },
   );
   if (!res.ok()) throw new Error(`Fire failed: ${res.status()} ${await res.text()}`);
 }
@@ -136,8 +146,11 @@ async function stopGameViaApi(
   request: APIRequestContext,
   gameId: string,
   playerId: string,
+  sessionToken: string,
 ): Promise<void> {
-  const res = await request.post(`${API_BASE}/games/${gameId}/players/${playerId}/stop`);
+  const res = await request.post(`${API_BASE}/games/${gameId}/players/${playerId}/stop`, {
+    headers: { 'X-Session-Token': sessionToken },
+  });
   // 204 on success; 404 idempotent (already gone) is also acceptable.
   if (!res.ok() && res.status() !== 404) {
     throw new Error(`Stop failed: ${res.status()} ${await res.text()}`);
@@ -150,14 +163,19 @@ async function stopGameViaApi(
 
 async function seedSession(
   page: Page,
-  args: { playerId: string; gameId: string; gameMode: 'HUMAN' | 'COMPUTER' },
+  args: { playerId: string; gameId: string; gameMode: 'HUMAN' | 'COMPUTER'; sessionToken?: string },
 ): Promise<void> {
   await page.evaluate(
-    ({ identityKey, pointerKey, playerId, gameId, gameMode }) => {
+    ({ identityKey, pointerKey, playerId, gameId, gameMode, sessionToken }) => {
       localStorage.setItem(identityKey, JSON.stringify(playerId));
-      localStorage.setItem(pointerKey, JSON.stringify({ gameId, playerId, gameMode }));
+      // PR #58: the belonging pointer carries the per-seat sessionToken. It is what proves
+      // THIS browser minted the seat (popup eligibility + authorizes gated calls / restore).
+      localStorage.setItem(
+        pointerKey,
+        JSON.stringify({ gameId, playerId, gameMode, sessionToken: sessionToken ?? '' }),
+      );
     },
-    { identityKey: IDENTITY_KEY, pointerKey: ACTIVE_GAME_KEY, ...args },
+    { identityKey: IDENTITY_KEY, pointerKey: ACTIVE_GAME_KEY, ...args, sessionToken: args.sessionToken ?? '' },
   );
 }
 
@@ -227,7 +245,16 @@ test('AC-3/AC-4: stale pointer to a non-existent game → redirect to main, poin
   const bogusGameId = 'ZZZ999';
 
   await page.goto('/');
-  await seedSession(page, { playerId, gameId: bogusGameId, gameMode: 'COMPUTER' });
+  // PR #58: the polling hook is disabled when the pointer carries no sessionToken (no token
+  // ⇒ no belonging ⇒ no gated /state probe). To exercise the stale-game recovery path we seed
+  // a (fake but non-empty) token so polling runs and the gated /state call authoritatively
+  // 404s on the non-existent game → gameGone → Game.tsx clears the pointer and redirects.
+  await seedSession(page, {
+    playerId,
+    gameId: bogusGameId,
+    gameMode: 'COMPUTER',
+    sessionToken: 'stale-token-for-nonexistent-game',
+  });
 
   // Navigate straight into the game view. The polling hook hits 404 GAME_NOT_FOUND →
   // gameGone → Game.tsx clears the pointer and redirects to '/'.
@@ -285,27 +312,29 @@ test('AC-5: starting a computer game shows a code popup containing the game code
 // AC-7 / AC-8 — Restore input on main; valid code restores same game + saved board state
 // ─────────────────────────────────────────────────────────────────────────────
 
-test('AC-7/AC-8: valid code restores the same game with its saved board state (own ships + progress)', async ({ page, request }) => {
+test('AC-7/AC-8: an owning browser restores the same game with its saved board state (own ships + progress)', async ({ page, request }) => {
   // Build a real, in-progress computer game with placed ships and a prior shot so there is
-  // saved board state to restore. All via API for determinism/speed.
+  // saved board state to restore. All via API (token-threaded) for determinism/speed.
   const { playerId: identityId } = await createPlayerViaApi(request, 'RestorePlayer');
-  const { gameId, playerId } = await createComputerGame(request, identityId);
-  await placeAllShips(request, gameId, playerId);
-  await markReady(request, gameId, playerId); // vs COMPUTER → IN_PROGRESS, human first
-  await fireOneShot(request, gameId, playerId, 9, 9); // prior shot progress (a corner → likely miss)
+  const { gameId, playerId, sessionToken } = await createComputerGame(request, identityId);
+  await placeAllShips(request, gameId, playerId, sessionToken);
+  await markReady(request, gameId, playerId, sessionToken); // vs COMPUTER → IN_PROGRESS, human first
+  await fireOneShot(request, gameId, playerId, 9, 9, sessionToken); // prior shot progress (corner → likely miss)
 
-  // Fresh main screen with identity but NO active pointer — the user restores by code.
+  // PR #58 model: re-entry into one's OWN game is a BELONGING flow. The owning browser holds
+  // its belonging record (identity + pointer WITH the minted sessionToken). On Home load the
+  // belonging probe confirms the seat is still resumable and surfaces the ResumeGameModal —
+  // this is the owning-browser re-entry surface (the restore-by-code form is now reserved for
+  // proving a seat the caller already minted, and a non-owning code-bearer gets a generic 404,
+  // covered by AC-9). We seed the full session, then resume via the modal.
   await page.goto('/');
-  await seedIdentityOnly(page, playerId);
+  await seedSession(page, { playerId, gameId, gameMode: 'COMPUTER', sessionToken });
   await page.goto('/');
 
-  // AC-7: the restore input is present on the main screen.
-  const codeInput = page.getByLabel('Game code');
-  await expect(codeInput).toBeVisible({ timeout: 10000 });
-
-  // Submit the valid code.
-  await codeInput.fill(gameId);
-  await page.getByRole('button', { name: /restore game/i }).click();
+  // AC-7: the owning browser is offered the resume prompt for its own resumable seat.
+  const resumeModal = page.getByRole('dialog');
+  await expect(resumeModal).toBeVisible({ timeout: 10000 });
+  await page.getByRole('button', { name: /yes, resume/i }).click();
 
   // AC-8: restored into the SAME game (IN_PROGRESS → /game). The pointer now points at the
   // exact same gameId, proving "the same game" was restored.
@@ -350,7 +379,9 @@ test('AC-9: invalid/unknown code → friendly not-found message, stays on main, 
   await seedIdentityOnly(page, playerId);
   await page.goto('/');
 
-  const codeInput = page.getByLabel('Game code');
+  // Exact match disambiguates the Restore "Game code" input from the addendum's
+  // "Game code to join" (Join Game) input.
+  const codeInput = page.getByLabel('Game code', { exact: true });
   await expect(codeInput).toBeVisible({ timeout: 10000 });
 
   // A syntactically-valid but unknown code (6 chars, never issued).
@@ -371,14 +402,14 @@ test('AC-9: invalid/unknown code → friendly not-found message, stays on main, 
 test('AC-10: already-released (stopped) code → behaves as not-found, stays on main', async ({ page, request }) => {
   // Create a real computer game, then release it via the existing Stop endpoint.
   const { playerId: identityId } = await createPlayerViaApi(request, 'ReleasedCodePlayer');
-  const { gameId, playerId } = await createComputerGame(request, identityId);
-  await stopGameViaApi(request, gameId, playerId); // releases/deletes the game
+  const { gameId, playerId, sessionToken } = await createComputerGame(request, identityId);
+  await stopGameViaApi(request, gameId, playerId, sessionToken); // releases/deletes the game
 
   await page.goto('/');
   await seedIdentityOnly(page, playerId);
   await page.goto('/');
 
-  const codeInput = page.getByLabel('Game code');
+  const codeInput = page.getByLabel('Game code', { exact: true });
   await expect(codeInput).toBeVisible({ timeout: 10000 });
 
   await codeInput.fill(gameId);
@@ -398,17 +429,18 @@ test('AC-11/AC-12: browser Back in an active game opens Stay/Leave popup; Stay k
   // Drive a real IN_PROGRESS game and enter the /game view through the UI so the Game
   // page's popstate sentinel guard is armed.
   const { playerId: identityId } = await createPlayerViaApi(request, 'BackStayPlayer');
-  const { gameId, playerId } = await createComputerGame(request, identityId);
-  await placeAllShips(request, gameId, playerId);
-  await markReady(request, gameId, playerId);
+  const { gameId, playerId, sessionToken } = await createComputerGame(request, identityId);
+  await placeAllShips(request, gameId, playerId, sessionToken);
+  await markReady(request, gameId, playerId, sessionToken);
 
-  // Restore into the game via the Home code input (this is a real navigation that lands
-  // /game with a clean history entry below it for Back to pop to).
+  // Re-enter the game as the OWNING browser (PR #58 belonging): seed the full session (with
+  // token), then resume via the ResumeGameModal. This is a real navigation that lands /game
+  // with a clean history entry below it for Back to pop to.
   await page.goto('/');
-  await seedIdentityOnly(page, playerId);
+  await seedSession(page, { playerId, gameId, gameMode: 'COMPUTER', sessionToken });
   await page.goto('/');
-  await page.getByLabel('Game code').fill(gameId);
-  await page.getByRole('button', { name: /restore game/i }).click();
+  await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10000 });
+  await page.getByRole('button', { name: /yes, resume/i }).click();
   await page.waitForURL(/\/game(?!-over)/, { timeout: 15000 });
   await expect(page.locator('.game-page')).toBeVisible({ timeout: 10000 });
 
@@ -440,15 +472,16 @@ test('AC-11/AC-12: browser Back in an active game opens Stay/Leave popup; Stay k
 
 test('AC-13: Leave releases the game (existing Stop) and returns to main', async ({ page, request }) => {
   const { playerId: identityId } = await createPlayerViaApi(request, 'BackLeavePlayer');
-  const { gameId, playerId } = await createComputerGame(request, identityId);
-  await placeAllShips(request, gameId, playerId);
-  await markReady(request, gameId, playerId);
+  const { gameId, playerId, sessionToken } = await createComputerGame(request, identityId);
+  await placeAllShips(request, gameId, playerId, sessionToken);
+  await markReady(request, gameId, playerId, sessionToken);
 
+  // Re-enter as the OWNING browser via the resume modal (PR #58 belonging re-entry).
   await page.goto('/');
-  await seedIdentityOnly(page, playerId);
+  await seedSession(page, { playerId, gameId, gameMode: 'COMPUTER', sessionToken });
   await page.goto('/');
-  await page.getByLabel('Game code').fill(gameId);
-  await page.getByRole('button', { name: /restore game/i }).click();
+  await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10000 });
+  await page.getByRole('button', { name: /yes, resume/i }).click();
   await page.waitForURL(/\/game(?!-over)/, { timeout: 15000 });
   await expect(page.locator('.game-page')).toBeVisible({ timeout: 10000 });
 
@@ -465,20 +498,30 @@ test('AC-13: Leave releases the game (existing Stop) and returns to main', async
   await expect.poll(async () => readPointer(page), { timeout: 10000 }).toBeNull();
 
   // The game was genuinely released: restoring its code now behaves as not-found (AC-10
-  // overlap, proving Leave used the real Stop release).
-  await page.getByLabel('Game code').fill(gameId);
+  // overlap, proving Leave used the real Stop release). The pointer was cleared by Leave, so
+  // the restore probe carries no token — a released game correctly resolves to the generic 404.
+  await page.getByLabel('Game code', { exact: true }).fill(gameId);
   await page.getByRole('button', { name: /restore game/i }).click();
   await expect(page.getByText(NOT_FOUND_TEXT)).toBeVisible({ timeout: 10000 });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AC-14 — Multiplayer button disabled with "Coming Soon"
+// AC-14 (superseded by addendum) — "Play Against Another User" is now an ENABLED, real
+// game mode with NO "Coming Soon". This run originally asserted the disabled placeholder;
+// the Human-vs-Human entry addendum (Workflow Run ID: 20260627-164723-ddf33ca, AC-1..AC-4)
+// re-enabled it, so the assertion is re-pointed to the current behavior.
 // ─────────────────────────────────────────────────────────────────────────────
 
-test('AC-14: "Play Against Another User" button is disabled and reads "Coming Soon"', async ({ page }) => {
+test('AC-14 (addendum): "Play Against Another User" is visible, enabled, and free of "Coming Soon"', async ({ page, request }) => {
+  // The game-start buttons are identity-gated (AC-01): establish a real identity so the
+  // button resolves to enabled rather than the needs-name disabled state.
+  const { playerId } = await createPlayerViaApi(request, 'EntryAvailabilityPlayer');
   await page.goto('/');
+  await seedIdentityOnly(page, playerId);
+  await page.goto('/');
+
   const multiplayerBtn = page.getByRole('button', { name: /play against another user/i });
   await expect(multiplayerBtn).toBeVisible();
-  await expect(multiplayerBtn).toContainText(/coming soon/i);
-  await expect(multiplayerBtn).toBeDisabled();
+  await expect(multiplayerBtn).not.toContainText(/coming soon/i);
+  await expect(multiplayerBtn).toBeEnabled({ timeout: 10000 });
 });

@@ -79,10 +79,16 @@ async function createPlayerViaApi(
  * Create a vs-COMPUTER game for the given player via the live API.
  * Returns the gameId. The game starts in PLACING_SHIPS.
  */
+/**
+ * Create a vs-COMPUTER game; returns { gameId, sessionToken }. PR #58 mints a per-seat
+ * sessionToken on create that MUST be carried (X-Session-Token header) on every gated call
+ * and seeded into the belonging pointer so the owning browser's resume probe + gated calls
+ * authorize.
+ */
 async function createComputerGame(
   request: APIRequestContext,
   playerId: string,
-): Promise<string> {
+): Promise<{ gameId: string; sessionToken: string }> {
   const res = await request.post(`${API_BASE}/games`, {
     params: { mode: 'COMPUTER' },
     data: { playerId },
@@ -90,19 +96,20 @@ async function createComputerGame(
   if (!res.ok()) {
     throw new Error(`POST /games failed ${res.status()}: ${await res.text()}`);
   }
-  const body = (await res.json()) as { gameId: string; playerId: string };
-  return body.gameId;
+  const body = (await res.json()) as { gameId: string; playerId: string; sessionToken: string };
+  return { gameId: body.gameId, sessionToken: body.sessionToken };
 }
 
 async function placeAllShips(
   request: APIRequestContext,
   gameId: string,
   playerId: string,
+  sessionToken: string,
 ): Promise<void> {
   for (const ship of SHIP_PLACEMENTS) {
     const res = await request.post(
       `${API_BASE}/games/${gameId}/players/${playerId}/ships`,
-      { data: ship },
+      { data: ship, headers: { 'X-Session-Token': sessionToken } },
     );
     if (!res.ok()) {
       throw new Error(`Failed to place ${ship.shipType}: ${res.status()} ${await res.text()}`);
@@ -114,8 +121,11 @@ async function markReady(
   request: APIRequestContext,
   gameId: string,
   playerId: string,
+  sessionToken: string,
 ): Promise<void> {
-  const res = await request.post(`${API_BASE}/games/${gameId}/players/${playerId}/ready`);
+  const res = await request.post(`${API_BASE}/games/${gameId}/players/${playerId}/ready`, {
+    headers: { 'X-Session-Token': sessionToken },
+  });
   if (!res.ok()) {
     throw new Error(`Failed to mark ready: ${res.status()} ${await res.text()}`);
   }
@@ -126,15 +136,21 @@ async function markReady(
  * serialization the app uses (useLocalStorage → JSON.stringify on write).
  * Must run after an initial page.goto('/') so the origin exists; follow with
  * another page.goto('/') so React reads the seeded values on mount.
+ *
+ * PR #58: the pointer carries the per-seat sessionToken — it both authorizes the page's
+ * gated calls and is the step-1 signal that arms the resume-popup belonging probe.
  */
 async function seedSession(
   page: Page,
-  args: { playerId: string; gameId: string; gameMode: 'HUMAN' | 'COMPUTER' },
+  args: { playerId: string; gameId: string; gameMode: 'HUMAN' | 'COMPUTER'; sessionToken?: string },
 ): Promise<void> {
   await page.evaluate(
-    ({ identityKey, pointerKey, playerId, gameId, gameMode }) => {
+    ({ identityKey, pointerKey, playerId, gameId, gameMode, sessionToken }) => {
       localStorage.setItem(identityKey, JSON.stringify(playerId));
-      localStorage.setItem(pointerKey, JSON.stringify({ gameId, playerId, gameMode }));
+      localStorage.setItem(
+        pointerKey,
+        JSON.stringify({ gameId, playerId, gameMode, sessionToken: sessionToken ?? '' }),
+      );
     },
     {
       identityKey: IDENTITY_KEY,
@@ -142,6 +158,7 @@ async function seedSession(
       playerId: args.playerId,
       gameId: args.gameId,
       gameMode: args.gameMode,
+      sessionToken: args.sessionToken ?? '',
     },
   );
 }
@@ -183,12 +200,14 @@ async function setupActiveGame(
   page: Page,
   request: APIRequestContext,
   displayName: string,
-): Promise<{ gameId: string; playerId: string }> {
+): Promise<{ gameId: string; playerId: string; sessionToken: string }> {
   const { playerId } = await createPlayerViaApi(request, displayName);
-  const gameId = await createComputerGame(request, playerId);
+  const { gameId, sessionToken } = await createComputerGame(request, playerId);
   await page.goto('/');
-  await seedSession(page, { playerId, gameId, gameMode: 'COMPUTER' });
-  return { gameId, playerId };
+  // Seed the FULL belonging pointer (with the minted sessionToken): it authorizes the page's
+  // gated calls and is the step-1 signal that arms the resume-popup belonging probe (PR #58).
+  await seedSession(page, { playerId, gameId, gameMode: 'COMPUTER', sessionToken });
+  return { gameId, playerId, sessionToken };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -216,13 +235,13 @@ test('AC-1: refresh during an active game → Home shows verbatim resume modal',
 
 test('AC-2: tab-close/restart (new context, same localStorage) → resume modal on Home', async ({ browser, request }) => {
   const { playerId } = await createPlayerViaApi(request, 'RestartPlayer');
-  const gameId = await createComputerGame(request, playerId);
+  const { gameId, sessionToken } = await createComputerGame(request, playerId);
 
   // First "tab": seed the pointer, then close it entirely.
   const ctx1 = await browser.newContext();
   const page1 = await ctx1.newPage();
   await page1.goto('/');
-  await seedSession(page1, { playerId, gameId, gameMode: 'COMPUTER' });
+  await seedSession(page1, { playerId, gameId, gameMode: 'COMPUTER', sessionToken });
   const exportedState = await ctx1.storageState();
   await ctx1.close();
 
@@ -276,11 +295,11 @@ for (const route of ['/game', '/lobby', '/game-over'] as const) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('AC-6/AC-11: Resume into PLACING_SHIPS restores from backend and renders a valid interactive board', async ({ page, request }) => {
-  const { gameId, playerId } = await setupActiveGame(page, request, 'ResumePlacing');
+  const { gameId, playerId, sessionToken } = await setupActiveGame(page, request, 'ResumePlacing');
 
   // Place all 5 ships via API so the backend myBoard carries placed ships. Resume
   // must hydrate the Lobby board from this backend truth (AC-11), not stale scratch.
-  await placeAllShips(request, gameId, playerId);
+  await placeAllShips(request, gameId, playerId, sessionToken);
 
   // Reload Home so the seeded pointer triggers the resume modal.
   await page.goto('/');
@@ -311,11 +330,11 @@ test('AC-6/AC-11: Resume into PLACING_SHIPS restores from backend and renders a 
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('AC-6: Resume into IN_PROGRESS routes to /game restored from backend', async ({ page, request }) => {
-  const { gameId, playerId } = await setupActiveGame(page, request, 'ResumeInProgress');
+  const { gameId, playerId, sessionToken } = await setupActiveGame(page, request, 'ResumeInProgress');
 
   // Drive the game to IN_PROGRESS: place ships + ready (vs COMPUTER starts immediately).
-  await placeAllShips(request, gameId, playerId);
-  await markReady(request, gameId, playerId);
+  await placeAllShips(request, gameId, playerId, sessionToken);
+  await markReady(request, gameId, playerId, sessionToken);
 
   await page.goto('/');
   await expect(resumeModal(page)).toBeVisible({ timeout: 12000 });
@@ -357,10 +376,10 @@ test('AC-7: No/Stop on Home modal ends session — clean Home, no modal on reloa
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('AC-8: in-game "Pause Game" returns to Home and the game remains resumable', async ({ page, request }) => {
-  const { gameId, playerId } = await setupActiveGame(page, request, 'PausePlayer');
+  const { gameId, playerId, sessionToken } = await setupActiveGame(page, request, 'PausePlayer');
 
   // Enter the lobby (PLACING_SHIPS) through Resume so we are inside the game UI.
-  await placeAllShips(request, gameId, playerId);
+  await placeAllShips(request, gameId, playerId, sessionToken);
   await page.goto('/');
   await expect(resumeModal(page)).toBeVisible({ timeout: 12000 });
   await resumeButton(page).click();
@@ -385,9 +404,9 @@ test('AC-8: in-game "Pause Game" returns to Home and the game remains resumable'
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('AC-9: in-game "Stop Game" ends session — clean Home, no resume modal', async ({ page, request }) => {
-  const { gameId, playerId } = await setupActiveGame(page, request, 'StopPlayer');
+  const { gameId, playerId, sessionToken } = await setupActiveGame(page, request, 'StopPlayer');
 
-  await placeAllShips(request, gameId, playerId);
+  await placeAllShips(request, gameId, playerId, sessionToken);
   await page.goto('/');
   await expect(resumeModal(page)).toBeVisible({ timeout: 12000 });
   await resumeButton(page).click();
@@ -413,9 +432,9 @@ test('AC-9: in-game "Stop Game" ends session — clean Home, no resume modal', a
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('AC-10: player identity key is unchanged across refresh, resume, pause, and stop', async ({ page, request }) => {
-  const { gameId, playerId } = await setupActiveGame(page, request, 'IdentityStable');
+  const { gameId, playerId, sessionToken } = await setupActiveGame(page, request, 'IdentityStable');
 
-  await placeAllShips(request, gameId, playerId);
+  await placeAllShips(request, gameId, playerId, sessionToken);
 
   // Baseline identity after seeding.
   await page.goto('/');
@@ -454,11 +473,21 @@ test('AC-13: stale remembered game (non-existent gameId) → Resume degrades gra
   const bogusGameId = 'NON_EXISTENT_GAME_404';
 
   await page.goto('/');
-  await seedSession(page, { playerId, gameId: bogusGameId, gameMode: 'COMPUTER' });
+  // PR #58: a token-less pointer never even probes (step-1 gate fails), so it would not be
+  // cleared. To exercise the stale-game graceful-degradation path, seed a (fake, non-empty)
+  // token so the load-time belonging probe runs, the backend 404s the non-existent game, and
+  // the probe quietly clears the stale belonging record (no modal, clean Home).
+  await seedSession(page, {
+    playerId,
+    gameId: bogusGameId,
+    gameMode: 'COMPUTER',
+    sessionToken: 'stale-token-for-nonexistent-game',
+  });
   await page.goto('/');
 
-  // The pointer is non-null, so the modal may render. Attempting Resume must hit a
-  // 404 from the backend and degrade gracefully — no error screen, no infinite spinner.
+  // The pointer is non-null with a token, so the probe runs. A stale 404 seat must degrade
+  // gracefully — no error screen, no infinite spinner. If a transient window shows the modal,
+  // Resume also resolves to the clean-Home 404 path.
   const modal = resumeModal(page);
   if (await modal.isVisible().catch(() => false)) {
     await resumeButton(page).click();

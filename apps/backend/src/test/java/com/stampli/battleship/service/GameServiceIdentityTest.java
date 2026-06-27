@@ -49,6 +49,9 @@ class GameServiceIdentityTest {
     private ComputerPlayerService computerPlayerService;
     private GameService gameService;
 
+    // Belonging token for the human seat used in fireShot scenarios.
+    private static final String HUMAN_TOKEN = "human-token";
+
     @BeforeEach
     void setUp() {
         placementValidationService = new PlacementValidationService();
@@ -197,6 +200,56 @@ class GameServiceIdentityTest {
     }
 
     // =========================================================================
+    // Session-token belonging (mint-once, distinctness, non-transfer)
+    // =========================================================================
+
+    @Test
+    void createGame_mintsSessionTokenDistinctFromPlayerId() {
+        CreateGameResponse response = gameService.createGame(GameMode.HUMAN);
+
+        assertThat(response.getSessionToken()).isNotBlank();
+        assertThat(response.getSessionToken()).isNotEqualTo(response.getPlayerId());
+        // base64url of 32 bytes, no padding = 43 chars
+        assertThat(response.getSessionToken()).hasSize(43);
+    }
+
+    @Test
+    void joinGame_mintsNewDistinctPlayerIdAndToken_notCreatorsSeat() {
+        // The creator's seat already holds its own minted token; the joiner must receive a
+        // brand-new, distinct identity AND a distinct token — never the creator's (AC-5, AC-7).
+        CreateGameResponse created = gameService.createGame(GameMode.HUMAN);
+        ArgumentCaptor<Game> captor = ArgumentCaptor.forClass(Game.class);
+        verify(gameRepository).save(captor.capture());
+        Game waitingGame = captor.getValue();
+        when(gameRepository.findById(waitingGame.getId())).thenReturn(Optional.of(waitingGame));
+
+        JoinGameResponse joined = gameService.joinGame(waitingGame.getId(), null);
+
+        assertThat(joined.getPlayerId()).isNotEqualTo(created.getPlayerId());
+        assertThat(joined.getSessionToken()).isNotBlank();
+        assertThat(joined.getSessionToken()).isNotEqualTo(created.getSessionToken());
+        // The joiner owns its OWN seat with its OWN token; the creator's token cannot own it.
+        assertThat(waitingGame.ownsSeat(joined.getPlayerId(), joined.getSessionToken())).isTrue();
+        assertThat(waitingGame.ownsSeat(joined.getPlayerId(), created.getSessionToken())).isFalse();
+    }
+
+    @Test
+    void joinGame_onComputerGame_returnsGeneric404_seatNonTransferable() {
+        // A COMPUTER game has its single human seat plus a tokenless computer seat (playerB filled),
+        // so a join attempt collapses to the generic not-joinable 404 — the seat never transfers (AC-10).
+        CreateGameResponse created = gameService.createGame(GameMode.COMPUTER);
+        ArgumentCaptor<Game> captor = ArgumentCaptor.forClass(Game.class);
+        verify(gameRepository).save(captor.capture());
+        Game computerGame = captor.getValue();
+        when(gameRepository.findById(computerGame.getId())).thenReturn(Optional.of(computerGame));
+
+        assertThatThrownBy(() -> gameService.joinGame(computerGame.getId(), null))
+                .isInstanceOf(GameException.class)
+                .extracting(e -> ((GameException) e).getErrorCode())
+                .isEqualTo("GAME_NOT_FOUND");
+    }
+
+    // =========================================================================
     // Game timestamps (AC-17)
     // =========================================================================
 
@@ -265,7 +318,7 @@ class GameServiceIdentityTest {
 
         // Fire at a cell known to be empty (no ship)
         Coordinate target = findEmptyCell(game.getPlayerB().getBoard());
-        gameService.fireShot(game.getId(), game.getPlayerA().getId(), target);
+        gameService.fireShot(game.getId(), game.getPlayerA().getId(), HUMAN_TOKEN, target);
 
         ArgumentCaptor<Move> captor = ArgumentCaptor.forClass(Move.class);
         verify(moveRepository, atLeastOnce()).save(captor.capture());
@@ -292,7 +345,7 @@ class GameServiceIdentityTest {
         Coordinate target = findShipCell(game.getPlayerB().getBoard());
         // Make sure target is not the last cell (to avoid WIN→SUNK path in this test)
         // We'll just check we get a HIT or SUNK result; either is valid
-        gameService.fireShot(game.getId(), game.getPlayerA().getId(), target);
+        gameService.fireShot(game.getId(), game.getPlayerA().getId(), HUMAN_TOKEN, target);
 
         ArgumentCaptor<Move> captor = ArgumentCaptor.forClass(Move.class);
         verify(moveRepository, atLeastOnce()).save(captor.capture());
@@ -313,7 +366,7 @@ class GameServiceIdentityTest {
         Coordinate lastCell = findLastUnsunkCell(game.getPlayerB().getBoard());
         when(gameRepository.findById(game.getId())).thenReturn(Optional.of(game));
 
-        gameService.fireShot(game.getId(), game.getPlayerA().getId(), lastCell);
+        gameService.fireShot(game.getId(), game.getPlayerA().getId(), HUMAN_TOKEN, lastCell);
 
         ArgumentCaptor<Move> captor = ArgumentCaptor.forClass(Move.class);
         verify(moveRepository, atLeastOnce()).save(captor.capture());
@@ -336,7 +389,7 @@ class GameServiceIdentityTest {
         when(gameRepository.findById(game.getId())).thenReturn(Optional.of(game));
 
         Coordinate target = findEmptyCell(game.getPlayerB().getBoard());
-        gameService.fireShot(game.getId(), humanId, target);
+        gameService.fireShot(game.getId(), humanId, HUMAN_TOKEN, target);
 
         ArgumentCaptor<Move> captor = ArgumentCaptor.forClass(Move.class);
         verify(moveRepository, atLeastOnce()).save(captor.capture());
@@ -362,7 +415,7 @@ class GameServiceIdentityTest {
 
         Instant before = Instant.now();
         Coordinate target = findEmptyCell(game.getPlayerB().getBoard());
-        gameService.fireShot(game.getId(), game.getPlayerA().getId(), target);
+        gameService.fireShot(game.getId(), game.getPlayerA().getId(), HUMAN_TOKEN, target);
         Instant after = Instant.now();
 
         ArgumentCaptor<Move> captor = ArgumentCaptor.forClass(Move.class);
@@ -389,10 +442,10 @@ class GameServiceIdentityTest {
 
     private Game buildInProgressHumanGame() {
         String gameId = "HUMAN-TEST-1";
-        Player playerA = new Player("human-a", gameId);
+        Player playerA = new Player("human-a", gameId, HUMAN_TOKEN);
         Game game = new Game(gameId, playerA, GameMode.HUMAN);
 
-        Player playerB = new Player("human-b", gameId);
+        Player playerB = new Player("human-b", gameId, "tok-b");
         game.addPlayerB(playerB);
 
         placeAllShips(game.getPlayerA().getBoard());
@@ -405,11 +458,11 @@ class GameServiceIdentityTest {
 
     private Game buildInProgressComputerGame() {
         String gameId = "COMP-TEST-1";
-        Player humanPlayer = new Player("human-player", gameId);
+        Player humanPlayer = new Player("human-player", gameId, HUMAN_TOKEN);
         Game game = new Game(gameId, humanPlayer, GameMode.COMPUTER);
 
         String computerId = "COMPUTER-sentinel-001";
-        Player computerPlayer = new Player(computerId, gameId);
+        Player computerPlayer = new Player(computerId, gameId, null);
         computerPlayerService.placeShipsRandomly(computerPlayer.getBoard());
         computerPlayer.confirmReady();
         game.addPlayerB(computerPlayer);

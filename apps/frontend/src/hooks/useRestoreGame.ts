@@ -11,11 +11,13 @@ export interface UseRestoreGameResult {
    * AC-9) — it does NOT throw for the not-found case. Transient 5xx/network errors set
    * `error` and re-throw so the UI can surface a retryable failure. The hook never navigates.
    *
-   * @param code raw code (trimmed by the UI before calling)
-   * @returns the restore response on success, or null when the code is not found
+   * @param code         raw code (trimmed by the UI before calling)
+   * @param playerId     the caller's own seat id (X-Player-Id belonging header)
+   * @param sessionToken the caller's own per-seat secret (X-Session-Token header)
+   * @returns the restore response on success, or null when not found / not owned
    * @throws Error on transient/5xx/network failures (not for 404 not-found)
    */
-  submit: (code: string) => Promise<RestoreGameResponse | null>;
+  submit: (code: string, playerId: string, sessionToken: string) => Promise<RestoreGameResponse | null>;
   /** Last successful restore response, or null before the first success. */
   data: RestoreGameResponse | null;
   /** True while a restore request is in flight. */
@@ -27,13 +29,16 @@ export interface UseRestoreGameResult {
 }
 
 /**
- * Restore-by-code data hook (AC-8/AC-9). Wraps `restoreGameByCode` with loading,
- * a friendly `notFound` signal for the 404 case, and a separate transient `error`.
+ * Restore-by-code belonging probe (AC-2/AC-5/AC-8/AC-13). Wraps `restoreGameByCode`
+ * with loading, a friendly `notFound` signal for the 404 case, and a separate transient
+ * `error`. The caller passes its own `playerId` + `sessionToken` (from the stored
+ * belonging pointer); restore only confirms the caller's OWN seat — it never discovers
+ * an identity, so a browser without a valid token gets the generic 404 (notFound).
  *
  * Not-found vs transient is the key distinction the UI consumes: a 404 maps to the
- * inline "Game not found or no longer available" message (stay on main, no throw),
- * while a 5xx/network failure surfaces as a retryable error. Navigation and pointer
- * writes are the UI agent's job — this hook only resolves the data.
+ * inline "Game not found or not joinable" message (stay on main, no throw), while a
+ * 5xx/network failure surfaces as a retryable error. Navigation and pointer writes are
+ * the UI agent's job — this hook only resolves the data.
  */
 export function useRestoreGame(): UseRestoreGameResult {
   const [data, setData] = useState<RestoreGameResponse | null>(null);
@@ -41,12 +46,16 @@ export function useRestoreGame(): UseRestoreGameResult {
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const submit = useCallback(async (code: string): Promise<RestoreGameResponse | null> => {
+  const submit = useCallback(async (
+    code: string,
+    playerId: string,
+    sessionToken: string,
+  ): Promise<RestoreGameResponse | null> => {
     setIsLoading(true);
     setNotFound(false);
     setError(null);
     try {
-      const response = await restoreGameByCode(code);
+      const response = await restoreGameByCode(code, playerId, sessionToken);
       setData(response);
       return response;
     } catch (e) {

@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import type { ActiveGamePointer, GameStateResponse } from '../types/game';
-import { getGameState, resumeGame, GameNotFoundError } from '../api/gameApi';
+import { getGameState, resumeGame, GameNotFoundError, NotAuthorizedError } from '../api/gameApi';
 import { useActiveGame } from './useActiveGame';
 
 export interface UseResumeGameResult {
@@ -31,9 +31,14 @@ export interface UseResumeGameResult {
  *        - otherwise     → return the resolved GameStateResponse.
  *
  * Pointer-clear policy mirrors usePlayerIdentity: clear ONLY on authoritative
- * GAME_NOT_FOUND (404) or FINISHED. Transient/5xx errors propagate as a thrown
- * Error and leave the pointer intact so a connectivity blip never drops the session.
+ * GAME_NOT_FOUND (404), NOT_AUTHORIZED (403 — stale/foreign belonging, AC-13), or
+ * FINISHED. Transient/5xx errors propagate as a thrown Error and leave the pointer
+ * intact so a connectivity blip never drops the session (no belonging downgrade).
  * The hook does NOT navigate — the UI consumes the returned state to route.
+ *
+ * The per-seat `sessionToken` is read from the pointer and sent on every gated call
+ * (state + resume). A pointer without a token (legacy/typed-code) fails the backend's
+ * ownsSeat check and returns the generic 404 → quiet-clear, exactly as intended.
  */
 export function useResumeGame(): UseResumeGameResult {
   const { clear } = useActiveGame();
@@ -41,15 +46,17 @@ export function useResumeGame(): UseResumeGameResult {
 
   const resume = useCallback(
     async (pointer: ActiveGamePointer): Promise<GameStateResponse | null> => {
-      const { gameId, playerId } = pointer;
+      const { gameId, playerId, sessionToken } = pointer;
       setIsResuming(true);
       try {
-        // Step 1: read current state. A 404 here means the remembered game is gone.
+        // Step 1: read current state. A 404 (missing OR non-owner) means this browser
+        // can no longer prove belonging to the remembered game.
         let state: GameStateResponse;
         try {
-          state = await getGameState(gameId, playerId);
+          state = await getGameState(gameId, playerId, sessionToken);
         } catch (err) {
-          if (err instanceof GameNotFoundError) {
+          // 404 (game gone / not owned) or 403 (token rejected) → stale belonging.
+          if (err instanceof GameNotFoundError || err instanceof NotAuthorizedError) {
             clear();
             return null;
           }
@@ -59,11 +66,12 @@ export function useResumeGame(): UseResumeGameResult {
         // Step 2: only flip a genuinely PAUSED game, then re-read its restored state.
         if (state.status === 'PAUSED') {
           try {
-            await resumeGame(gameId, playerId);
-            state = await getGameState(gameId, playerId);
+            await resumeGame(gameId, playerId, sessionToken);
+            state = await getGameState(gameId, playerId, sessionToken);
           } catch (err) {
-            // A game that vanished mid-sequence (404) is stale → clear and bail.
-            if (err instanceof GameNotFoundError) {
+            // A game that vanished mid-sequence (404) or rejected the token (403) is
+            // stale/foreign belonging → clear and bail.
+            if (err instanceof GameNotFoundError || err instanceof NotAuthorizedError) {
               clear();
               return null;
             }

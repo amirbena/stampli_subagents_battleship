@@ -71,7 +71,7 @@ const FULL_FLEET: ShipDto[] = [
 function setActiveGame(gameMode: 'HUMAN' | 'COMPUTER' = 'HUMAN') {
   window.localStorage.setItem(
     'battleship_active_game',
-    JSON.stringify({ gameId: 'GAME01', playerId: 'player1', gameMode }),
+    JSON.stringify({ gameId: 'GAME01', playerId: 'player1', gameMode, sessionToken: 'tok-LOBBY' }),
   );
 }
 
@@ -321,7 +321,10 @@ describe('Lobby — in-game actions excluded from app-wide loader (AC group 1)',
     });
 
     expect(placeShip).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(placeShip).mock.calls[0][3]).toBe(true);
+    // Signature is now placeShip(gameId, playerId, ship, sessionToken, silent): token at [3],
+    // silent flag at [4]. Both are asserted so a regression in either position fails.
+    expect(vi.mocked(placeShip).mock.calls[0][3]).toBe('tok-LOBBY');
+    expect(vi.mocked(placeShip).mock.calls[0][4]).toBe(true);
   });
 
   it('calls removeShip with trailing silent=true so removing a ship does not trigger the global loader', async () => {
@@ -343,6 +346,9 @@ describe('Lobby — in-game actions excluded from app-wide loader (AC group 1)',
     });
 
     expect(removeShip).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(removeShip).mock.calls[0][3]).toBe(true);
+    // Signature is now removeShip(gameId, playerId, shipType, sessionToken, silent): token at
+    // [3], silent flag at [4].
+    expect(vi.mocked(removeShip).mock.calls[0][3]).toBe('tok-LOBBY');
+    expect(vi.mocked(removeShip).mock.calls[0][4]).toBe(true);
   });
 });
