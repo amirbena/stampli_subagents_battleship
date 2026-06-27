@@ -422,6 +422,23 @@ Reason: <one sentence>
 
 ## Step 6 — Developer Agents
 
+**Governance Findings Queue — initialize before spawning any developer agent:**
+
+Load `.claude/policies/governance-findings-policy.md`. Create `reports/runs/<workflow-run-id>/governance-findings-queue.md` with the header:
+
+```md
+# Governance Findings Queue
+
+Run ID: <workflow-run-id>
+
+| Finding ID | Severity | Category | Discovered By | Blocks Delivery | Status |
+|---|---|---|---|---|---|
+```
+
+If the file already exists from a prior step, do not overwrite it — append only.
+
+Any agent that discovers a governance gap during this run emits a finding using `.claude/templates/governance-finding-template.md`. Team Lead appends it to the queue file. Governance findings must NOT be routed through the QA loop (Steps 8–9) and must NOT modify shared governance files as part of this run.
+
 Load `.claude/policies/background-agent-policy.md` before using `run_in_background` on any agent invocation. If any agent is spawned with `run_in_background: true`, record the agent name and expected output path in `team-lead-plan.md`. No gate may be marked complete while a background agent result is outstanding — collect and confirm every background result before advancing.
 
 Assign only agents listed in `team-lead-plan.md`. Each agent runs with:
@@ -1020,6 +1037,37 @@ If non-critical unresolved findings remain, document them in PR summary. Do not 
 
 ---
 
+## Step 14.5 — Governance Findings Review
+
+Run after `release-pr-agent` returns the PR URL.
+
+Load `.claude/policies/governance-findings-policy.md`. Read `reports/runs/<workflow-run-id>/governance-findings-queue.md`.
+
+For each finding in the queue, assign one of these dispositions and write it to the Status column:
+
+| Disposition | When to use |
+|---|---|
+| `Ignored` | Not actionable, already covered elsewhere, or priority too low to track |
+| `Backlog` | Valid finding, low urgency — leave for future reference |
+| `Governance Task` | Valid finding, warrants follow-up — write a one-paragraph task description in the queue file |
+| `Governance Draft PR` | Severity High or Critical, clearly scoped, safe to implement now — create a new `governance/<slug>` branch and open a Draft PR |
+
+**Opening a Governance Draft PR:**
+1. `git checkout main && git pull --ff-only`
+2. `git checkout -b governance/<slug>`
+3. Apply only the governance file changes described in the finding.
+4. `git add <files> && git commit -m "governance: <slug>"`
+5. `git push -u origin governance/<slug>`
+6. `gh pr create --draft --title "governance: <slug>" --body "Governance finding GF-XXX from run <run-id>. <description>"`
+7. Return to the business branch: `git checkout <business-branch>`
+8. Record the Draft PR URL in `governance-findings-queue.md`.
+
+If no findings were emitted this run, write `Status: No findings emitted this run.` and close the queue file.
+
+This step is mandatory even when the queue is empty — it closes the governance loop for the run.
+
+---
+
 ## Execution Routes
 
 Valid labels: `docs-only`, `frontend-only`, `java-backend-only`, `backend-and-frontend`, `config-aware`, `infra`, `auth-security`, `multiplayer-session`, `full-stack-complex`.
@@ -1191,4 +1239,5 @@ Safe next command:
 - QA rejects return to Team Lead — not directly to developers.
 - Backend is Java/Spring Boot. No NestJS assumptions.
 - Visible demo/local config is acceptable. Only obvious real leaked credentials block.
+- Governance findings are advisory during execution. Agents emit findings; they do not modify shared governance. Team Lead collects, decides, and acts after the business PR is complete (Step 14.5).
 - Load `.claude/policies/agent-communication-policy.md`. Strict tree topology: no execution agent may use `SendMessage`, `run_in_background`, or contact peer agents. `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is enabled for background progress tracking only — it does not authorize named persistent agents, lateral messaging, or any communication that bypasses Team Lead. Team Lead is the only entity permitted to spawn, message, or background-execute agents.
