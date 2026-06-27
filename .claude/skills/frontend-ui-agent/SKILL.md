@@ -336,3 +336,53 @@ Applies to: turn ownership, permissions, loading/recovery status, identity/sessi
 - Components receive data as props — never call `gameApi.ts` directly.
 - `utils/boardHelpers.ts` is the only place board-cell mapping logic lives.
 - Avoid large monolithic page components — use hooks and sub-components to separate concerns.
+
+---
+
+## npm Dependency Governance
+
+**Default: do not add npm packages.**
+
+Do not run `npm install <package-name>` to add a new dependency.
+
+If a package appears necessary:
+
+1. **Stop** — do not install.
+2. **Report to Team Lead** with:
+   - Package name (and version if known)
+   - Reason existing dependencies are insufficient
+   - Alternatives considered
+   - Whether Architecture or Security review may be required
+3. **Wait** for explicit Team Lead authorization before modifying `package.json`.
+
+Never stage `package-lock.json`. Load `.claude/policies/dependency-addition-policy.md` for full governance rules.
+
+---
+
+## Frontend Asset Ownership
+
+This agent owns the **implementation** of render-layer assets placed under `apps/frontend/public/` and imported by source files under `apps/frontend/src/`.
+
+### Covered asset types
+
+| Category | Extensions |
+|---|---|
+| Images | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg` |
+| Audio | `.mp3`, `.wav`, `.ogg` |
+| Fonts | `.woff`, `.woff2`, `.ttf`, `.eot` |
+
+### Ownership model
+
+| Role | Responsibility |
+|---|---|
+| **Product Agent** | Owns user-facing asset *intent*: desired UX experience, meaning, feedback purpose, accessibility expectations. Required when the asset itself represents user-facing behavior, UX semantics, acceptance criteria, or meaningful product behavior. NOT required for simple asset replacement with no semantic behavior change. |
+| **Architecture Agent** | Required only when the asset affects loading strategy, bundling strategy, public-path behavior, runtime behavior, cross-agent contracts, or security boundaries. |
+| **Frontend UI Agent (this agent)** | Owns implementation: adding, updating, or removing asset files; wiring them into components or CSS; verifying render-layer correctness. |
+| **Playwright E2E Agent** | Owns verification only when the asset affects a visible user flow, acceptance criteria, accessibility behavior, or feedback behavior covered by E2E tests. |
+| **Team Lead** | Owns routing and final boundary decisions. |
+
+### Rules
+
+- Simple asset replacement (same UX semantics, different file) stays within this agent's scope — no Product involvement required.
+- When an asset introduces new UX semantics, accessibility requirements, or changes acceptance criteria, stop and route to Team Lead for Product Agent involvement.
+- When an asset change affects bundling, loading behavior, or public-path configuration, report to Team Lead for Architecture Agent review.

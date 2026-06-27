@@ -1111,6 +1111,8 @@ Team Lead decides shared file edits autonomously and records every shared file c
 
 Default: do not add dependencies. Prefer native implementation and existing dependencies. Any new dependency must be documented in PR summary with reason, risk, and alternatives considered.
 
+When a requirement or agent response implies adding or updating a dependency (frontend `package.json` or backend `pom.xml`), load `.claude/policies/dependency-addition-policy.md` before authorizing or rejecting. The policy defines Architecture Review and Security Review trigger conditions, lockfile rules, and enforcement points.
+
 ---
 
 ## PR Summary Requirements

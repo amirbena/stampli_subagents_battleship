@@ -433,3 +433,26 @@ Never delete or weaken an existing test to make the suite pass — fix the produ
 - Validate all input at the controller boundary using Bean Validation (`@Valid`).
 - Return `400` for illegal game actions (wrong turn, already shot, game not started).
 - Use `gameId` as a UUID string; never expose internal sequence IDs.
+
+---
+
+## Maven Dependency Governance
+
+**Default: do not add Maven dependencies.**
+
+`pom.xml` is owned by this agent for implementation edits, but **Team Lead authorization is required before any dependency change**.
+
+If a Maven dependency appears necessary:
+
+1. **Stop** — do not edit `pom.xml`.
+2. **Report to Team Lead** with all of the following:
+   - Dependency `groupId:artifactId` and proposed version
+   - Maven scope (`compile`, `provided`, `test`, `runtime`)
+   - Reason the existing classpath is insufficient
+   - Alternatives considered (including what already exists on the classpath)
+   - Whether Architecture or Security review may be required
+3. **Wait** for explicit Team Lead authorization before touching `pom.xml`.
+
+Do not edit `pom.xml` for any reason other than an authorized dependency change or an authorized plugin/configuration update.
+
+Load `.claude/policies/dependency-addition-policy.md` for full Architecture Review and Security Review trigger conditions.

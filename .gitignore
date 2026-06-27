@@ -27,3 +27,7 @@ Thumbs.db
 .idea/
 .vscode/
 *.iml
+
+# Playwright generated outputs — local artifacts, never staged or committed
+apps/frontend/playwright-report/
+apps/frontend/test-results/

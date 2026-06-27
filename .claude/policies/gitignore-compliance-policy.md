@@ -46,7 +46,21 @@ package-lock.json
 .env
 .env.*
 *.log
+apps/frontend/playwright-report/
+apps/frontend/test-results/
 ```
+
+## Playwright Generated Outputs
+
+`apps/frontend/playwright-report/` and `apps/frontend/test-results/` are generated local artifacts produced by `npm run test:e2e`. They must never be staged or committed.
+
+These paths are listed in `.gitignore`. They are **not** workflow evidence — do not confuse them with `reports/` (which is governed separately by `.claude/policies/reports-and-artifacts-policy.md`).
+
+| State | Allowed? |
+|---|---|
+| `playwright-report/` or `test-results/` exists locally after a test run | Yes — expected |
+| Either directory appears in `git diff --cached --name-only` | **No — blocking defect** |
+| Either directory appears in PR files changed | **No — blocking defect** |
 
 ## Verification Commands
 
