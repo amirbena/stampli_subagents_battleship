@@ -580,7 +580,7 @@ If E2E mode is **Full**, immediately after the Step 2 gate passes:
    - `playwright.config.ts` missing backend webServer → `playwright-e2e-agent` with explicit instruction to add it
    - `VITE_API_BASE_URL` missing → `playwright-e2e-agent` with explicit instruction to add it
    Do not start the warmup until all four checks pass.
-2. If all four checks pass, load `.claude/runbooks/e2e-warmup.md` and start the backend warmup **in the background** (non-blocking). Record the PID file path (`/tmp/e2e-backend.pid`) in `team-lead-plan.md`.
+2. If all four checks pass, load `.claude/runbooks/e2e-warmup.md`. Select the Bash or PowerShell sequence based on the `OS` field in `## Runtime Environment`. Start the backend warmup **in the background** (non-blocking). Record the PID file path (`/tmp/e2e-backend.pid` on macOS/Linux, `$env:TEMP\e2e-backend.pid` on Windows) in `team-lead-plan.md`.
 3. Continue immediately to Step 3 (integration tests). The warmup runs concurrently.
 
 This moves 40–120s of warmup off the serial critical path.
@@ -598,7 +598,7 @@ If integration tests fail, Team Lead reads the failure output and applies `.clau
 **Before Step 5 — Collect warmup result (Full E2E mode only):**
 
 If a background warmup was started after the Step 2 gate:
-1. Verify the warmup completed successfully (check `/tmp/e2e-backend.pid` and `/tmp/e2e-backend.log`).
+1. Verify the warmup completed successfully (check the pid/log files recorded in `team-lead-plan.md` — `/tmp/e2e-backend.pid` on macOS/Linux, `$env:TEMP\e2e-backend.pid` on Windows).
 2. If the warmup failed: run cleanup (see below), add a finding to the finding registry (Type: `java-backend-runtime`, Severity: `High`, Owner: `java-backend-agent`), and route to `java-backend-agent` before proceeding. Do not spawn `playwright-e2e-agent`.
 3. No gate may advance while the warmup result is outstanding.
 
@@ -612,12 +612,17 @@ Only after warmup is confirmed ready: proceed to Step 5.
 
 **Cleanup — mandatory on success, failure, or early stop:**
 
-After `playwright-e2e-agent` finishes (pass or fail), and on any early stop (pre-gate failure, warmup failure, integration test failure that prevents E2E):
+After `playwright-e2e-agent` finishes (pass or fail), and on any early stop (pre-gate failure, warmup failure, integration test failure that prevents E2E). Use the cleanup sequence matching the current OS from `.claude/runbooks/e2e-warmup.md → Cleanup`:
+
+macOS/Linux (bash):
 ```bash
 kill $(cat /tmp/e2e-backend.pid) 2>/dev/null || true
 rm -f /tmp/e2e-backend.pid /tmp/e2e-backend.log
 ```
-Skip cleanup when no warmup was started (Smoke or None mode).
+
+Windows (PowerShell) — see `.claude/runbooks/e2e-warmup.md → Cleanup` for the `taskkill`/`Remove-Item` sequence.
+
+Skip cleanup when no warmup was started (Smoke or None mode, or when the warmup reuse path exited early).
 
 This order minimises cost: unit tests catch obvious breaks cheaply, integration tests catch HTTP-layer issues before the expensive E2E run. The background warmup runs concurrently with integration tests, eliminating 40–120s from the serial critical path. Frontend-only changes skip Steps 3–4 entirely.
 
