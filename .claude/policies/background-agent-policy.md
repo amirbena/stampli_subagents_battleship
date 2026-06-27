@@ -70,3 +70,17 @@ External / non-harness work:
   Team Lead → CI / deploy / shell subprocess / remote API
   → harness cannot track → ScheduleWakeup or shell poll loop is appropriate
 ```
+
+## Scope — applies to every run_in_background spawn
+
+The task-notification rule applies to every `run_in_background: true` agent
+spawn regardless of when in the workflow it occurs. This includes:
+- Initial implementation agent dispatch
+- Fix agents re-routed after QA, review, or security failures
+- Review re-runs (`code-review-agent`, `security-agent` re-triggers)
+- E2E re-runs (`playwright-e2e-agent` re-triggers)
+- Product Agent and Architect Agent reopen flows
+
+Routing context does not change the completion mechanism. A backgrounded fix
+agent triggered by a QA failure uses task-notification — not `ScheduleWakeup`
+or manual user wakeup — to resume Team Lead.

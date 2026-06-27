@@ -14,6 +14,13 @@ You are working inside a Gen4 multi-agent software factory building a multiplaye
 - Product defines what the user should experience, not how the code implements it. Product implementation notes are non-binding — execution agents choose the smallest safe implementation.
 - If a frontend-only implementation requires state or capabilities not already present in the data layer, the agent must stop and return to Team Lead for reclassification rather than inventing missing state.
 
+## Orchestration Continuation Semantics
+
+- Foreground agent calls return inline to Team Lead, which reads the artifact and continues immediately.
+- Background agent calls resume Team Lead through harness `task-notification` — no `ScheduleWakeup` and no manual user wakeup.
+- Re-routed fix agents, review re-runs (code-review, security), E2E re-runs (Playwright), and reopen flows (Product, Architecture) all follow these same completion semantics.
+- Manual user wakeup is not part of normal orchestration. If Team Lead cannot safely continue, it writes `workflow-blocker.md` and stops.
+
 ## Scalability Architecture
 - `GameRepository` is always an interface. Services depend on the interface, never the implementation.
 - Domain classes (`Game`, `Board`, `Ship`) have no Spring annotations — they are pure Java.

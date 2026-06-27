@@ -34,6 +34,7 @@ Read the failing file path:
 4. **For `java-backend-test` failures that involve `@SpringBootTest`/MockMvc:** default to `java-backend-agent`. Only route to `backend-integration-tests-agent` if `java-backend-agent` fails to fix after 2 cycles.
 5. **Before re-triggering E2E after any frontend fix:** check which agents changed files. If both `frontend-api-agent` and `frontend-ui-agent` changed files, both must re-run their tests and be green. If only one changed files, only that agent re-verifies.
 6. **After any `frontend-api-agent` fix:** always run `npm run build` before re-triggering E2E — TypeScript will catch shape mismatches where the hook's return type changed and the component silently broke.
+7. **E2E re-trigger ownership:** the fix agent does not self-trigger `playwright-e2e-agent`. After all required preconditions pass (rules 5 and 6 above, plus any Full-mode infrastructure pre-gate), **Team Lead re-spawns `playwright-e2e-agent`** in the same mode (Full or Smoke) as the failed run. The re-run is foreground by default. Team Lead reads the new Playwright report before advancing the E2E gate.
 
 ## Workflow Failure Rule
 
