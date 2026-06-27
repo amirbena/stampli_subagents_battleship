@@ -32,6 +32,58 @@ export class GameNotFoundError extends Error {
 }
 
 /**
+ * Sentinel error thrown when a belonging-gated action resolves to 403 NOT_AUTHORIZED.
+ *
+ * Per the session-identity contract (architecture §4.5) every authenticated action
+ * (ships POST/DELETE, ready, fire, pause, resume, stop) now requires a valid
+ * per-seat `X-Session-Token`. A bad/absent token returns 403 NOT_AUTHORIZED — the
+ * caller's stored belonging is stale or never proved ownership. Callers treat this
+ * as an authoritative "this browser does not own this seat" signal: quiet-clear the
+ * belonging record (same disposition as GameNotFoundError), never as a transient blip.
+ * Distinct from GameNotFoundError so the UI can branch if it ever needs to; both lead
+ * to a clean Home.
+ */
+export class NotAuthorizedError extends Error {
+  constructor(gameId: string) {
+    super(`Not authorized for game: ${gameId}`);
+    this.name = 'NotAuthorizedError';
+  }
+}
+
+/** Header carrying the per-seat belonging secret on every gated request. */
+const SESSION_TOKEN_HEADER = 'X-Session-Token';
+/** Header carrying the caller's asserted seat id on the restore probe. */
+const PLAYER_ID_HEADER = 'X-Player-Id';
+
+/**
+ * Builds the auth header object for a belonging-gated request. Centralised so every
+ * gated call site sends the token identically and the header name lives in one place.
+ * The token is a bearer secret — it travels only in this header, never in URL/query.
+ */
+function authHeaders(sessionToken: string): Record<string, string> {
+  return { [SESSION_TOKEN_HEADER]: sessionToken };
+}
+
+/**
+ * validateStatus that resolves 2xx AND 403 so the wrapper can throw a typed
+ * NotAuthorizedError instead of the generic Error the global interceptor would
+ * produce. 5xx/network still reject and surface as a plain Error (transient).
+ */
+const okOr403 = (status: number): boolean =>
+  (status >= 200 && status < 300) || status === 403;
+
+/**
+ * Throws NotAuthorizedError when a resolved response carries 403 NOT_AUTHORIZED.
+ * Used by every gated action wrapper that opts into okOr403 so a bad/absent token
+ * becomes an authoritative, typed "you don't own this seat" signal for hooks.
+ */
+function throwIfNotAuthorized(response: { status: number }, gameId: string): void {
+  if (response.status === 403) {
+    throw new NotAuthorizedError(gameId);
+  }
+}
+
+/**
  * Shared axios instance for all backend calls.
  * Base URL comes from the Vite env variable — falls back to localhost for local dev.
  * The /api/v1 prefix matches the global context-path set in application.yml.
@@ -217,63 +269,86 @@ export async function joinGame(gameId: string, playerId?: string): Promise<JoinG
  * Places a single ship on the player's board during the PLACING_SHIPS phase.
  * POST /games/:gameId/players/:playerId/ships
  *
- * @param gameId   the game room
- * @param playerId the placing player
- * @param ship     ship type, anchor coordinate, and orientation
- * @param silent   when true, excluded from the global loader — placement is a
- *                 high-frequency in-game action that must feel instant (no loader flicker)
+ * @param gameId       the game room
+ * @param playerId     the placing player
+ * @param ship         ship type, anchor coordinate, and orientation
+ * @param sessionToken per-seat belonging secret (sent as X-Session-Token)
+ * @param silent       when true, excluded from the global loader — placement is a
+ *                     high-frequency in-game action that must feel instant (no loader flicker)
  * @returns the cells the ship now occupies
  * @throws Error 400 if placement is out of bounds or overlaps another ship
  * @throws Error 409 if the game is not in PLACING_SHIPS phase
+ * @throws NotAuthorizedError 403 when the token is bad/absent for this seat
  */
 export async function placeShip(
   gameId: string,
   playerId: string,
   ship: PlaceShipRequest,
+  sessionToken: string,
   silent = false,
 ): Promise<PlaceShipResponse> {
-  const { data } = await api.post<PlaceShipResponse>(
+  const response = await api.post<PlaceShipResponse>(
     `/games/${gameId}/players/${playerId}/ships`,
     ship,
     // `silent` is read by the request/response interceptors to skip loader counting.
-    { silent },
+    { silent, headers: authHeaders(sessionToken), validateStatus: okOr403 },
   );
-  return data;
+  throwIfNotAuthorized(response, gameId);
+  return response.data;
 }
 
 /**
  * Removes a previously placed ship so the player can reposition it.
  * DELETE /games/:gameId/players/:playerId/ships/:shipType
  *
- * @param gameId   the game room
- * @param playerId the player making the request
- * @param shipType the ship type to remove
- * @param silent   when true, excluded from the global loader — removing/repositioning a
- *                 ship is a high-frequency in-game action that must feel instant
+ * @param gameId       the game room
+ * @param playerId     the player making the request
+ * @param shipType     the ship type to remove
+ * @param sessionToken per-seat belonging secret (sent as X-Session-Token)
+ * @param silent       when true, excluded from the global loader — removing/repositioning a
+ *                     ship is a high-frequency in-game action that must feel instant
  * @throws Error 400 if the ship has not been placed
+ * @throws NotAuthorizedError 403 when the token is bad/absent for this seat
  */
 export async function removeShip(
   gameId: string,
   playerId: string,
   shipType: ShipType,
+  sessionToken: string,
   silent = false,
 ): Promise<void> {
   // `silent` is read by the request/response interceptors to skip loader counting.
-  await api.delete(`/games/${gameId}/players/${playerId}/ships/${shipType}`, { silent });
+  const response = await api.delete(`/games/${gameId}/players/${playerId}/ships/${shipType}`, {
+    silent,
+    headers: authHeaders(sessionToken),
+    validateStatus: okOr403,
+  });
+  throwIfNotAuthorized(response, gameId);
 }
 
 /**
  * Marks the player as ready. If both players are ready the game transitions to IN_PROGRESS.
  * POST /games/:gameId/players/:playerId/ready
  *
+ * @param gameId       the game room
+ * @param playerId     the player marking ready
+ * @param sessionToken per-seat belonging secret (sent as X-Session-Token)
  * @returns updated game status and current turn player (populated once game starts)
  * @throws Error 400 if the player has not placed all 5 ships
+ * @throws NotAuthorizedError 403 when the token is bad/absent for this seat
  */
-export async function setReady(gameId: string, playerId: string): Promise<ConfirmReadyResponse> {
-  const { data } = await api.post<ConfirmReadyResponse>(
+export async function setReady(
+  gameId: string,
+  playerId: string,
+  sessionToken: string,
+): Promise<ConfirmReadyResponse> {
+  const response = await api.post<ConfirmReadyResponse>(
     `/games/${gameId}/players/${playerId}/ready`,
+    undefined,
+    { headers: authHeaders(sessionToken), validateStatus: okOr403 },
   );
-  return data;
+  throwIfNotAuthorized(response, gameId);
+  return response.data;
 }
 
 /**
@@ -282,28 +357,32 @@ export async function setReady(gameId: string, playerId: string): Promise<Confir
  *
  * @param gameId   the game room
  * @param playerId the shooting player (must match the current turn)
- * @param row      target row (0–9)
- * @param col      target column (0–9)
- * @param silent   when true, excluded from the global loader — firing is a
- *                 high-frequency in-game action that must feel instant (no loader flicker)
+ * @param row          target row (0–9)
+ * @param col          target column (0–9)
+ * @param sessionToken per-seat belonging secret (sent as X-Session-Token)
+ * @param silent       when true, excluded from the global loader — firing is a
+ *                     high-frequency in-game action that must feel instant (no loader flicker)
  * @returns shot result (HIT | MISS | SUNK), sunk ship type, next turn player, winner if game ended
  * @throws Error 409 if it is not this player's turn
  * @throws Error 400 if coordinate is out of bounds or already targeted
+ * @throws NotAuthorizedError 403 when the token is bad/absent for this seat
  */
 export async function fireShot(
   gameId: string,
   playerId: string,
   row: number,
   col: number,
+  sessionToken: string,
   silent = false,
 ): Promise<FireShotResponse> {
-  const { data } = await api.post<FireShotResponse>(
+  const response = await api.post<FireShotResponse>(
     `/games/${gameId}/players/${playerId}/fire`,
     { row, col },
     // `silent` is read by the request/response interceptors to skip loader counting.
-    { silent },
+    { silent, headers: authHeaders(sessionToken), validateStatus: okOr403 },
   );
-  return data;
+  throwIfNotAuthorized(response, gameId);
+  return response.data;
 }
 
 /**
@@ -318,19 +397,27 @@ export async function fireShot(
  * still surface as plain Error and leave the pointer intact. Background polls that do
  * not need this distinction simply catch the thrown error as before.
  *
- * @param gameId   the game room
- * @param playerId determines which board is "mine" vs "opponent" in the response
- * @param silent   when true, excluded from the global loader (background poll only)
+ * The `X-Session-Token` header now proves seat ownership: a non-owner (bad/absent
+ * token) receives the SAME generic 404 GAME_NOT_FOUND as a missing game (architecture
+ * §4.5 — the state probe must not confirm existence to a non-owner), which maps to
+ * GameNotFoundError here and triggers the same stale-belonging clear path.
+ *
+ * @param gameId       the game room
+ * @param playerId     determines which board is "mine" vs "opponent" in the response
+ * @param sessionToken per-seat belonging secret (sent as X-Session-Token)
+ * @param silent       when true, excluded from the global loader (background poll only)
  * @returns sanitised game state safe to render directly in the UI
- * @throws GameNotFoundError when the backend returns 404 GAME_NOT_FOUND
+ * @throws GameNotFoundError when the backend returns 404 GAME_NOT_FOUND (missing OR non-owner)
  */
 export async function getGameState(
   gameId: string,
   playerId: string,
+  sessionToken: string,
   silent = false,
 ): Promise<GameStateResponse> {
   const response = await api.get<GameStateResponse>(`/games/${gameId}/state`, {
     params: { playerId },
+    headers: authHeaders(sessionToken),
     // `silent` is read by the request/response interceptors to skip loader counting.
     silent,
     // Accept 404 as resolved so we can throw the typed sentinel below; 5xx/network
@@ -351,21 +438,35 @@ export async function getGameState(
  * records the pre-pause phase so resume can restore it. The local active-game pointer
  * is intentionally NOT cleared on pause (the game remains resumable).
  *
- * @param gameId   the game room
- * @param playerId the participant pausing (must be in the game)
+ * @param gameId       the game room
+ * @param playerId     the participant pausing (must be in the game)
+ * @param sessionToken per-seat belonging secret (sent as X-Session-Token)
  * @returns { gameId, status: 'PAUSED', previousStatus } — no board data
- * @throws Error 403 PLAYER_NOT_IN_GAME — caller is not a participant
- * @throws Error 404 GAME_NOT_FOUND — game gone (caller may clear pointer)
+ * @throws NotAuthorizedError 403 — bad/absent token for this seat
+ * @throws GameNotFoundError 404 — game gone (caller may clear pointer)
  * @throws Error 409 WRONG_PHASE — already PAUSED or FINISHED
  */
 export async function pauseGame(
   gameId: string,
   playerId: string,
+  sessionToken: string,
 ): Promise<PauseResumeResponse> {
-  const { data } = await api.post<PauseResumeResponse>(
+  const response = await api.post<PauseResumeResponse>(
     `/games/${gameId}/players/${playerId}/pause`,
+    undefined,
+    {
+      headers: authHeaders(sessionToken),
+      // Accept 403 (typed NotAuthorizedError) and 404 (typed GameNotFoundError) as
+      // resolved so both become authoritative stale-belonging signals; 5xx/network reject.
+      validateStatus: (status) =>
+        (status >= 200 && status < 300) || status === 403 || status === 404,
+    },
   );
-  return data;
+  throwIfNotAuthorized(response, gameId);
+  if (response.status === 404) {
+    throw new GameNotFoundError(gameId);
+  }
+  return response.data;
 }
 
 /**
@@ -379,26 +480,31 @@ export async function pauseGame(
  * (AC-13) instead of treating it as a transient failure. Other 4xx/5xx surface as plain
  * Error via the global response interceptor.
  *
- * @param gameId   the game room
- * @param playerId the participant resuming (must be in the game)
+ * @param gameId       the game room
+ * @param playerId     the participant resuming (must be in the game)
+ * @param sessionToken per-seat belonging secret (sent as X-Session-Token)
  * @returns { gameId, status: restored prior phase, previousStatus: 'PAUSED' }
  * @throws GameNotFoundError when the backend returns 404 GAME_NOT_FOUND
- * @throws Error 403 PLAYER_NOT_IN_GAME
+ * @throws NotAuthorizedError 403 — bad/absent token for this seat
  * @throws Error 409 WRONG_PHASE — game is not PAUSED (e.g. FINISHED)
  */
 export async function resumeGame(
   gameId: string,
   playerId: string,
+  sessionToken: string,
 ): Promise<PauseResumeResponse> {
   const response = await api.post<PauseResumeResponse>(
     `/games/${gameId}/players/${playerId}/resume`,
     undefined,
     {
-      // Accept 404 as a resolved response so we can throw the typed sentinel below.
-      // 5xx and network errors still reject and surface as Error via the interceptor.
-      validateStatus: (status) => (status >= 200 && status < 300) || status === 404,
+      headers: authHeaders(sessionToken),
+      // Accept 403 (NotAuthorizedError) and 404 (GameNotFoundError) as resolved so we
+      // can throw the typed sentinels below; 5xx/network still reject as plain Error.
+      validateStatus: (status) =>
+        (status >= 200 && status < 300) || status === 403 || status === 404,
     },
   );
+  throwIfNotAuthorized(response, gameId);
   if (response.status === 404) {
     throw new GameNotFoundError(gameId);
   }
@@ -414,41 +520,68 @@ export async function resumeGame(
  * Both 204 and an already-absent 404 resolve normally; only 403 and transient 5xx/network
  * errors reject. Returns void — there is no response body to map.
  *
- * @param gameId   the game room
- * @param playerId the participant stopping (must be in the game when it still exists)
- * @throws Error 403 PLAYER_NOT_IN_GAME — caller is not a participant
+ * A bad/absent token returns 403 NOT_AUTHORIZED. For Stop this is treated as an
+ * idempotent success (resolve void): the desired outcome — a clean Home with the
+ * stale belonging cleared — is identical whether the game was already gone (404) or
+ * this browser cannot prove ownership (403). Stop must never surface a blocking error
+ * to a user trying to leave (AC-13 clean-Home), so 403 resolves rather than throws.
+ *
+ * @param gameId       the game room
+ * @param playerId     the participant stopping (must be in the game when it still exists)
+ * @param sessionToken per-seat belonging secret (sent as X-Session-Token)
  */
-export async function stopGame(gameId: string, playerId: string): Promise<void> {
+export async function stopGame(
+  gameId: string,
+  playerId: string,
+  sessionToken: string,
+): Promise<void> {
   await api.post(`/games/${gameId}/players/${playerId}/stop`, undefined, {
-    // 204 is the success status; 404 means the game is already gone — both are
-    // treated as a successful Stop (idempotent). 403/5xx/network still reject.
-    validateStatus: (status) => (status >= 200 && status < 300) || status === 404,
+    headers: authHeaders(sessionToken),
+    // 204 = success; 404 = already gone; 403 = can't prove ownership — all three are
+    // treated as a successful idempotent Stop (clean-Home outcome). 5xx/network reject.
+    validateStatus: (status) =>
+      (status >= 200 && status < 300) || status === 403 || status === 404,
   });
 }
 
 /**
- * Restores a COMPUTER game by its room code so a fresh browser (no stored playerId)
- * can rehydrate its session pointer.
- * GET /games/{code}/restore
+ * Belonging-probe: confirms this browser still owns a resumable seat for a code.
+ * GET /games/{code}/restore  (headers: X-Player-Id, X-Session-Token)
  *
- * Resolves the human player (playerA) for an existing COMPUTER game. Restore returns
- * NO board data — the caller writes the {gameId, playerId, gameMode} pointer and then
- * re-polls the existing GET /games/{gameId}/state to render the saved board (the single
- * hidden-data-safe path). A missing, released, or non-COMPUTER code returns a uniform
- * 404 GAME_NOT_FOUND, mapped here to the typed GameNotFoundError so the UI can show the
- * friendly inline "not found or no longer available" message (AC-9). Other 4xx/5xx and
- * network errors surface as a plain Error via the global response interceptor.
+ * Under the session-identity contract (architecture §4.3) restore NO LONGER discovers
+ * an identity. The caller MUST already hold its own seat's `playerId` + `sessionToken`
+ * (from the create/join mint, stored in the belonging pointer) and prove ownership via
+ * the two headers. Restore now serves BOTH modes: it only ever echoes back the caller's
+ * OWN seat pointer when `ownsSeat(playerId, token)` passes and the game is resumable.
+ *
+ * A missing code, terminal game, or any caller that cannot prove belonging (wrong/absent
+ * token, non-owner) returns the SAME generic 404 GAME_NOT_FOUND — no identity, mode, or
+ * seat state leaks. The 404 maps to the typed GameNotFoundError so the UI quiet-clears the
+ * stale belonging and shows the friendly inline message (AC-2/AC-5/AC-8/AC-13). Restore
+ * returns NO board data and NO sessionToken. 5xx/network surface as a plain Error.
  *
  * The code is encoded as a single path segment defensively — trimming is the UI's job.
  *
- * @param code the room code entered by the user (already trimmed by the UI)
- * @returns { gameId, playerId, gameMode, status } — no board data
- * @throws GameNotFoundError when the backend returns 404 GAME_NOT_FOUND
+ * @param code         the room code entered by the user (already trimmed by the UI)
+ * @param playerId     the caller's own seat id, asserted via X-Player-Id
+ * @param sessionToken the caller's own per-seat secret, proven via X-Session-Token
+ * @returns { gameId, playerId, gameMode, status } — the caller's own seat, no board data
+ * @throws GameNotFoundError when the backend returns 404 GAME_NOT_FOUND (missing OR not-owned)
  */
-export async function restoreGameByCode(code: string): Promise<RestoreGameResponse> {
+export async function restoreGameByCode(
+  code: string,
+  playerId: string,
+  sessionToken: string,
+): Promise<RestoreGameResponse> {
   const response = await api.get<RestoreGameResponse>(
     `/games/${encodeURIComponent(code)}/restore`,
     {
+      // Both belonging headers are REQUIRED by the backend; the token is a bearer
+      // secret carried only in the header, never in the URL/query.
+      headers: {
+        [PLAYER_ID_HEADER]: playerId,
+        [SESSION_TOKEN_HEADER]: sessionToken,
+      },
       // Accept 404 as a resolved response so we can throw the typed sentinel below;
       // 5xx/network still reject and surface as a plain Error via the interceptor.
       validateStatus: (status) => status === 200 || status === 404,

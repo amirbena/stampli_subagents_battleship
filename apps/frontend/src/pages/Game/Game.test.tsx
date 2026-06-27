@@ -74,7 +74,7 @@ beforeEach(() => {
   // Session context now lives in the localStorage active-game pointer (not sessionStorage).
   localStorage.setItem(
     'battleship_active_game',
-    JSON.stringify({ gameId: 'G1', playerId: 'me', gameMode: 'HUMAN' }),
+    JSON.stringify({ gameId: 'G1', playerId: 'me', gameMode: 'HUMAN', sessionToken: 'tok-G1' }),
   );
   fireShotMock.mockReset();
   stopGameMock.mockReset();
@@ -135,7 +135,7 @@ describe('Game — shot responsiveness', () => {
     await user.click(within(enemyBoard()).getByLabelText('Row 1 Col 1: empty'));
 
     // The trailing silent arg keeps firing off the global top-bar loader (UX-only).
-    expect(fireShotMock).toHaveBeenCalledWith('G1', 'me', 0, 0, true);
+    expect(fireShotMock).toHaveBeenCalledWith('G1', 'me', 0, 0, 'tok-G1', true);
   });
 
   it('does not fire or play sound when it is not my turn (AC15)', async () => {
@@ -248,7 +248,7 @@ describe('Game — leave confirmation + Back interception (AC-11/12/13)', () => 
     act(() => { window.dispatchEvent(new PopStateEvent('popstate')); });
     await screen.findByRole('dialog');
     await user.click(screen.getByRole('button', { name: /^leave$/i }));
-    await waitFor(() => expect(stopGameMock).toHaveBeenCalledWith('G1', 'me'));
+    await waitFor(() => expect(stopGameMock).toHaveBeenCalledWith('G1', 'me', 'tok-G1'));
     await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/', { replace: true }));
     expect(localStorage.getItem('battleship_active_game')).toBeNull();
   });

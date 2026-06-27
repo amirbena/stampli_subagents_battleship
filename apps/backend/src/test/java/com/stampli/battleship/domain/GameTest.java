@@ -106,4 +106,39 @@ class GameTest {
         Game game = gameInStatus(GameStatus.IN_PROGRESS);
         assertThatThrownBy(game::resume).isInstanceOf(IllegalStateException.class);
     }
+
+    // --- ownsSeat (per-seat belonging, constant-time compare) ---
+
+    @Test
+    void ownsSeatTrueWhenPlayerIdAndTokenMatch() {
+        Game game = new Game(GAME_ID, new Player("player-a", GAME_ID, "tok-a"));
+        assertThat(game.ownsSeat("player-a", "tok-a")).isTrue();
+    }
+
+    @Test
+    void ownsSeatFalseWhenTokenWrong() {
+        Game game = new Game(GAME_ID, new Player("player-a", GAME_ID, "tok-a"));
+        assertThat(game.ownsSeat("player-a", "wrong")).isFalse();
+    }
+
+    @Test
+    void ownsSeatFalseForUnknownPlayer() {
+        Game game = new Game(GAME_ID, new Player("player-a", GAME_ID, "tok-a"));
+        assertThat(game.ownsSeat("ghost", "tok-a")).isFalse();
+    }
+
+    @Test
+    void ownsSeatFalseWhenNullTokenSupplied() {
+        Game game = new Game(GAME_ID, new Player("player-a", GAME_ID, "tok-a"));
+        assertThat(game.ownsSeat("player-a", null)).isFalse();
+    }
+
+    @Test
+    void ownsSeatFalseForTokenlessComputerSeat() {
+        // The computer AI seat carries a null token and can never be owned by any caller.
+        Game game = new Game(GAME_ID, new Player("player-a", GAME_ID, "tok-a"), GameMode.COMPUTER);
+        game.addPlayerB(new Player("COMPUTER-x", GAME_ID, null));
+        assertThat(game.ownsSeat("COMPUTER-x", "anything")).isFalse();
+        assertThat(game.ownsSeat("COMPUTER-x", null)).isFalse();
+    }
 }

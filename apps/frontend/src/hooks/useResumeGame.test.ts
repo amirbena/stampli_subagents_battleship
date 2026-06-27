@@ -2,13 +2,19 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useResumeGame } from './useResumeGame';
 import * as gameApi from '../api/gameApi';
-import { GameNotFoundError } from '../api/gameApi';
+import { GameNotFoundError, NotAuthorizedError } from '../api/gameApi';
 import type { ActiveGamePointer, GameStateResponse, GameStatus } from '../types/game';
 
 const ACTIVE_GAME_KEY = 'battleship_active_game';
 const PLAYER_ID_KEY = 'battleship_player_id';
 
-const POINTER: ActiveGamePointer = { gameId: 'g-123', playerId: 'p-1', gameMode: 'HUMAN' };
+const TOKEN = 'seat-token-abc';
+const POINTER: ActiveGamePointer = {
+  gameId: 'g-123',
+  playerId: 'p-1',
+  gameMode: 'HUMAN',
+  sessionToken: TOKEN,
+};
 
 function stateWith(status: GameStatus): GameStateResponse {
   return {
@@ -55,10 +61,49 @@ describe('non-paused active game', () => {
     });
 
     expect(getSpy).toHaveBeenCalledTimes(1);
+    // The per-seat token from the pointer is forwarded to the gated state call.
+    expect(getSpy).toHaveBeenCalledWith('g-123', 'p-1', TOKEN);
     expect(resumeSpy).not.toHaveBeenCalled();
     expect(state).toEqual(stateWith('IN_PROGRESS'));
     // Pointer preserved for a live game.
     expect(window.localStorage.getItem(ACTIVE_GAME_KEY)).not.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 403 NOT_AUTHORIZED → stale/foreign belonging → clear pointer, return null (AC-13)
+// ---------------------------------------------------------------------------
+
+describe('foreign/stale belonging (403)', () => {
+  it('clears the pointer and returns null when initial GET /state 403s', async () => {
+    seedPointer();
+    vi.spyOn(gameApi, 'getGameState').mockRejectedValue(new NotAuthorizedError('g-123'));
+
+    const { result } = renderHook(() => useResumeGame());
+
+    let state: GameStateResponse | null = stateWith('IN_PROGRESS');
+    await act(async () => {
+      state = await result.current.resume(POINTER);
+    });
+
+    expect(state).toBeNull();
+    expect(window.localStorage.getItem(ACTIVE_GAME_KEY)).toBeNull();
+  });
+
+  it('clears the pointer when resume itself 403s mid-sequence', async () => {
+    seedPointer();
+    vi.spyOn(gameApi, 'getGameState').mockResolvedValue(stateWith('PAUSED'));
+    vi.spyOn(gameApi, 'resumeGame').mockRejectedValue(new NotAuthorizedError('g-123'));
+
+    const { result } = renderHook(() => useResumeGame());
+
+    let state: GameStateResponse | null = stateWith('PAUSED');
+    await act(async () => {
+      state = await result.current.resume(POINTER);
+    });
+
+    expect(state).toBeNull();
+    expect(window.localStorage.getItem(ACTIVE_GAME_KEY)).toBeNull();
   });
 });
 

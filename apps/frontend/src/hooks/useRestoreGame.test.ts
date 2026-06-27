@@ -22,15 +22,17 @@ afterEach(() => {
 
 describe('useRestoreGame', () => {
   it('success path: returns + stores the typed response, clears notFound/error', async () => {
-    vi.spyOn(gameApi, 'restoreGameByCode').mockResolvedValueOnce(restoreResp);
+    const spy = vi.spyOn(gameApi, 'restoreGameByCode').mockResolvedValueOnce(restoreResp);
 
     const { result } = renderHook(() => useRestoreGame());
 
     let returned: RestoreGameResponse | null = null;
     await act(async () => {
-      returned = await result.current.submit('ABC123');
+      returned = await result.current.submit('ABC123', 'p-1', 'seat-token-abc');
     });
 
+    // The caller's own seat id + secret are forwarded to the belonging probe.
+    expect(spy).toHaveBeenCalledWith('ABC123', 'p-1', 'seat-token-abc');
     expect(returned).toEqual(restoreResp);
     expect(result.current.data).toEqual(restoreResp);
     expect(result.current.notFound).toBe(false);
@@ -45,7 +47,7 @@ describe('useRestoreGame', () => {
 
     let returned: RestoreGameResponse | null = restoreResp;
     await act(async () => {
-      returned = await result.current.submit('NOPE');
+      returned = await result.current.submit('NOPE', 'p-1', 'seat-token-abc');
     });
 
     expect(returned).toBeNull();
@@ -61,7 +63,7 @@ describe('useRestoreGame', () => {
 
     let thrown: unknown;
     await act(async () => {
-      thrown = await result.current.submit('ABC123').catch((e: unknown) => e);
+      thrown = await result.current.submit('ABC123', 'p-1', 'seat-token-abc').catch((e: unknown) => e);
     });
 
     expect(thrown).toBeInstanceOf(Error);
@@ -80,7 +82,7 @@ describe('useRestoreGame', () => {
 
     let submitPromise!: Promise<RestoreGameResponse | null>;
     act(() => {
-      submitPromise = result.current.submit('ABC123');
+      submitPromise = result.current.submit('ABC123', 'p-1', 'seat-token-abc');
     });
 
     expect(result.current.isLoading).toBe(true);
@@ -101,12 +103,12 @@ describe('useRestoreGame', () => {
     const { result } = renderHook(() => useRestoreGame());
 
     await act(async () => {
-      await result.current.submit('NOPE');
+      await result.current.submit('NOPE', 'p-1', 'seat-token-abc');
     });
     expect(result.current.notFound).toBe(true);
 
     await act(async () => {
-      await result.current.submit('ABC123');
+      await result.current.submit('ABC123', 'p-1', 'seat-token-abc');
     });
     expect(result.current.notFound).toBe(false);
     expect(result.current.data).toEqual(restoreResp);

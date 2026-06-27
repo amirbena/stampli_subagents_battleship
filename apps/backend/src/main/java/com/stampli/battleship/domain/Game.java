@@ -1,5 +1,7 @@
 package com.stampli.battleship.domain;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -128,6 +130,25 @@ public class Game {
         if (playerA != null && playerA.getId().equals(playerId)) return playerA;
         if (playerB != null && playerB.getId().equals(playerId)) return playerB;
         return null;
+    }
+
+    /**
+     * Proves seat belonging: the caller owns the {@code playerId} seat iff the supplied
+     * {@code sessionToken} matches the secret minted for that seat. A non-secret playerId
+     * alone is never sufficient. Comparison is constant-time ({@link MessageDigest#isEqual})
+     * to avoid a timing oracle on the secret. The computer AI seat (null token) can never
+     * be owned by any caller.
+     *
+     * @return true only if the seat exists, has a non-null token, and the token matches
+     */
+    public boolean ownsSeat(String playerId, String sessionToken) {
+        Player p = getPlayer(playerId);
+        if (p == null || p.getSessionToken() == null || sessionToken == null) {
+            return false;
+        }
+        return MessageDigest.isEqual(
+                p.getSessionToken().getBytes(StandardCharsets.UTF_8),
+                sessionToken.getBytes(StandardCharsets.UTF_8));
     }
 
     public Player getOpponent(String playerId) {

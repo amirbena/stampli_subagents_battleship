@@ -28,14 +28,18 @@ interface UseGamePollingResult {
  * To switch from polling to WebSocket push in the future, replace only this hook.
  * All components that consume `gameState` remain unchanged.
  *
- * @param gameId   the room to poll (null = polling disabled)
- * @param playerId identifies which player's view to fetch (null = polling disabled)
- * @param enabled  set to false to pause polling (e.g. when game is FINISHED)
+ * @param gameId       the room to poll (null = polling disabled)
+ * @param playerId     identifies which player's view to fetch (null = polling disabled)
+ * @param sessionToken per-seat belonging secret sent on every /state probe
+ *                     (null/empty = polling disabled — no token means no belonging,
+ *                     so the owner-gated state call would 404 anyway)
+ * @param enabled      set to false to pause polling (e.g. when game is FINISHED)
  * @returns current game state, last error message, initial loading flag, and manual refresh fn
  */
 export function useGamePolling(
   gameId: string | null,
   playerId: string | null,
+  sessionToken: string | null,
   enabled: boolean = true,
 ): UseGamePollingResult {
   const [gameState, setGameState] = useState<GameStateResponse | null>(null);
@@ -50,9 +54,9 @@ export function useGamePolling(
   // silent=true (no flicker every 2s); the initial load and manual refresh() pass
   // silent=false so the user sees the loader for those user-relevant fetches (D1).
   const fetchState = useCallback(async (silent: boolean) => {
-    if (!gameId || !playerId) return;
+    if (!gameId || !playerId || !sessionToken) return;
     try {
-      const state = await getGameState(gameId, playerId, silent);
+      const state = await getGameState(gameId, playerId, sessionToken, silent);
       setGameState(state);
       setError(null);
     } catch (e) {
@@ -66,7 +70,7 @@ export function useGamePolling(
         setError(e instanceof Error ? e.message : 'Failed to load game state');
       }
     }
-  }, [gameId, playerId]);
+  }, [gameId, playerId, sessionToken]);
 
   /**
    * Manually trigger a fetch outside the polling interval (e.g. immediately
@@ -76,7 +80,7 @@ export function useGamePolling(
   const refresh = useCallback(() => fetchState(false), [fetchState]);
 
   useEffect(() => {
-    if (!enabled || !gameId || !playerId) return;
+    if (!enabled || !gameId || !playerId || !sessionToken) return;
 
     // Fetch immediately on mount so the UI isn't blank for the first 2 seconds.
     // Initial load is NOT silent — the user should see the global loader for it.
@@ -95,7 +99,7 @@ export function useGamePolling(
         intervalRef.current = null;
       }
     };
-  }, [enabled, gameId, playerId, fetchState]);
+  }, [enabled, gameId, playerId, sessionToken, fetchState]);
 
   return { gameState, error, gameGone, isLoading, refresh };
 }

@@ -6,7 +6,10 @@ import {
   getActiveRequestCount,
   isLoaderVisible,
   __resetLoaderStore,
+  NotAuthorizedError,
 } from './gameApi';
+
+const TOKEN = 'seat-token-abc';
 
 /**
  * Captures the request config the fireShot wrapper hands to axios (to assert the
@@ -46,11 +49,12 @@ describe('fireShot — silent flag + loader exclusion', () => {
     const cap = capturingAdapter(SHOT_RESULT);
     vi.spyOn(api.defaults, 'adapter', 'get').mockReturnValue(cap.adapter);
 
-    await fireShot('GAME01', 'p1', 3, 4, true);
+    await fireShot('GAME01', 'p1', 3, 4, TOKEN, true);
 
     expect(cap.seen[0].silent).toBe(true);
     expect(cap.seen[0].url).toBe('/games/GAME01/players/p1/fire');
     expect(cap.seen[0].data).toBe(JSON.stringify({ row: 3, col: 4 }));
+    expect(cap.seen[0].headers['X-Session-Token']).toBe(TOKEN);
     // Silent shot must never register on the global loader.
     expect(getActiveRequestCount()).toBe(0);
     expect(isLoaderVisible()).toBe(false);
@@ -60,7 +64,7 @@ describe('fireShot — silent flag + loader exclusion', () => {
     const cap = capturingAdapter(SHOT_RESULT);
     vi.spyOn(api.defaults, 'adapter', 'get').mockReturnValue(cap.adapter);
 
-    const p = fireShot('GAME01', 'p1', 0, 0);
+    const p = fireShot('GAME01', 'p1', 0, 0, TOKEN);
     // Request interceptor is synchronous: counter is already 1 before the response settles.
     expect(getActiveRequestCount()).toBe(1);
     expect(isLoaderVisible()).toBe(true);
@@ -68,5 +72,19 @@ describe('fireShot — silent flag + loader exclusion', () => {
     await p;
     expect(cap.seen[0].silent).toBeFalsy();
     expect(getActiveRequestCount()).toBe(0);
+  });
+
+  it('throws NotAuthorizedError on 403 NOT_AUTHORIZED (bad/absent token)', async () => {
+    vi.spyOn(api, 'post').mockResolvedValueOnce({
+      data: { error: 'Not authorized', code: 'NOT_AUTHORIZED' },
+      status: 403,
+      statusText: '403',
+      headers: {},
+      config: {},
+    } as never);
+
+    await expect(fireShot('GAME01', 'p1', 0, 0, 'wrong')).rejects.toBeInstanceOf(
+      NotAuthorizedError,
+    );
   });
 });

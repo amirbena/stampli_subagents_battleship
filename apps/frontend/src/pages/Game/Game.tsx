@@ -32,6 +32,10 @@ export function Game(): React.ReactElement {
   const { pointer, clear: clearActiveGame } = useActiveGame();
   const gameId = pointer?.gameId ?? '';
   const playerId = pointer?.playerId ?? '';
+  // Per-seat belonging secret threaded into every gated call (architecture §4.5). Sourced
+  // from the same active-game pointer as gameId/playerId; '' when absent (the call then 403s,
+  // which the existing error/recovery paths already handle as "session no longer valid").
+  const sessionToken = pointer?.sessionToken ?? '';
   const [error, setError] = useState<string | null>(null);
   const [firing, setFiring] = useState(false);
   // True while a Pause/Stop request is in flight, so the session controls disable.
@@ -51,7 +55,7 @@ export function Game(): React.ReactElement {
   // True while the transient "Your turn again" cue is shown after control returns.
   const [yourTurnAgain, setYourTurnAgain] = useState(false);
 
-  const { gameState, isLoading, gameGone, refresh } = useGamePolling(gameId, playerId, true);
+  const { gameState, isLoading, gameGone, refresh } = useGamePolling(gameId, playerId, sessionToken, true);
 
   // Guards against state updates after unmount during the (longer) vs-computer choreography.
   const mountedRef = useRef(true);
@@ -124,7 +128,7 @@ export function Game(): React.ReactElement {
     setLeaveBusy(true);
     setError(null);
     try {
-      await stopGame(gameId, playerId);
+      await stopGame(gameId, playerId, sessionToken);
     } catch (e) {
       // Backend is source of truth: if Stop genuinely failed, surface it and keep the
       // player in the game rather than navigating to a possibly-still-live game (no double
@@ -138,7 +142,7 @@ export function Game(): React.ReactElement {
     setShowLeaveConfirm(false);
     setLeaveBusy(false);
     navigate('/', { replace: true });
-  }, [gameId, playerId, clearActiveGame, navigate]);
+  }, [gameId, playerId, sessionToken, clearActiveGame, navigate]);
 
   // On FINISHED, clear the active-game pointer BEFORE navigating to game-over so a
   // finished game never re-triggers the resume modal on a later Home visit (AC-14).
@@ -154,20 +158,20 @@ export function Game(): React.ReactElement {
     setSessionBusy(true);
     setError(null);
     try {
-      await pauseGame(gameId, playerId);
+      await pauseGame(gameId, playerId, sessionToken);
       navigate('/');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not pause the game. Please try again.');
       setSessionBusy(false);
     }
-  }, [gameId, playerId, navigate]);
+  }, [gameId, playerId, sessionToken, navigate]);
 
   // Stop: backend deletes the session, pointer CLEARED, clean Home, no resume modal — AC-9.
   const handleStop = useCallback(async () => {
     setSessionBusy(true);
     setError(null);
     try {
-      await stopGame(gameId, playerId);
+      await stopGame(gameId, playerId, sessionToken);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not stop the game. Please try again.');
       setSessionBusy(false);
@@ -175,7 +179,7 @@ export function Game(): React.ReactElement {
     }
     clearActiveGame();
     navigate('/');
-  }, [gameId, playerId, navigate, clearActiveGame]);
+  }, [gameId, playerId, sessionToken, navigate, clearActiveGame]);
 
   // Clear the optimistic computer-shot overlay once the poll updates my board
   useEffect(() => {
@@ -230,7 +234,7 @@ export function Game(): React.ReactElement {
       // `silent: true` keeps firing off the app-wide top-bar loader — a shot is a
       // high-frequency in-game action that must feel instant and leave the board
       // interactive. Localized "Firing…" feedback (FiringIndicator) covers pending state.
-      const res = await fireShot(gameId, playerId, row, col, true);
+      const res = await fireShot(gameId, playerId, row, col, sessionToken, true);
       setLastResult(res.result);
       setLastSunkShip(res.sunkShipType);
 
