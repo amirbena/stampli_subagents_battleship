@@ -220,6 +220,8 @@ export async function joinGame(gameId: string, playerId?: string): Promise<JoinG
  * @param gameId   the game room
  * @param playerId the placing player
  * @param ship     ship type, anchor coordinate, and orientation
+ * @param silent   when true, excluded from the global loader — placement is a
+ *                 high-frequency in-game action that must feel instant (no loader flicker)
  * @returns the cells the ship now occupies
  * @throws Error 400 if placement is out of bounds or overlaps another ship
  * @throws Error 409 if the game is not in PLACING_SHIPS phase
@@ -228,10 +230,13 @@ export async function placeShip(
   gameId: string,
   playerId: string,
   ship: PlaceShipRequest,
+  silent = false,
 ): Promise<PlaceShipResponse> {
   const { data } = await api.post<PlaceShipResponse>(
     `/games/${gameId}/players/${playerId}/ships`,
     ship,
+    // `silent` is read by the request/response interceptors to skip loader counting.
+    { silent },
   );
   return data;
 }
@@ -243,14 +248,18 @@ export async function placeShip(
  * @param gameId   the game room
  * @param playerId the player making the request
  * @param shipType the ship type to remove
+ * @param silent   when true, excluded from the global loader — removing/repositioning a
+ *                 ship is a high-frequency in-game action that must feel instant
  * @throws Error 400 if the ship has not been placed
  */
 export async function removeShip(
   gameId: string,
   playerId: string,
   shipType: ShipType,
+  silent = false,
 ): Promise<void> {
-  await api.delete(`/games/${gameId}/players/${playerId}/ships/${shipType}`);
+  // `silent` is read by the request/response interceptors to skip loader counting.
+  await api.delete(`/games/${gameId}/players/${playerId}/ships/${shipType}`, { silent });
 }
 
 /**
@@ -275,6 +284,8 @@ export async function setReady(gameId: string, playerId: string): Promise<Confir
  * @param playerId the shooting player (must match the current turn)
  * @param row      target row (0–9)
  * @param col      target column (0–9)
+ * @param silent   when true, excluded from the global loader — firing is a
+ *                 high-frequency in-game action that must feel instant (no loader flicker)
  * @returns shot result (HIT | MISS | SUNK), sunk ship type, next turn player, winner if game ended
  * @throws Error 409 if it is not this player's turn
  * @throws Error 400 if coordinate is out of bounds or already targeted
@@ -284,10 +295,13 @@ export async function fireShot(
   playerId: string,
   row: number,
   col: number,
+  silent = false,
 ): Promise<FireShotResponse> {
   const { data } = await api.post<FireShotResponse>(
     `/games/${gameId}/players/${playerId}/fire`,
     { row, col },
+    // `silent` is read by the request/response interceptors to skip loader counting.
+    { silent },
   );
   return data;
 }

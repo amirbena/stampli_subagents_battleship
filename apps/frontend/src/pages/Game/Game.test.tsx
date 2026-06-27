@@ -127,6 +127,17 @@ describe('Game — shot responsiveness', () => {
     expect(playShotSoundMock).toHaveBeenCalledTimes(1);
   });
 
+  it('fires the shot with silent=true so the app-wide loader is not triggered', async () => {
+    const user = userEvent.setup();
+    fireShotMock.mockResolvedValue(HIT_RESULT);
+
+    renderGame();
+    await user.click(within(enemyBoard()).getByLabelText('Row 1 Col 1: empty'));
+
+    // The trailing silent arg keeps firing off the global top-bar loader (UX-only).
+    expect(fireShotMock).toHaveBeenCalledWith('G1', 'me', 0, 0, true);
+  });
+
   it('does not fire or play sound when it is not my turn (AC15)', async () => {
     mockGameState = baseState({ currentTurnPlayerId: 'opp' });
     const user = userEvent.setup();

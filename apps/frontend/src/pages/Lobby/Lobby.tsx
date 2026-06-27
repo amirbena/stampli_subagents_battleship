@@ -149,12 +149,14 @@ export function Lobby(): React.ReactElement {
     }
     setPlacementToastError(null);
     try {
+      // `silent: true` excludes placement from the app-wide top-bar loader — placing/
+      // switching a ship is a high-frequency in-game action that must feel instant (AC group 1).
       await placeShip(gameId, playerId, {
         shipType: placed.shipType,
         row,
         col,
         orientation: placement.orientation,
-      });
+      }, true);
     } catch (e) {
       // Roll back local placement on backend rejection
       placement.removeShip(placed.shipType);
@@ -167,7 +169,9 @@ export function Lobby(): React.ReactElement {
     userInteractedRef.current = true;
     placement.removeShip(type);
     try {
-      await removeShip(gameId, playerId, type);
+      // `silent: true` excludes removal from the app-wide top-bar loader — removing/
+      // repositioning a ship is a high-frequency in-game action that must feel instant (AC group 1).
+      await removeShip(gameId, playerId, type, true);
     } catch (e) {
       setGeneralError(e instanceof Error ? e.message : 'Remove failed');
     }
@@ -203,7 +207,14 @@ export function Lobby(): React.ReactElement {
     navigate('/');
   }, [gameId, playerId, navigate, clearActiveGame]);
 
+  // Synchronous duplicate-submission guard. `submitting` (state) disables the button on the
+  // next render, but rapid clicks within a single tick all fire before React re-renders — the
+  // ref blocks the extra submissions immediately (AC-10). Reset in finally so a failed attempt
+  // re-enables the control for retry (never permanently locked, AC-12).
+  const submittingRef = useRef(false);
   const handleConfirmReady = async () => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     setGeneralError(null);
     try {
@@ -211,6 +222,7 @@ export function Lobby(): React.ReactElement {
     } catch (e) {
       setGeneralError(e instanceof Error ? e.message : 'Failed to confirm ready');
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
@@ -293,6 +305,16 @@ export function Lobby(): React.ReactElement {
           >
             {myReady ? 'Waiting for opponent…' : submitting ? 'Confirming…' : 'Confirm Ready'}
           </button>
+          {/* Confirm Ready is an intentional major transition: while the ready request is in
+              flight show a centered blocking loading state with transitional messaging. The
+              `submitting` guard above keeps the control disabled (no double-submit); on failure
+              the handler's finally resets `submitting`, clearing this state so the player can
+              retry (the control is never permanently locked). */}
+          {submitting && (
+            <div className="confirm-ready-blocking" role="status">
+              <LoadingSpinner label="Preparing game…" />
+            </div>
+          )}
           {!placement.allPlaced && (
             <p className="placement-hint">
               Place all {5 - placement.placedShips.length} remaining ship(s) to continue
