@@ -227,7 +227,10 @@ export function Game(): React.ReactElement {
 
   const submitShot = async (row: number, col: number): Promise<void> => {
     try {
-      const res = await fireShot(gameId, playerId, row, col);
+      // `silent: true` keeps firing off the app-wide top-bar loader — a shot is a
+      // high-frequency in-game action that must feel instant and leave the board
+      // interactive. Localized "Firing…" feedback (FiringIndicator) covers pending state.
+      const res = await fireShot(gameId, playerId, row, col, true);
       setLastResult(res.result);
       setLastSunkShip(res.sunkShipType);
 

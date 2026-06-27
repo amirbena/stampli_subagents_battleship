@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react'; // act from RTL, not vitest
+import { render, screen, act, fireEvent, waitFor } from '@testing-library/react'; // act from RTL, not vitest
 import { MemoryRouter } from 'react-router-dom';
 import { Lobby } from './Lobby';
+import { setReady, placeShip, removeShip } from '../../api/gameApi';
 import type { ShipDto, ShipType } from '../../types/game';
 
 vi.mock('react-router-dom', async (importOriginal) => {
@@ -204,6 +205,73 @@ describe('Lobby — post-hydration fleet/board state', () => {
     expect(confirm).toBeEnabled();
   });
 
+  it('shows a centered blocking spinner and disables Confirm Ready while the ready request is in flight', async () => {
+    // Hold setReady open so we can observe the in-flight (submitting) state.
+    let resolveReady!: () => void;
+    vi.mocked(setReady).mockReturnValueOnce(
+      new Promise<void>((resolve) => { resolveReady = resolve; }) as unknown as ReturnType<typeof setReady>,
+    );
+    placementReturn = makePlacement({ placedShips: FULL_FLEET, allPlaced: true, selectedShipType: null });
+    pollingReturn = {
+      gameState: { status: 'PLACING_SHIPS', myBoard: { ships: FULL_FLEET, missedShots: [], hits: [] }, myReady: false },
+      isLoading: false,
+    };
+    render(<MemoryRouter><Lobby /></MemoryRouter>);
+
+    const confirm = screen.getByRole('button', { name: /confirm ready/i });
+    await act(async () => { fireEvent.click(confirm); });
+
+    // Centered blocking loading state with transitional messaging appears.
+    expect(await screen.findByText(/preparing game/i)).toBeInTheDocument();
+    // Control is disabled / non-resubmittable while in flight.
+    expect(screen.getByRole('button', { name: /confirming/i })).toBeDisabled();
+
+    await act(async () => { resolveReady(); });
+  });
+
+  it('does not submit Confirm Ready twice on rapid repeated clicks', async () => {
+    vi.mocked(setReady).mockClear();
+    let resolveReady!: () => void;
+    vi.mocked(setReady).mockReturnValueOnce(
+      new Promise<void>((resolve) => { resolveReady = resolve; }) as unknown as ReturnType<typeof setReady>,
+    );
+    placementReturn = makePlacement({ placedShips: FULL_FLEET, allPlaced: true, selectedShipType: null });
+    pollingReturn = {
+      gameState: { status: 'PLACING_SHIPS', myBoard: { ships: FULL_FLEET, missedShots: [], hits: [] }, myReady: false },
+      isLoading: false,
+    };
+    render(<MemoryRouter><Lobby /></MemoryRouter>);
+
+    const confirm = screen.getByRole('button', { name: /confirm ready/i });
+    await act(async () => {
+      fireEvent.click(confirm);
+      fireEvent.click(confirm);
+      fireEvent.click(confirm);
+    });
+
+    // The submitting guard collapses repeated clicks into a single submission.
+    expect(setReady).toHaveBeenCalledTimes(1);
+    await act(async () => { resolveReady(); });
+  });
+
+  it('re-enables Confirm Ready and clears the blocking spinner when the ready request fails', async () => {
+    vi.mocked(setReady).mockRejectedValueOnce(new Error('boom'));
+    placementReturn = makePlacement({ placedShips: FULL_FLEET, allPlaced: true, selectedShipType: null });
+    pollingReturn = {
+      gameState: { status: 'PLACING_SHIPS', myBoard: { ships: FULL_FLEET, missedShots: [], hits: [] }, myReady: false },
+      isLoading: false,
+    };
+    render(<MemoryRouter><Lobby /></MemoryRouter>);
+
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /confirm ready/i })); });
+
+    // On failure the blocking state clears and the control re-enables for retry (never locked).
+    await waitFor(() => {
+      expect(screen.queryByText(/preparing game/i)).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: /confirm ready/i })).toBeEnabled();
+  });
+
   it('renders no pre-selected ship and a non-interactive board after hydration (no selection)', () => {
     placementReturn = makePlacement({
       placedShips: FULL_FLEET,
@@ -228,5 +296,53 @@ describe('Lobby — post-hydration fleet/board state', () => {
     expect(screen.queryByRole('button', { name: /^row \d+ col \d+/i })).not.toBeInTheDocument();
     // The cells are still present as gridcells (board renders regardless of interactivity).
     expect(screen.getAllByRole('gridcell').length).toBeGreaterThan(0);
+  });
+});
+
+describe('Lobby — in-game actions excluded from app-wide loader (AC group 1)', () => {
+  it('calls placeShip with trailing silent=true so placing a ship does not trigger the global loader', async () => {
+    vi.mocked(placeShip).mockClear();
+    vi.mocked(placeShip).mockResolvedValueOnce(undefined as never);
+    // A ship is selected and placeShip returns a placed result, so handleCellClick issues the request.
+    placementReturn = makePlacement({
+      selectedShipType: 'DESTROYER',
+      placeShip: vi.fn(() => ({ shipType: 'DESTROYER', cells: [{ row: 0, col: 0 }] })),
+    });
+    pollingReturn = {
+      gameState: { status: 'PLACING_SHIPS', myBoard: { ships: [], missedShots: [], hits: [] }, myReady: false },
+      isLoading: false,
+    };
+    render(<MemoryRouter><Lobby /></MemoryRouter>);
+
+    // Click an interactive board cell (a ship is selected → cells render as buttons).
+    // getAllByLabelText because two boards may be in the DOM; pick the first (placement board).
+    await act(async () => {
+      fireEvent.click(screen.getAllByLabelText('Row 1 Col 1: empty')[0]);
+    });
+
+    expect(placeShip).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(placeShip).mock.calls[0][3]).toBe(true);
+  });
+
+  it('calls removeShip with trailing silent=true so removing a ship does not trigger the global loader', async () => {
+    vi.mocked(removeShip).mockClear();
+    vi.mocked(removeShip).mockResolvedValueOnce(undefined as never);
+    placementReturn = makePlacement({
+      placedShips: FULL_FLEET,
+      allPlaced: true,
+      selectedShipType: null,
+    });
+    pollingReturn = {
+      gameState: { status: 'PLACING_SHIPS', myBoard: { ships: FULL_FLEET, missedShots: [], hits: [] }, myReady: false },
+      isLoading: false,
+    };
+    render(<MemoryRouter><Lobby /></MemoryRouter>);
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText(/remove destroyer/i));
+    });
+
+    expect(removeShip).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(removeShip).mock.calls[0][3]).toBe(true);
   });
 });

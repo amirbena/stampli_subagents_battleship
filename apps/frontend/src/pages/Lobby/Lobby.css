@@ -59,6 +59,25 @@
 
 .confirm-ready-btn { min-width: 200px; }
 
+/* Centered blocking loading state while Confirm Ready is in flight. Covers the viewport
+   and centers the spinner so the player gets unmistakable "moving to next stage" feedback.
+   The spinner inside is centered (overriding the base left-aligned inline layout). */
+.confirm-ready-blocking {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-overlay, rgba(0, 0, 0, 0.55));
+}
+
+.confirm-ready-blocking .loading-spinner {
+  flex-direction: column;
+  font-size: 1.1rem;
+  color: var(--color-text, #fff);
+}
+
 .placement-hint {
   font-size: 0.85rem;
   color: var(--color-text-muted);
