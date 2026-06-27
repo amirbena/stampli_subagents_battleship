@@ -265,7 +265,7 @@ When Architecture returns `REQUIRES_CHANGES` with a product-semantic gap (behavi
 2. **Reopen Product Agent** with the specific missing product question from the finding.
 3. **Require** Product to update `product-spec.md` with the missing decision.
 4. **Block** backend and frontend implementation agents until Architecture is finalized.
-5. **Resume Architecture** only after the refreshed `product-spec.md` is available.
+5. **Re-spawn architect-agent** only after the refreshed `product-spec.md` is available. Do not assume a prior architect-agent invocation continues — each reopen is a fresh architect-agent spawn that reads the updated `product-spec.md` from the start.
 
 Document this as a Product Reopen in `team-lead-classification.md` (counts against the 3-reopen limit per Step 10).
 
@@ -424,15 +424,35 @@ Reason: <one sentence>
 
 Load `.claude/policies/background-agent-policy.md` before using `run_in_background` on any agent invocation. If any agent is spawned with `run_in_background: true`, record the agent name and expected output path in `team-lead-plan.md`. No gate may be marked complete while a background agent result is outstanding — collect and confirm every background result before advancing.
 
-> **Wakeup vs. task-notification:** Harness-tracked background agents (those
-> spawned via the `Agent` tool with `run_in_background: true`) emit a
-> `task-notification` on completion and re-invoke Team Lead automatically.
-> Do not call `ScheduleWakeup` for these agents — it creates a redundant
-> second re-entry path and may trigger duplicate workflow activity.
-> Do not ask the user to manually wake the workflow for harness-tracked
-> background agents. Reserve `ScheduleWakeup` for work the harness cannot
-> track: CI runs, deployments, remote APIs, external queues, or shell
-> subprocesses started with `&` (e.g. the E2E warmup in `e2e-warmup.md`).
+> **Universal Continuation Rule — No Manual Wakeup:**
+>
+> **Foreground agent calls** (without `run_in_background: true`) return inline
+> to Team Lead when complete. Team Lead reads the artifact, classifies the
+> result, and continues the workflow immediately — no wakeup needed.
+>
+> **Background agent calls** (with `run_in_background: true`) resume Team Lead
+> through harness `task-notification`. The harness emits the notification when
+> the agent completes and re-invokes Team Lead automatically. Do not call
+> `ScheduleWakeup` for these agents — it creates a redundant second re-entry
+> path and may trigger duplicate workflow activity. Do not ask the user to
+> manually wake the workflow for harness-tracked background agents.
+>
+> **This rule applies equally across the entire workflow, not only initial dispatch:**
+> - Fix agents re-routed after QA, review, or security failures
+> - Code review re-runs (`code-review-agent` re-triggers)
+> - Security re-runs (`security-agent` re-triggers)
+> - Playwright/E2E re-runs (`playwright-e2e-agent` re-triggers)
+> - Backend integration test re-runs
+> - Product Agent and Architect Agent reopen flows
+>
+> **Manual user wakeup is not part of normal orchestration.** If Team Lead
+> cannot safely continue after a re-route or re-trigger, it writes
+> `workflow-blocker.md` and stops — it does not pause and ask the user to
+> resume the workflow.
+>
+> Reserve `ScheduleWakeup` only for work the harness cannot track: CI runs,
+> deployments, remote APIs, external queues, or shell subprocesses started
+> with `&` (e.g. the E2E backend warmup in `e2e-warmup.md`).
 
 Assign only agents listed in `team-lead-plan.md`. Each agent runs with:
 - Current workflow-run-id
@@ -572,6 +592,8 @@ Skip this block entirely when E2E mode is **Smoke** or **None** — no backend n
 Spawn `backend-integration-tests-agent` only if any of the five HTTP-layer triggers are true (see above). Skip entirely for frontend-only changes.
 
 **Step 4 — Gate: integration tests must be green before E2E starts.**
+
+If integration tests fail, Team Lead reads the failure output and applies `.claude/policies/test-failure-routing-policy.md`. Route to `java-backend-agent` first. Route to `backend-integration-tests-agent` only after `java-backend-agent` fails to fix after 2 cycles. After the fix, re-run `./mvnw test -Dtest="*IntegrationTest"`. E2E may not start until this gate is green. This is a gate failure path — `backend-integration-tests-agent` is not a first-class QA re-trigger agent; it is the escalation target after `java-backend-agent` fix cycles are exhausted.
 
 **Before Step 5 — Collect warmup result (Full E2E mode only):**
 
@@ -768,6 +790,11 @@ Special cases:
 
 QA, security, and code review findings return to Team Lead. Team Lead classifies and routes. QA must not route directly to developers.
 
+**No manual wakeup in re-trigger loops.** Fix agents, review re-runs, Playwright re-runs, and reopen flows all follow the same completion semantics as initial dispatch:
+- Foreground fix agents return inline — Team Lead reads the result and continues immediately.
+- Background fix agents (exceptional) resume Team Lead through harness `task-notification`.
+- Team Lead never pauses normal orchestration and asks the user to manually wake the workflow. If safe progress is impossible, Team Lead writes `workflow-blocker.md` instead.
+
 ### Code Review REQUIRES_CHANGES — Hard Stop and Routing
 
 When `code-review-agent` returns `REQUIRES_CHANGES`:
@@ -795,6 +822,43 @@ security / config / secrets issue      → security-agent
 6. Continue to release only after `code-review-agent` returns `APPROVED`.
 
 **No Code Review bypass is allowed under any circumstances.**
+
+### Security REQUIRES_CHANGES — Continuation Path
+
+When `security-agent` returns `REQUIRES_CHANGES`:
+
+1. **Stop the release flow.** Do not spawn `release-pr-agent`.
+2. Read the finding category and responsible owner from the security report.
+3. Route the fix to the responsible owner agent using the same routing table as code review (see above). The fix agent is foreground by default.
+4. Require correction evidence from the owner agent (files changed, verification output).
+5. After the owner agent reports done:
+   a. Read the fix report and confirm the relevant files or behavior were addressed.
+   b. Run the SHA Validity Gate (Step 14) against the current HEAD.
+   c. Determine re-review scope from `.claude/metadata/review-validity-schema.md` (Small/Medium/Large).
+   d. Re-spawn `security-agent` (delta or full, per severity).
+6. Read the new `security-report.md`. The security gate advances only after the new report is `APPROVED`.
+7. Update the Finding Registry — increment attempt count, record new evidence, update status.
+
+If multiple fix agents are routed in parallel, all must return and all relevant fixes must be validated before `security-agent` is re-spawned. Do not ask the user to manually resume between the owner fix and the security re-run — this is a foreground loop that returns inline to Team Lead.
+
+### Playwright/E2E Re-trigger Continuation
+
+When `playwright-e2e-agent` reports a failure:
+
+1. **Team Lead reads the failure output.** Apply `.claude/policies/test-failure-routing-policy.md` to classify the root cause and route to the owning agent. Do not route by visible symptom alone — a UI symptom can have a backend root cause.
+2. Route the fix to the responsible owner agent (foreground by default).
+3. After the fix agent reports done, Team Lead must:
+   a. Read the fix report and confirm the relevant files or behavior were addressed.
+   b. Check which agents changed files. If both `frontend-api-agent` and `frontend-ui-agent` changed files in this fix cycle, both must re-run their tests and be green before re-triggering E2E.
+   c. If `frontend-api-agent` changed files in any capacity, run `npm run build` before re-triggering E2E.
+   d. For Full E2E mode: re-verify infrastructure pre-gate conditions unless confirmed still valid.
+4. **Re-spawn `playwright-e2e-agent`** using the same E2E mode (Full or Smoke) as the failed run, unless Team Lead explicitly reclassifies the mode based on new evidence.
+5. Read the new Playwright report before advancing the E2E gate.
+6. Update the Finding Registry — increment attempt count, record new evidence.
+
+If Playwright is exceptionally backgrounded, completion follows `background-agent-policy.md` — harness `task-notification` re-invokes Team Lead. No `ScheduleWakeup` and no manual user wakeup.
+
+If fix attempts are exhausted (per QA Cycle Limits below), write `workflow-blocker.md` and stop.
 
 ### Post-Review Fix Severity Routing
 
