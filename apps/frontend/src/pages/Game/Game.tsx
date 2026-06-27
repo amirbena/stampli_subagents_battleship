@@ -20,7 +20,6 @@ import { playShotSound } from '../../utils/sound';
 import {
   COMPUTER_PLAYING_REVEAL_MS,
   COMPUTER_PLAYING_HOLD_MS,
-  YOUR_TURN_AGAIN_MS,
 } from '../../utils/turnTiming';
 import type { ShotResult, ShipType, CellState } from '../../types/game';
 import './Game.css';
@@ -50,8 +49,6 @@ export function Game(): React.ReactElement {
   const [computerPlaying, setComputerPlaying] = useState(false);
   // Incremented on each blocked click during the lock to (re)show the "can't shoot" notice.
   const [cantShootTrigger, setCantShootTrigger] = useState(0);
-  // True while the transient "Your turn again" cue is shown after control returns.
-  const [yourTurnAgain, setYourTurnAgain] = useState(false);
 
   const { gameState, isLoading, gameGone, refresh } = useGamePolling(gameId, playerId, sessionToken, true);
 
@@ -191,16 +188,9 @@ export function Game(): React.ReactElement {
   // the persistent two-state turn title and the computer-turn lock.
   const vsComputer = (gameState?.gameMode ?? pointer?.gameMode) === 'COMPUTER';
   // Show "Your turn!" only on the opponent/computer → me transition (see hook). In
-  // vs-computer the polled turn never flips, so this stays dormant and the local
-  // "Your turn again" cue (yourTurnAgain) is used instead.
+  // vs-computer the polled turn never flips, so this stays dormant; control returning
+  // after the computer's move is conveyed by the board re-enabling (setComputerPlaying(false)).
   const showYourTurn = useTurnNotification(isMyTurn, gameState?.status);
-
-  // Auto-dismiss the transient "Your turn again" cue.
-  useEffect(() => {
-    if (!yourTurnAgain) return;
-    const timer = setTimeout(() => setYourTurnAgain(false), YOUR_TURN_AGAIN_MS);
-    return () => clearTimeout(timer);
-  }, [yourTurnAgain]);
 
   const opponentBoardCells = gameState ? computeOpponentBoardCells(gameState.opponentBoard) : undefined;
 
@@ -247,7 +237,7 @@ export function Game(): React.ReactElement {
         // The computer is taking its turn. The player's own result is already on the
         // board (refresh above). Now present a visible, locked "Computer is playing"
         // phase (board cannot fire) BEFORE revealing the computer's shot, then return
-        // control with a "Your turn again" cue. The backend already resolved both
+        // control by re-enabling the board. The backend already resolved both
         // shots — this is purely the player-facing choreography for the COMPUTER's move.
         setComputerPlaying(true);
 
@@ -261,19 +251,18 @@ export function Game(): React.ReactElement {
         if (!mountedRef.current) return;
 
         if (cs.winnerId) {
-          // The computer's shot ended the game — go straight to game over and
-          // suppress the "Your turn again" cue (control never returns).
+          // The computer's shot ended the game — go straight to game over;
+          // control never returns to the player.
           navigate('/game-over');
           return;
         }
 
         // Brief hold so the player sees the shot land under "Computer is playing"
-        // before control returns.
+        // before control returns. Control returns by re-enabling the board.
         await delay(COMPUTER_PLAYING_HOLD_MS);
         if (!mountedRef.current) return;
 
         setComputerPlaying(false);
-        setYourTurnAgain(true);
       }
       // No `else` branch needed: when there is no computer shot (HUMAN multiplayer, or
       // the player's shot ended the game / won — AC-13a), the immediate refresh() above
@@ -344,7 +333,6 @@ export function Game(): React.ReactElement {
       </header>
 
       {showYourTurn && <YourTurnToast />}
-      {yourTurnAgain && <YourTurnToast message="🎯 Your turn again!" />}
       <FiringIndicator active={firing} />
       <CantShootToast trigger={cantShootTrigger} />
       <ShotResultToast result={lastResult} sunkShipType={lastSunkShip} />

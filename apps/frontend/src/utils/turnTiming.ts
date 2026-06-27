@@ -18,8 +18,5 @@ export const RESULT_TOAST_HIT_MS = 2000;
 export const COMPUTER_PLAYING_REVEAL_MS = 900;
 export const COMPUTER_PLAYING_HOLD_MS = 600;
 
-// Transient "Your turn again" cue shown when control returns to the player.
-export const YOUR_TURN_AGAIN_MS = 1800;
-
 // Transient "Can't shoot — computer is playing" notice when the player clicks during the lock.
 export const CANT_SHOOT_NOTICE_MS = 1500;

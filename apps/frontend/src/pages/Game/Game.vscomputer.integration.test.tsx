@@ -152,7 +152,7 @@ describe('Game vs-computer — turn choreography', () => {
     expect(fireShotMock).toHaveBeenCalledTimes(1); // no second shot issued
   });
 
-  it('returns control with a "Your turn again" cue and re-enables the board', async () => {
+  it('returns control and re-enables the board after the computer move', async () => {
     fireShotMock.mockResolvedValue(responseWithComputerShot());
     renderGame();
 
@@ -164,13 +164,14 @@ describe('Game vs-computer — turn choreography', () => {
     await flush(COMPUTER_PLAYING_REVEAL_MS);
     await flush(COMPUTER_PLAYING_HOLD_MS);
 
-    expect(screen.getByText(/your turn again/i)).toBeInTheDocument();
+    // Control returns: the "Computer is playing" lock is gone and the title is restored.
+    expect(screen.queryByText('Computer is playing')).toBeNull();
     expect(screen.getByText('Your turn')).toBeInTheDocument(); // title restored
-    // Board interactive again.
+    // Board interactive again (no redundant "Your turn again" toast is shown).
     expect(within(enemyBoard()).getByRole('button', { name: 'Row 1 Col 1: empty' })).toBeInTheDocument();
   });
 
-  it('does not show "Your turn again" when the computer\'s shot ends the game', async () => {
+  it('navigates to game-over when the computer\'s shot ends the game', async () => {
     fireShotMock.mockResolvedValue(
       responseWithComputerShot({ winnerId: 'computer', gameStatus: 'FINISHED' }),
     );
@@ -181,7 +182,9 @@ describe('Game vs-computer — turn choreography', () => {
     await flush(COMPUTER_PLAYING_REVEAL_MS); // reveal → winner detected → navigate
 
     expect(navigateMock).toHaveBeenCalledWith('/game-over');
-    expect(screen.queryByText(/your turn again/i)).toBeNull();
+    // Control never returns: the board stays under the "Computer is playing" lock
+    // until navigation away.
+    expect(screen.getByText('Computer is playing')).toBeInTheDocument();
   });
 
   it("reveals the player's OWN shot result immediately, BEFORE the computer-reveal delay (AC-7/AC-8/AC-9)", async () => {
