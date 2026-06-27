@@ -280,7 +280,7 @@ test('AC-2/AC-5/AC-10: Browser B entering a COMPUTER game code never inherits Br
       await pageB.reload();
 
       // Enter Browser A's game code in the restore input
-      await pageB.getByLabel('Game code').fill(gameA.gameId);
+      await pageB.getByLabel('Game code', { exact: true }).fill(gameA.gameId);
       await pageB.getByRole('button', { name: /restore game/i }).click();
 
       // Must show "not found" inline message (AC-10: COMPUTER seat non-transferable)
@@ -453,13 +453,13 @@ test('AC-8/AC-9: Browser with no belonging record sees no resume popup on load (
       await expect(pageB.locator('[role="dialog"]')).not.toBeVisible({ timeout: 3000 });
 
       // Enter COMPUTER code — should get not-found (no popup follows either)
-      await pageB.getByLabel('Game code').fill(compGame.gameId);
+      await pageB.getByLabel('Game code', { exact: true }).fill(compGame.gameId);
       await pageB.getByRole('button', { name: /restore game/i }).click();
       await expect(pageB.getByText(NOT_FOUND_TEXT)).toBeVisible({ timeout: 5000 });
       await expect(pageB.locator('[role="dialog"]')).not.toBeVisible();
 
       // Clear and enter HUMAN game code — should also get not-found (AC-9: mode parity)
-      await pageB.getByLabel('Game code').fill(humanGame.gameId);
+      await pageB.getByLabel('Game code', { exact: true }).fill(humanGame.gameId);
       await pageB.getByRole('button', { name: /restore game/i }).click();
       await expect(pageB.getByText(NOT_FOUND_TEXT)).toBeVisible({ timeout: 5000 });
       await expect(pageB.locator('[role="dialog"]')).not.toBeVisible();
@@ -494,7 +494,7 @@ test('AC-11: Third browser attempting to join a full HUMAN game is rejected with
       await pageC.reload();
 
       // Enter the full game's code
-      await pageC.getByLabel('Game code').fill(gameA.gameId);
+      await pageC.getByLabel('Game code', { exact: true }).fill(gameA.gameId);
       await pageC.getByRole('button', { name: /restore game/i }).click();
 
       // Must see "not found" inline (AC-11: game full → generic not-joinable)
@@ -586,7 +586,7 @@ test('AC-12: FINISHED game — restore probe returns 404 (terminal) and browser 
       expect(ptr).toBeNull();
 
       // Home renders cleanly (no blocking error)
-      await expect(page.getByLabel('Game code')).toBeVisible();
+      await expect(page.getByLabel('Game code', { exact: true })).toBeVisible();
     } finally {
       await ctx.context.close();
     }
@@ -628,7 +628,7 @@ test('AC-13: Stale belonging (game gone/stopped) — no popup, reference quietly
       await expect(page.locator('[role="dialog"]')).not.toBeVisible();
 
       // Home must render cleanly — the restore form is present, no blocking error
-      await expect(page.getByLabel('Game code')).toBeVisible();
+      await expect(page.getByLabel('Game code', { exact: true })).toBeVisible();
 
       // Pointer must be cleared (quietly discarded)
       const ptr = await readActivePointer(page);
@@ -681,7 +681,7 @@ test('AC-13/AC-1: Token-less pointer (no belonging minted) → no popup on load,
       await expect(page.locator('[role="dialog"]')).not.toBeVisible();
 
       // Home renders cleanly
-      await expect(page.getByLabel('Game code')).toBeVisible();
+      await expect(page.getByLabel('Game code', { exact: true })).toBeVisible();
     } finally {
       await ctx.context.close();
       // Stop the game to clean up backend state

@@ -93,12 +93,13 @@ async function readStoredPlayerId(page: Page): Promise<string | null> {
  */
 async function readActivePointer(
   page: Page,
-): Promise<{ gameId: string; playerId: string; gameMode: string } | null> {
+): Promise<{ gameId: string; playerId: string; gameMode: string; sessionToken: string } | null> {
   return page.evaluate(() => {
     const raw = localStorage.getItem('battleship_active_game');
     if (raw === null) return null;
     try {
-      return JSON.parse(raw) as { gameId: string; playerId: string; gameMode: string } | null;
+      // PR #58: the pointer carries the per-seat sessionToken (X-Session-Token on gated calls).
+      return JSON.parse(raw) as { gameId: string; playerId: string; gameMode: string; sessionToken: string } | null;
     } catch {
       return null;
     }
@@ -117,11 +118,12 @@ async function placeAllShips(
   request: APIRequestContext,
   gameId: string,
   playerId: string,
+  sessionToken: string,
 ): Promise<void> {
   for (const ship of SHIP_PLACEMENTS) {
     const res = await request.post(
       `${API_BASE}/games/${gameId}/players/${playerId}/ships`,
-      { data: ship },
+      { data: ship, headers: { 'X-Session-Token': sessionToken } },
     );
     if (!res.ok()) {
       const body = await res.text();
@@ -134,9 +136,11 @@ async function markReady(
   request: APIRequestContext,
   gameId: string,
   playerId: string,
+  sessionToken: string,
 ): Promise<void> {
   const res = await request.post(
     `${API_BASE}/games/${gameId}/players/${playerId}/ready`,
+    { headers: { 'X-Session-Token': sessionToken } },
   );
   if (!res.ok()) {
     const body = await res.text();
@@ -148,12 +152,13 @@ async function fireUntilFinished(
   request: APIRequestContext,
   gameId: string,
   playerId: string,
+  sessionToken: string,
 ): Promise<'human' | 'computer'> {
   for (let row = 0; row < 10; row++) {
     for (let col = 0; col < 10; col++) {
       const res = await request.post(
         `${API_BASE}/games/${gameId}/players/${playerId}/fire`,
-        { data: { row, col } },
+        { data: { row, col }, headers: { 'X-Session-Token': sessionToken } },
       );
       if (!res.ok()) continue;
       const body = await res.json() as {
@@ -321,6 +326,9 @@ test.describe('Flow 2 — Returning visit', () => {
 
 test.describe('AC-11 — vs Computer with player identity', () => {
   test('identified player creates vs-computer game; playerId echoed back; Computer label shown on game-over', async ({ page, request }) => {
+    // PR #58: the backend applies a ~1-3s computer-move delay per fire, so the full
+    // fire-until-finished win drive needs a generous timeout beyond the 30s default.
+    test.setTimeout(240000);
     const { playerId, displayName } = await createPlayerViaApi(request, 'ComputerFighter');
 
     await page.goto('/');
@@ -351,19 +359,22 @@ test.describe('AC-11 — vs Computer with player identity', () => {
     // gameId/playerId now live in the localStorage active-game pointer.
     const pointer = await readActivePointer(page);
     const gameId  = pointer?.gameId ?? null;
+    const sessionToken = pointer?.sessionToken ?? null;
     expect(pointer?.playerId).toBe(playerId);
     expect(gameId).toBeTruthy();
+    // PR #58: the create mint wrote a per-seat sessionToken into the pointer.
+    expect(sessionToken).toBeTruthy();
 
-    // Place ships and mark ready via API to speed up the test.
-    await placeAllShips(request, gameId!, playerId);
-    await markReady(request, gameId!, playerId);
+    // Place ships and mark ready via API to speed up the test (gated — need X-Session-Token).
+    await placeAllShips(request, gameId!, playerId, sessionToken!);
+    await markReady(request, gameId!, playerId, sessionToken!);
 
     // Navigate directly to game page.
     await page.goto('/game');
     await expect(page.locator('.game-page')).toBeVisible({ timeout: 10000 });
 
     // Fire until the game ends.
-    const winner = await fireUntilFinished(request, gameId!, playerId);
+    const winner = await fireUntilFinished(request, gameId!, playerId, sessionToken!);
 
     // Navigate to game-over.
     await page.goto('/game-over');
@@ -418,10 +429,18 @@ test.describe('AC-22/AC-23 — Backward compatibility', () => {
       params: { mode: 'COMPUTER' },
     });
     expect(createRes.status()).toBe(201);
-    const { gameId, playerId } = await createRes.json() as { gameId: string; playerId: string };
+    const { gameId, playerId, sessionToken } = await createRes.json() as {
+      gameId: string;
+      playerId: string;
+      sessionToken: string;
+    };
 
+    // PR #58: GET /state is belonging-gated — the owner must present its X-Session-Token
+    // (and X-Player-Id). The endpoint SHAPE is unchanged (AC-22); only the auth header is now
+    // required. A non-owner / token-less request receives the generic 404.
     const stateRes = await request.get(`${API_BASE}/games/${gameId}/state`, {
       params: { playerId },
+      headers: { 'X-Session-Token': sessionToken, 'X-Player-Id': playerId },
     });
     expect(stateRes.status()).toBe(200);
     const state = await stateRes.json() as Record<string, unknown>;

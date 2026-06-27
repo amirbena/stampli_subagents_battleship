@@ -251,18 +251,34 @@ export async function createGame(mode?: GameMode, playerId?: string): Promise<Cr
  * Joins an existing game room as the second player.
  * POST /games/:gameId/join
  *
- * When playerId is supplied the backend links playerB to the existing Player
- * record (AC-13). When omitted the backend generates an anonymous UUID as today.
+ * When playerId is supplied the backend links playerB to the existing persistent
+ * Player record; the joiner ALWAYS receives a brand-new DISTINCT identity + its own
+ * per-seat `sessionToken` minted for this seat (PR #58) — it never inherits the
+ * creator's identity or token. When omitted the backend generates an anonymous UUID.
  *
- * @param gameId   the 6-char room code received from the creator
+ * Every non-admit case — missing code, full room, already-started/non-WAITING game —
+ * collapses to the SAME generic 404 GAME_NOT_FOUND on the backend (no seat/type/
+ * existence leakage). We resolve that 404 to a thrown GameNotFoundError (mirroring
+ * restoreGameByCode / getGameState) so the caller can show the existing inline
+ * "not joinable" message and stay put (AC-6d) without parsing response bodies.
+ * 5xx/network still reject as a plain Error via the global interceptor (transient).
+ *
+ * @param gameId   the room code received from the creator (this code IS the gameId)
  * @param playerId optional persistent player ID from localStorage
- * @returns the joiner's playerId
- * @throws Error 409 if the room is full or already in progress
+ * @returns { gameId, playerId, status, sessionToken } — the joiner's DISTINCT seat
+ * @throws GameNotFoundError when the backend returns 404 GAME_NOT_FOUND (any not-joinable case)
  */
 export async function joinGame(gameId: string, playerId?: string): Promise<JoinGameResponse> {
   const body: JoinGameRequest = { gameId, ...(playerId ? { playerId } : {}) };
-  const { data } = await api.post<JoinGameResponse>(`/games/${gameId}/join`, body);
-  return data;
+  const response = await api.post<JoinGameResponse>(`/games/${gameId}/join`, body, {
+    // Accept 404 as resolved so we can throw the typed sentinel below; 5xx/network
+    // still reject and surface as a plain Error via the global response interceptor.
+    validateStatus: (status) => (status >= 200 && status < 300) || status === 404,
+  });
+  if (response.status === 404) {
+    throw new GameNotFoundError(gameId);
+  }
+  return response.data;
 }
 
 /**

@@ -41,6 +41,19 @@ vi.mock('../../hooks/useRestoreGame', () => ({
   useRestoreGame: vi.fn(() => restoreState),
 }));
 
+// Join-by-code hook (data layer, owned by frontend-api-agent) — mocked at the UI boundary.
+// The UI agent owns only nav/pointer wiring; the hook owns the request, loading, notFound.
+const joinMock = vi.fn();
+const joinState = {
+  join: joinMock,
+  isLoading: false,
+  notFound: false,
+  error: null as string | null,
+};
+vi.mock('../../hooks/useJoinGame', () => ({
+  useJoinGame: vi.fn(() => joinState),
+}));
+
 // Resume sequence hook (data layer) — mocked so the modal's Yes/Resume path never hits HTTP.
 const resumeMock = vi.fn();
 vi.mock('../../hooks/useResumeGame', () => ({
@@ -85,6 +98,10 @@ beforeEach(() => {
   restoreState.error = null;
   restoreState.isLoading = false;
   resumeMock.mockReset();
+  joinMock.mockReset();
+  joinState.notFound = false;
+  joinState.error = null;
+  joinState.isLoading = false;
   probeMock.mockReset();
   probeMock.mockResolvedValue('cleared');
   vi.mocked(usePlayerIdentity).mockReturnValue({ ...defaultReturn });
@@ -112,11 +129,22 @@ describe('Home — renders required elements', () => {
     expect(screen.getByLabelText('Game code')).toBeInTheDocument();
   });
 
-  it('renders the disabled Coming Soon multiplayer button (AC-14)', () => {
+  it('renders the human-vs-human button enabled and free of "Coming Soon" (AC-1/AC-2/AC-3)', () => {
+    mockIdentity({
+      status: 'identified',
+      player: { playerId: 'uuid-123', displayName: 'Alex', createdAt: '2026-01-01T00:00:00Z' },
+    });
     renderHome();
     const btn = screen.getByRole('button', { name: /play against another user/i });
-    expect(btn).toBeDisabled();
-    expect(btn).toHaveTextContent(/coming soon/i);
+    expect(btn).toBeInTheDocument();
+    expect(btn).not.toBeDisabled();
+    expect(btn).not.toHaveTextContent(/coming soon/i);
+  });
+
+  it('renders the Join Game submit button and code input (AC-5)', () => {
+    renderHome();
+    expect(screen.getByRole('button', { name: /join game/i })).toBeInTheDocument();
+    expect(screen.getByLabelText('Game code to join')).toBeInTheDocument();
   });
 });
 
@@ -144,13 +172,19 @@ describe('Home — identity gate (AC-01, AC-15)', () => {
     expect(screen.getByRole('button', { name: /play vs computer/i })).not.toBeDisabled();
   });
 
-  it('keeps the multiplayer button disabled regardless of identity (AC-14)', () => {
+  it('disables the human-vs-human button when status is needs-name (identity gate)', () => {
+    mockIdentity({ status: 'needs-name' });
+    renderHome();
+    expect(screen.getByRole('button', { name: /play against another user/i })).toBeDisabled();
+  });
+
+  it('enables the human-vs-human button when identified (AC-2)', () => {
     mockIdentity({
       status: 'identified',
       player: { playerId: 'uuid-123', displayName: 'Alex', createdAt: '2026-01-01T00:00:00Z' },
     });
     renderHome();
-    expect(screen.getByRole('button', { name: /play against another user/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /play against another user/i })).not.toBeDisabled();
   });
 });
 
@@ -387,5 +421,120 @@ describe('Home — code popup on computer-game start (AC-5/AC-6)', () => {
     // Acknowledging proceeds into the game (computer game starts in the lobby).
     await userEvent.click(screen.getByRole('button', { name: /got it, start playing/i }));
     await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/lobby'));
+  });
+});
+
+import { createGame } from '../../api/gameApi';
+
+describe('Home — create human-vs-human game (AC-4/AC-5/AC-6)', () => {
+  function identified() {
+    mockIdentity({
+      status: 'identified',
+      player: { playerId: 'uuid-123', displayName: 'Alex', createdAt: '2026-01-01T00:00:00Z' },
+    });
+  }
+
+  it('clicking the button creates a HUMAN game and navigates to /lobby (AC-4)', async () => {
+    identified();
+    renderHome();
+    await userEvent.click(screen.getByRole('button', { name: /play against another user/i }));
+    // create-HUMAN handler mirrors computer create but mode 'HUMAN' (AC-4).
+    await waitFor(() => expect(createGame).toHaveBeenCalledWith('HUMAN', 'uuid-123'));
+    // Human game starts WAITING_FOR_PLAYERS/PLACING_SHIPS → creator routes into the lobby
+    // (where the shareable code + waiting banner surface — AC-6). No code popup for HUMAN.
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/lobby'));
+  });
+
+  it('persists the belonging pointer with the minted sessionToken after create (PR #58)', async () => {
+    identified();
+    // After setPointer, the load-time belonging probe re-runs; 'transient' preserves the
+    // record (a 'cleared' outcome would wipe it — not what we assert here).
+    probeMock.mockResolvedValue('transient');
+    renderHome();
+    await userEvent.click(screen.getByRole('button', { name: /play against another user/i }));
+    await waitFor(() => {
+      const raw = localStorage.getItem(ACTIVE_GAME_KEY);
+      expect(raw).not.toBeNull();
+      const ptr = JSON.parse(raw as string);
+      expect(ptr).toMatchObject({
+        gameId: 'ABC123',
+        playerId: 'p1',
+        gameMode: 'HUMAN',
+        sessionToken: 'tok-mint',
+      });
+    });
+  });
+});
+
+describe('Home — join human game by code (AC-5/AC-6c/AC-6d)', () => {
+  function identified() {
+    mockIdentity({
+      status: 'identified',
+      player: { playerId: 'uuid-123', displayName: 'Alex', createdAt: '2026-01-01T00:00:00Z' },
+    });
+  }
+
+  it('empty join submit shows a validation hint and does not call join or navigate', async () => {
+    identified();
+    renderHome();
+    await userEvent.click(screen.getByRole('button', { name: /join game/i }));
+    expect(screen.getByText(/please enter a game code/i)).toBeInTheDocument();
+    expect(joinMock).not.toHaveBeenCalled();
+    expect(navigateMock).not.toHaveBeenCalled();
+  });
+
+  it('valid join navigates to /lobby and persists a distinct-identity pointer (AC-6c)', async () => {
+    identified();
+    // useJoinGame mints a brand-new distinct identity (PR #58): p2 + its own token.
+    joinMock.mockResolvedValue({
+      gameId: 'ABC123', playerId: 'p2', status: 'PLACING_SHIPS', sessionToken: 'tok-join',
+    });
+    // 'transient' preserves the just-written pointer through the load-time probe re-run.
+    probeMock.mockResolvedValue('transient');
+    renderHome();
+    await userEvent.type(screen.getByLabelText('Game code to join'), 'ABC123');
+    await userEvent.click(screen.getByRole('button', { name: /join game/i }));
+    await waitFor(() => expect(joinMock).toHaveBeenCalledWith('ABC123', 'uuid-123'));
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/lobby'));
+    const ptr = JSON.parse(localStorage.getItem(ACTIVE_GAME_KEY) as string);
+    expect(ptr).toMatchObject({
+      gameId: 'ABC123', playerId: 'p2', gameMode: 'HUMAN', sessionToken: 'tok-join',
+    });
+  });
+
+  it('valid IN_PROGRESS join navigates to /game (AC-6c)', async () => {
+    identified();
+    joinMock.mockResolvedValue({
+      gameId: 'ABC123', playerId: 'p2', status: 'IN_PROGRESS', sessionToken: 'tok-join',
+    });
+    renderHome();
+    await userEvent.type(screen.getByLabelText('Game code to join'), 'ABC123');
+    await userEvent.click(screen.getByRole('button', { name: /join game/i }));
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/game'));
+  });
+
+  it('not-joinable code shows the inline message and stays on Home — no nav (AC-6d)', async () => {
+    identified();
+    // useJoinGame resolves null and sets notFound on a bad/full/started/unknown code.
+    joinMock.mockResolvedValue(null);
+    joinState.notFound = true;
+    renderHome();
+    await userEvent.type(screen.getByLabelText('Game code to join'), 'NOPE12');
+    await userEvent.click(screen.getByRole('button', { name: /join game/i }));
+    expect(await screen.findByText(/game not found or no longer available/i)).toBeInTheDocument();
+    expect(navigateMock).not.toHaveBeenCalled();
+    // No belonging pointer written on a failed join (no distinct identity minted).
+    expect(localStorage.getItem(ACTIVE_GAME_KEY)).toBeNull();
+  });
+
+  it('transient join error renders inline and stays on Home (no nav)', async () => {
+    identified();
+    joinMock.mockRejectedValue(new Error('Network down'));
+    joinState.error = 'Network down';
+    renderHome();
+    await userEvent.type(screen.getByLabelText('Game code to join'), 'ABC123');
+    await userEvent.click(screen.getByRole('button', { name: /join game/i }));
+    expect(await screen.findByText(/network down/i)).toBeInTheDocument();
+    expect(navigateMock).not.toHaveBeenCalled();
   });
 });

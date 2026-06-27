@@ -238,14 +238,26 @@ export function Game(): React.ReactElement {
       setLastResult(res.result);
       setLastSunkShip(res.sunkShipType);
 
+      // AC-7/AC-8/AC-9: the player's OWN shot result must land immediately — both the
+      // hit/miss/sunk feedback (set above) AND the authoritative board marker on the
+      // fired cell. Pull the authoritative board right now, BEFORE any "Computer is
+      // playing" pacing delay, so the player's own marker is never gated behind the
+      // computer-reveal window. The intentional delay below applies ONLY to revealing
+      // the computer's shot. The opponent-board pending overlay is also released here
+      // (pendingShot cleared) so the fired cell upgrades from 'pending' to its real
+      // hit/miss/sunk state in the same beat as the click.
+      setFiring(false);
+      setPendingShot(null);
+      await refresh();
+      if (!mountedRef.current) return;
+
       const cs = res.computerShot;
       if (cs) {
-        // The computer is taking its turn. Present a visible, locked "Computer is
-        // playing" phase (board cannot fire) BEFORE revealing the computer's shot,
-        // then return control with a "Your turn again" cue. The backend already
-        // resolved both shots — this is purely the player-facing choreography.
-        setFiring(false);
-        setPendingShot(null);
+        // The computer is taking its turn. The player's own result is already on the
+        // board (refresh above). Now present a visible, locked "Computer is playing"
+        // phase (board cannot fire) BEFORE revealing the computer's shot, then return
+        // control with a "Your turn again" cue. The backend already resolved both
+        // shots — this is purely the player-facing choreography for the COMPUTER's move.
         setComputerPlaying(true);
 
         await delay(COMPUTER_PLAYING_REVEAL_MS);
@@ -253,7 +265,7 @@ export function Game(): React.ReactElement {
 
         const cellState: CellState = cs.result === 'MISS' ? 'miss' : 'hit';
         setComputerShotOverlay({ row: cs.row, col: cs.col, state: cellState });
-        // Pull the authoritative board so the computer's shot shows for real.
+        // Pull the authoritative board again so the computer's shot shows for real.
         await refresh();
         if (!mountedRef.current) return;
 
@@ -271,12 +283,12 @@ export function Game(): React.ReactElement {
 
         setComputerPlaying(false);
         setYourTurnAgain(true);
-      } else {
-        // No computer turn (HUMAN multiplayer, or the player's shot ended the game).
-        // Pull the authoritative board immediately so the result shows without
-        // waiting for the next poll interval.
-        await refresh();
       }
+      // No `else` branch needed: when there is no computer shot (HUMAN multiplayer, or
+      // the player's shot ended the game / won — AC-13a), the immediate refresh() above
+      // already pulled the authoritative board with the player's own result, with no
+      // computer-response wait and no "Computer is playing" phase. The FINISHED-status
+      // effect drives navigation to game-over on a winning shot.
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Shot failed. Please try again.');
       // Never leave the player stuck in a "Computer is playing" lock on failure.

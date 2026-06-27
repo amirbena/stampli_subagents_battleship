@@ -6,6 +6,7 @@ import { useActiveGame } from '../../hooks/useActiveGame';
 import { useResumeGame } from '../../hooks/useResumeGame';
 import { useBelongingProbe } from '../../hooks/useBelongingProbe';
 import { useRestoreGame } from '../../hooks/useRestoreGame';
+import { useJoinGame } from '../../hooks/useJoinGame';
 import { ErrorMessage } from '../../components/common/ErrorMessage/ErrorMessage';
 import { PlayerNameEntry } from '../../components/common/PlayerNameEntry/PlayerNameEntry';
 import { WelcomeBanner } from '../../components/common/WelcomeBanner/WelcomeBanner';
@@ -69,6 +70,16 @@ export function Home(): React.ReactElement {
   // When a COMPUTER game is created, hold its code here so the start-of-game popup renders
   // (AC-5/AC-6). The player proceeds into the game only after acknowledging it.
   const [computerCode, setComputerCode] = useState<string | null>(null);
+
+  // Join-by-code (human-vs-human, AC-5/AC-6c/AC-6d). This is the SECOND-player entry into
+  // an EXISTING human game — distinct from Restore above. Restore resumes the browser's OWN
+  // game via its belonging record; Join enters someone ELSE's game as a brand-new distinct
+  // identity (PR #58). The hook owns the request, loading, and the not-joinable (null) signal;
+  // navigation + pointer writes (below) are this page's job.
+  const { join, isLoading: joining, notFound: joinNotFound, error: joinError } = useJoinGame();
+  const [joinCode, setJoinCode] = useState('');
+  // Gentle inline validation for an empty join submit (no nav, just a hint).
+  const [joinValidation, setJoinValidation] = useState<string | null>(null);
 
   // Step-1 belonging signal (architecture §6.2.1, AC-1/AC-2/AC-8): a stored belonging record
   // exists WITH a non-empty sessionToken. The token is set ONLY from a create/join mint
@@ -211,6 +222,70 @@ export function Home(): React.ReactElement {
     }
   };
 
+  // Create a HUMAN-vs-HUMAN game (AC-1..AC-6). Mirrors handleCreateVsComputer exactly, but
+  // mode 'HUMAN'. A human game starts at WAITING_FOR_PLAYERS / PLACING_SHIPS, so the creator
+  // routes straight into the existing lobby — where RoomCodeDisplay surfaces the shareable code
+  // and the "Waiting for opponent to join…" banner shows while polling detects player two
+  // joining (AC-6/AC-6a/AC-6b). The belonging pointer is persisted with the minted sessionToken
+  // (same belonging contract as computer create — the token proves THIS browser minted the seat).
+  const handleCreateVsHuman = async (): Promise<void> => {
+    setError(null);
+    setCreating(true);
+    try {
+      const res = await createGame('HUMAN', player?.playerId);
+      setPointer({
+        gameId: res.gameId,
+        playerId: res.playerId,
+        gameMode: 'HUMAN',
+        sessionToken: res.sessionToken,
+      });
+      // Enter the lobby: the creator places ships and waits for a second player. The pointer
+      // is already written, so the route guard admits /lobby.
+      navigate('/lobby');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create game');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  // Join an existing human game by code as the SECOND player (AC-5/AC-6c/AC-6d). Distinct from
+  // Restore: join mints a brand-new distinct identity (PR #58) and writes a fresh belonging
+  // pointer from the join response. On a not-joinable code the hook resolves null (sets
+  // notFound) — we stay on Home and show the generic inline message, never navigate, never
+  // crash. The minted sessionToken is carried into the pointer (belonging, not code knowledge).
+  const handleJoin = async (e: React.FormEvent): Promise<void> => {
+    e.preventDefault();
+    setJoinValidation(null);
+    const code = joinCode.trim();
+    if (!code) {
+      setJoinValidation('Please enter a game code');
+      return;
+    }
+    try {
+      const data = await join(code, player?.playerId);
+      if (!data) {
+        // Authoritative not-joinable (404/full/already-started) — useJoinGame set `notFound`;
+        // stay on Home, show the inline message below. No navigation, no crash (AC-6d).
+        return;
+      }
+      setPointer({
+        gameId: data.gameId,
+        playerId: data.playerId,
+        gameMode: 'HUMAN',
+        sessionToken: data.sessionToken,
+      });
+      if (data.status === 'IN_PROGRESS') {
+        navigate('/game');
+      } else {
+        // WAITING_FOR_PLAYERS / PLACING_SHIPS → enter the lobby (placement / waiting).
+        navigate('/lobby');
+      }
+    } catch {
+      // Transient/5xx/network — useJoinGame set `error`; surfaced inline below. Stay on Home.
+    }
+  };
+
   // Acknowledge the code popup → dismiss it and proceed into the game (Flow A step 4).
   // A freshly created computer game starts at PLACING_SHIPS, so it enters via /lobby,
   // matching the existing computer-game start flow.
@@ -325,17 +400,62 @@ export function Home(): React.ReactElement {
           >
             {creating ? 'Creating…' : 'Play vs Computer'}
           </button>
-          {/* Multiplayer is not ready (AC-14): the button is disabled (not clickable) and
-              clearly reads "Coming Soon", not just inert on click. */}
+          {/* Human-vs-human entry (AC-1..AC-4): an ENABLED, available game mode (no "Coming
+              Soon"). Activating it creates a HUMAN game and routes the creator into the lobby,
+              where the shareable code and "waiting for opponent" state are surfaced. */}
           <button
             className="btn btn--primary"
             type="button"
-            disabled
-            aria-disabled="true"
+            onClick={() => { void handleCreateVsHuman(); }}
+            disabled={gameActionsDisabled}
+            aria-disabled={gameActionsDisabled}
             style={{ marginTop: '0.5rem' }}
           >
-            Play Against Another User (Coming Soon)
+            {creating ? 'Creating…' : 'Play Against Another User'}
           </button>
+        </section>
+
+        <div className="home-divider">or</div>
+
+        <section className="home-section">
+          <h2>Join Game</h2>
+          {/* Join-by-code (AC-5/AC-6c/AC-6d): the SECOND player enters an existing human game's
+              code to join as a distinct identity (PR #58). Distinct from Restore below, which
+              resumes the browser's OWN game. */}
+          <form onSubmit={(e) => { void handleJoin(e); }} className="join-form">
+            <input
+              className="room-code-input"
+              type="text"
+              placeholder="Enter game code"
+              value={joinCode}
+              onChange={(e) => {
+                setJoinCode(e.target.value);
+                if (joinValidation) setJoinValidation(null);
+              }}
+              maxLength={6}
+              aria-label="Game code to join"
+              autoComplete="off"
+              autoCapitalize="characters"
+            />
+            <button
+              className="btn btn--primary"
+              type="submit"
+              disabled={joining}
+              aria-disabled={joining}
+            >
+              {joining ? 'Joining…' : 'Join Game'}
+            </button>
+          </form>
+          {/* Inline, near-the-input feedback — never a navigation to a broken page (AC-6d). */}
+          {joinValidation && (
+            <p className="restore-hint" role="alert">{joinValidation}</p>
+          )}
+          {joinNotFound && (
+            <p className="restore-error" role="alert">Game not found or no longer available</p>
+          )}
+          {joinError && !joinNotFound && (
+            <p className="restore-error" role="alert">{joinError}</p>
+          )}
         </section>
 
         <div className="home-divider">or</div>

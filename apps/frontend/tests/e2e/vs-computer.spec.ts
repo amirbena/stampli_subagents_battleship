@@ -83,12 +83,14 @@ async function seedIdentity(page: import('@playwright/test').Page, playerId: str
  */
 async function readActivePointer(
   page: import('@playwright/test').Page,
-): Promise<{ gameId: string; playerId: string; gameMode: string } | null> {
+): Promise<{ gameId: string; playerId: string; gameMode: string; sessionToken: string } | null> {
   return page.evaluate(() => {
     const raw = localStorage.getItem('battleship_active_game');
     if (raw === null) return null;
     try {
-      return JSON.parse(raw) as { gameId: string; playerId: string; gameMode: string } | null;
+      // PR #58: the pointer now also carries the per-seat sessionToken (minted on create),
+      // required as the X-Session-Token header on every gated call.
+      return JSON.parse(raw) as { gameId: string; playerId: string; gameMode: string; sessionToken: string } | null;
     } catch {
       return null;
     }
@@ -97,17 +99,18 @@ async function readActivePointer(
 
 /**
  * Place all human ships via the backend API so the test doesn't have to
- * click through the placement UI.
+ * click through the placement UI. PR #58: gated — requires the per-seat X-Session-Token.
  */
 async function placeAllShips(
   request: APIRequestContext,
   gameId: string,
   playerId: string,
+  sessionToken: string,
 ): Promise<void> {
   for (const ship of SHIP_PLACEMENTS) {
     const res = await request.post(
       `${API_BASE}/games/${gameId}/players/${playerId}/ships`,
-      { data: ship },
+      { data: ship, headers: { 'X-Session-Token': sessionToken } },
     );
     if (!res.ok()) {
       const body = await res.text();
@@ -117,15 +120,17 @@ async function placeAllShips(
 }
 
 /**
- * Mark the human player as ready via the backend API.
+ * Mark the human player as ready via the backend API (gated — needs X-Session-Token).
  */
 async function markReady(
   request: APIRequestContext,
   gameId: string,
   playerId: string,
+  sessionToken: string,
 ): Promise<void> {
   const res = await request.post(
     `${API_BASE}/games/${gameId}/players/${playerId}/ready`,
+    { headers: { 'X-Session-Token': sessionToken } },
   );
   if (!res.ok()) {
     const body = await res.text();
@@ -135,18 +140,19 @@ async function markReady(
 
 /**
  * Fire shots in row-major order until the game is FINISHED.
- * Returns 'human' | 'computer' indicating who won.
+ * Returns 'human' | 'computer' indicating who won. PR #58: gated — needs X-Session-Token.
  */
 async function fireUntilFinished(
   request: APIRequestContext,
   gameId: string,
   playerId: string,
+  sessionToken: string,
 ): Promise<'human' | 'computer'> {
   for (let row = 0; row < 10; row++) {
     for (let col = 0; col < 10; col++) {
       const res = await request.post(
         `${API_BASE}/games/${gameId}/players/${playerId}/fire`,
-        { data: { row, col } },
+        { data: { row, col }, headers: { 'X-Session-Token': sessionToken } },
       );
       if (!res.ok()) {
         // 409 "already targeted" can happen if a computer shot happened to re-use
@@ -215,6 +221,10 @@ test('Play vs Computer navigates to lobby and shows vs-computer banner without r
 // Test: full vs-computer happy path — human wins (AC-1, AC-3, AC-11–16, AC-25/26)
 // ─────────────────────────────────────────────────────────────────────────────
 test('full vs-computer flow: place ships, ready up, fire until human wins, see Victory screen', async ({ page, request }) => {
+  // PR #58: the backend applies a ~1-3s computer-move delay on every fire, so the full
+  // fire-until-finished win drive (up to ~100 sequential shots) needs a generous timeout
+  // well beyond the 30s default.
+  test.setTimeout(240000);
   // ── Step 0: establish identity so game-start buttons are enabled ─────────
   const { playerId: identityId } = await createPlayerViaApi(request, 'VsComputerFull');
   await page.goto('/');
@@ -234,17 +244,21 @@ test('full vs-computer flow: place ships, ready up, fire until human wins, see V
   const gameId  = pointer?.gameId ?? null;
   const playerId = pointer?.playerId ?? null;
   const gameMode = pointer?.gameMode ?? null;
+  const sessionToken = pointer?.sessionToken ?? null;
 
   expect(gameId).toBeTruthy();
   expect(playerId).toBeTruthy();
   expect(gameMode).toBe('COMPUTER');
+  // PR #58: the create mint wrote a per-seat sessionToken into the pointer — required for
+  // all gated API calls below.
+  expect(sessionToken).toBeTruthy();
 
   // ── Step 3: verify lobby UI (AC-11, AC-12) ───────────────────────────────
   await expect(page.getByText(/playing vs computer/i)).toBeVisible();
   await expect(page.getByRole('button', { name: /copy/i })).not.toBeVisible();
 
   // ── Step 4: place all 5 ships via API (AC-13) ────────────────────────────
-  await placeAllShips(request, gameId!, playerId!);
+  await placeAllShips(request, gameId!, playerId!, sessionToken!);
 
   // Reload the lobby so the UI reflects the placed ships from the server.
   // (The Lobby page uses optimistic local state, but after a reload it reads
@@ -253,7 +267,7 @@ test('full vs-computer flow: place ships, ready up, fire until human wins, see V
   await expect(page).toHaveURL(/\/lobby/);
 
   // ── Step 5: mark ready via API (AC-14) ───────────────────────────────────
-  await markReady(request, gameId!, playerId!);
+  await markReady(request, gameId!, playerId!, sessionToken!);
 
   // ── Step 6: wait for /game route (AC-16) ─────────────────────────────────
   // The Lobby polls every 2 s; navigate directly to /game to speed things up.
@@ -264,7 +278,7 @@ test('full vs-computer flow: place ships, ready up, fire until human wins, see V
   await expect(page.getByText('Enemy Waters')).toBeVisible();
 
   // ── Step 7: fire shots until human wins ──────────────────────────────────
-  const winner = await fireUntilFinished(request, gameId!, playerId!);
+  const winner = await fireUntilFinished(request, gameId!, playerId!, sessionToken!);
   // In the human-wins path the game ends before all 100 cells are consumed.
   // If the computer happened to sink all human ships first we still assert the
   // game-over screen (just a different message).  Either way is a valid E2E run.
