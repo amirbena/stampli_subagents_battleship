@@ -50,13 +50,49 @@ cd apps/backend && ./mvnw clean install && cd ../..
 cd apps/frontend && npx playwright install --with-deps && cd ../..
 ```
 
-**Claude Code settings** — the project ships with `.claude/settings.local.json` pre-configured with the permissions required to run the agent pipeline without interruption.
-This file is already committed to the repository — no manual setup is needed for this project.
-Verify it is present and that `ANTHROPIC_API_KEY` is exported in your shell.
+**Claude Code local setup** — the agent pipeline requires two local configuration steps before running `/requirement`.
 
-> `.claude/settings.local.json` handles project-level developer permissions (git operations, npm, Maven, gh CLI, process management for dev/test processes).
-> `.claude/settings.json` is the shared project settings file and should not be made broadly permissive.
-> Destructive git operations (`reset --hard`, `merge`, `push --force`, `branch -D`) are denied. `git reset` and `rm` are ask-gated.
+**1. Enable agent teams** (add to your shell profile or export before each session):
+```bash
+export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+```
+
+**2. Create `.claude/settings.local.json`** in the project root.
+This file is machine-local (gitignored by Claude Code's global ignore) — each developer creates it once. The shared project file `.claude/settings.json` is not modified.
+
+Permissions to configure locally:
+
+| Category | Allowed without prompt |
+|----------|------------------------|
+| Repo inspection | `git status`, `git diff`, `git log`, `git show` |
+| Branch & sync | `git fetch`, `git pull`, `git checkout`, `git switch`, `git branch`, `git stash`, feature/governance branch creation |
+| Safe rebase | `git rebase origin/main`, `git pull --rebase origin main` only — interactive or `--onto` rebases are denied |
+| Commits & pushes | `git add`, `git commit`, `git push` on feature/governance branches |
+| Report writing | Read/Write/Edit under `reports/` |
+| Frontend verification | `npm run test`, `npm run build`, `npx playwright test`, `npx playwright show-report` |
+| Backend verification | `./mvnw test`, `./mvnw spring-boot:run` |
+| GitHub PR workflow | `gh pr create`, `gh pr edit`, `gh pr view`, `gh pr list`, `gh auth status` |
+| Dev process cleanup | `pkill -f` for Vite, npm dev server, Spring Boot (this repo only), and Playwright test servers |
+
+Commands that remain **ask-gated** (always prompt):
+
+- `git reset` (non-hard)
+- `git config` (non-global)
+- `rm`, `rm -r`, `rm -f`, `del`
+
+Commands that are **denied** (blocked outright):
+
+- `git reset --hard`, `git clean`
+- `git merge` — use rebase onto `origin/main` instead
+- `git push --force` / `git push -f`
+- `git branch -D` / `git branch -d`
+- `git rebase -i`, `git rebase --onto`, `git rebase --abort`
+- `git remote set-url/add/remove`, `git config --global`
+- `rm -rf`, `rm -rf .git`
+- `pkill` / `killall` (general — only narrow `pkill -f` for this repo's dev processes is allowed)
+- `sudo`, global Claude / system config changes
+
+> `.claude/settings.json` is the shared project settings file — do not add broad local permissions there.
 
 **API key:**
 ```bash
@@ -242,7 +278,7 @@ The pipeline runs autonomously: requirement intake → product spec → architec
 | Backend won't start — port 8080 in use | `lsof -i :8080` then kill the process |
 | Frontend won't start — port 3001 in use | `lsof -i :3001` then kill the process |
 | Docker containers unhealthy | `docker compose logs postgres` — check DB creds in `.env` |
-| Agents pause on every tool call | Verify `.claude/settings.local.json` exists and contains the `permissions` block — it is pre-committed to this repo |
+| Agents pause on every tool call | Create `.claude/settings.local.json` locally (it is gitignored per Claude Code's global ignore — see Claude Code local setup above) |
 | `gh` not authenticated | `gh auth login` then `gh auth status` |
 | Playwright browsers missing | `cd apps/frontend && npx playwright install --with-deps` |
 
