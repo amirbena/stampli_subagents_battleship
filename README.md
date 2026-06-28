@@ -6,9 +6,24 @@ Requirements flow through an autonomous agent pipeline (planning → implementat
 - **Frontend:** React + TypeScript + Vite
 - **Backend:** Java 17 + Spring Boot 3
 - **Tests:** JUnit 5 + Vitest + Playwright
-- **Storage:** In-memory by default (PostgreSQL-ready via repository interface)
+- **Storage:** In-memory game state (PostgreSQL-ready via repository interface; Postgres + Redis run as dev containers to satisfy Spring Boot startup)
 
 > Pipeline details: [ARCHITECTURE.md](ARCHITECTURE.md) · Agent policies: [CLAUDE.md](CLAUDE.md)
+
+---
+
+## Game Features
+
+| Feature | Description |
+|---------|-------------|
+| **Play vs Computer** | Single-player mode. Place your fleet, confirm ready, and fire. The computer responds automatically after each of your shots. |
+| **Play vs Human** | Create a game, share the game code, and have the second player join from a separate browser session. Each player sees only their own board and the opponent's hit/miss result — ship positions are never exposed. |
+| **Restore by code** | Navigating away or refreshing does not end your game. Re-enter your game code to restore your session. Only the original seat owner (verified by per-seat session token) can restore. |
+| **Back / Stay / Leave** | Closing or navigating away triggers a confirmation dialog. "Stay" keeps the game running. "Leave" clears your local session pointer but leaves the game active on the server — rejoinable via the code. |
+| **Session identity** | Each seat is assigned a cryptographic session token on creation (create or join). The token is stored locally and never re-disclosed by the server. All board actions require proof of seat ownership. |
+| **Pause / Resume** | Any seat owner can pause an in-progress game and resume it later. The game state is preserved server-side. |
+
+> **Known limitations:** HTTP polling (1-second interval) is used for state synchronization. A WebSocket push model is a planned future improvement that requires no backend domain changes — see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ---
 
@@ -35,50 +50,49 @@ cd apps/backend && ./mvnw clean install && cd ../..
 cd apps/frontend && npx playwright install --with-deps && cd ../..
 ```
 
-**Claude Code settings** — add the block below to your local Claude Code user settings (`~/.claude/settings.json`) before running `/requirement`.
-Without it, agents pause for confirmation on every file read, shell command, and git operation.
-Do **not** create this as a project file — it belongs in your local Claude installation only.
+**Claude Code local setup** — the agent pipeline requires two local configuration steps before running `/requirement`.
 
-```json
-{
-  "env": {
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
-  },
-  "permissions": {
-    "allow": [
-      "Read", "Glob", "Grep", "Edit", "Write", "Agent",
-      "Skill(*)", "Skill(claude-api)", "Skill(claude-api:*)",
-      "WebFetch(domain:github.com)",
-      "WebFetch(domain:raw.githubusercontent.com)",
-      "Bash(git status*)", "Bash(git log*)", "Bash(git diff*)",
-      "Bash(git show*)", "Bash(git fetch*)", "Bash(git pull*)",
-      "Bash(git push*)", "Bash(git add*)", "Bash(git commit*)",
-      "Bash(git checkout*)", "Bash(git switch*)", "Bash(git branch*)",
-      "Bash(git stash*)", "Bash(git rebase*)", "Bash(git merge*)",
-      "Bash(git tag*)", "Bash(git rev-parse*)", "Bash(git config*)",
-      "Bash(git remote*)", "Bash(git reset*)", "Bash(git restore*)",
-      "Bash(git ls-files*)", "Bash(git grep*)", "Bash(git blame*)",
-      "Bash(npm*)", "Bash(npx*)", "Bash(node*)",
-      "Bash(./mvnw*)", "Bash(mvn*)",
-      "Bash(ls*)", "Bash(cat*)", "Bash(echo*)", "Bash(pwd*)",
-      "Bash(find*)", "Bash(grep*)", "Bash(xargs*)", "Bash(which*)",
-      "Bash(jq*)", "Bash(test*)", "Bash(true)", "Bash(false)",
-      "Bash(chmod*)", "Bash(mkdir*)", "Bash(curl*)",
-      "Bash(gh pr*)", "Bash(gh --version*)", "Bash(gh auth*)",
-      "Bash(gh repo*)", "Bash(gh issue*)", "Bash(gh api*)",
-      "mcp__visualize__read_me", "mcp__visualize__show_widget"
-    ],
-    "ask": [
-      "Bash(git push --force*)", "Bash(git push -f*)",
-      "Bash(git reset --hard*)", "Bash(git branch -D*)",
-      "Bash(git clean*)", "Bash(rm *)", "Bash(rm -r*)",
-      "Bash(rm -f*)", "Bash(del *)"
-    ]
-  }
-}
+**1. Enable agent teams** (add to your shell profile or export before each session):
+```bash
+export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
 ```
 
-> Destructive operations (`git push --force`, `git reset --hard`, `rm`) stay in `ask` and always prompt.
+**2. Create `.claude/settings.local.json`** in the project root.
+This file is machine-local (gitignored by Claude Code's global ignore) — each developer creates it once. The shared project file `.claude/settings.json` is not modified.
+
+Permissions to configure locally:
+
+| Category | Allowed without prompt |
+|----------|------------------------|
+| Repo inspection | `git status`, `git diff`, `git log`, `git show` |
+| Branch & sync | `git fetch`, `git pull`, `git checkout`, `git switch`, `git branch`, `git stash`, feature/governance branch creation |
+| Safe rebase | `git rebase origin/main`, `git pull --rebase origin main` only — interactive or `--onto` rebases are denied |
+| Commits & pushes | `git add`, `git commit`, `git push` on feature/governance branches |
+| Report writing | Read/Write/Edit under `reports/` |
+| Frontend verification | `npm run test`, `npm run build`, `npx playwright test`, `npx playwright show-report` |
+| Backend verification | `./mvnw test`, `./mvnw spring-boot:run` |
+| GitHub PR workflow | `gh pr create`, `gh pr edit`, `gh pr view`, `gh pr list`, `gh auth status` |
+| Dev process cleanup | `pkill -f` for Vite, npm dev server, Spring Boot (this repo only), and Playwright test servers |
+
+Commands that remain **ask-gated** (always prompt):
+
+- `git reset` (non-hard)
+- `git config` (non-global)
+- `rm`, `rm -r`, `rm -f`, `del`
+
+Commands that are **denied** (blocked outright):
+
+- `git reset --hard`, `git clean`
+- `git merge` — use rebase onto `origin/main` instead
+- `git push --force` / `git push -f`
+- `git branch -D` / `git branch -d`
+- `git rebase -i`, `git rebase --onto`, `git rebase --abort`
+- `git remote set-url/add/remove`, `git config --global`
+- `rm -rf`, `rm -rf .git`
+- `pkill` / `killall` (general — only narrow `pkill -f` for this repo's dev processes is allowed)
+- `sudo`, global Claude / system config changes
+
+> `.claude/settings.json` is the shared project settings file — do not add broad local permissions there.
 
 **API key:**
 ```bash
@@ -264,7 +278,7 @@ The pipeline runs autonomously: requirement intake → product spec → architec
 | Backend won't start — port 8080 in use | `lsof -i :8080` then kill the process |
 | Frontend won't start — port 3001 in use | `lsof -i :3001` then kill the process |
 | Docker containers unhealthy | `docker compose logs postgres` — check DB creds in `.env` |
-| Agents pause on every tool call | Create `.claude/settings.json` with the `permissions` block (see [CLAUDE.md](CLAUDE.md)) |
+| Agents pause on every tool call | Create `.claude/settings.local.json` locally (it is gitignored per Claude Code's global ignore — see Claude Code local setup above) |
 | `gh` not authenticated | `gh auth login` then `gh auth status` |
 | Playwright browsers missing | `cd apps/frontend && npx playwright install --with-deps` |
 

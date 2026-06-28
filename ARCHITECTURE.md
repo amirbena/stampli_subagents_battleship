@@ -314,5 +314,6 @@ For layout/alignment/responsive acceptance criteria that smoke cannot verify (sm
 ### Infrastructure
 - Two local run models, both valid (see README → How To Run):
   - **Full Docker Compose** — frontend, backend, Postgres, and Redis all run as containers.
-  - **Fast native script path** (`run.sh` / `run.ps1` / `run.cmd`) — only Postgres + Redis run as containers; the backend (`./mvnw spring-boot:run`, `postgres` profile) and frontend (`npm run dev`, Vite HMR) run natively for a fast dev inner loop. Same `postgres` profile and demo env as Compose; no app images are rebuilt.
+  - **Fast native script path** (`run.sh` / `run.ps1` / `run.cmd`) — only Postgres + Redis run as containers; the backend (`./mvnw spring-boot:run`, `postgres` Spring profile) and frontend (`npm run dev`, Vite HMR) run natively for a fast dev inner loop. Same `postgres` profile and demo env as Compose; no app images are rebuilt.
+- **Persistence reality:** Postgres and Redis containers are started because `application.yml` requires a datasource connection at startup. However, all game state is stored in the in-memory `GameRepository` (a `ConcurrentHashMap`-backed implementation). No game data is written to PostgreSQL — Postgres is infrastructure that satisfies Spring Boot's startup requirements and positions the system for future persistence without domain changes. Redis is provisioned but not actively used.
 - No Redis unless a concrete scalability requirement justifies it
