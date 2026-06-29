@@ -1,10 +1,10 @@
 # Requirement Intent Classification Policy
 
-Team Lead loads this policy during Step 0.5 (Fast-Path Pre-Classification) to determine whether a requirement describes a **WHAT-change** or a **HOW-change** before applying fast-path routing or deciding which agents to spawn.
+Team Lead loads this policy during Step 0.5 (Fast-Path Pre-Classification) to determine whether a requirement describes a **WHAT-change**, a **HOW-change**, or a **Governance Change** before applying fast-path routing or deciding which agents to spawn.
 
 ## Why Intent Matters
 
-The word "refactor" may not appear in the requirement text. Intent must be inferred from what the requirement asks the system to do differently — not just from vocabulary. A requirement saying "convert all integration tests to unit tests" is HOW-only. A requirement saying "add ship placement validation" is WHAT. Applying the wrong routing wastes agent time (full Product cycle on a test-only change) or misses gates (no Architecture for a cross-layer restructure that touches the API).
+The word "refactor" may not appear in the requirement text. Intent must be inferred from what the requirement asks the system to do differently — not just from vocabulary. A requirement saying "convert all integration tests to unit tests" is HOW-only. A requirement saying "add ship placement validation" is WHAT. A requirement saying "update the agent ownership table in CLAUDE.md" is a Governance Change. Applying the wrong routing wastes agent time (full Product cycle on a policy update) or misses gates (no Architecture for a cross-layer restructure that touches the API).
 
 ## Intent Classification
 
@@ -67,9 +67,66 @@ The requirement changes **how the code is structured or implemented** without ch
 
 ---
 
+### Governance Change — Non-Delivery Repository Change
+
+The requirement changes **factory governance artifacts only**: policies, ownership tables, routing rules, agent contracts, governance documentation, or reporting templates. It does not change product behavior, runtime behavior, API behavior, user-facing behavior, or any application feature.
+
+**This is not delivery work.** Product Agent, Architecture Agent, and delivery-agent orchestration are skipped by default. A branch, commits, and a PR are still required. Lightweight review still applies.
+
+**Signal subjects:**
+- `.claude/policies/**` — routing rules, ownership policies, test policies, coding standards
+- `.claude/metadata/**` — governance metadata, review validity schemas
+- `.claude/templates/**` — reporting templates, classification templates
+- `.claude/runbooks/**` — governance runbooks
+- `.claude/skills/<agent>/SKILL.md` — agent contract updates, agent behavioral rules
+- `CLAUDE.md` — factory-level governance, agent table, quality gate definitions, intent classification rules
+- Governance README files — factory documentation, workflow documentation
+- Ownership documentation — agent responsibility tables, file ownership maps
+- Reporting templates — team-lead-classification, release summary, findings queue
+
+**All of the following must be true for a Governance Change classification:**
+1. The change modifies only governance artifacts — none of the changed files are application runtime code, application tests, API definitions, frontend components, or backend domain/service/controller code.
+2. No product behavior changes — nothing a player sees or experiences in the application is affected.
+3. No runtime behavior changes — no server, API endpoint, frontend component, or database interaction is altered.
+4. No API contract changes — no request/response fields, status codes, or endpoint paths are modified.
+5. The change is self-contained within the factory's operating rules, not the factory's output.
+
+**When ambiguous (e.g. a SKILL.md change that also changes how an agent calls an API endpoint), default to the standard delivery path.**
+
+**Architecture review exception:** Architecture Agent is not required by default for Governance Changes. However, limited Architecture review **is** required when the governance change affects:
+- cross-agent contracts (e.g. how Team Lead invokes an agent changes)
+- routing invariants that affect which agents are spawned for delivery requirements
+- the ownership model for a system boundary (e.g. which agent owns a shared file)
+- delivery-path semantics (e.g. changing when E2E mode is Full vs Smoke)
+
+When Architecture review is required for a Governance Change, the Architecture Agent's scope is limited to **governance consistency verification** — not product architecture. No AC-to-Test Coverage Matrix is produced.
+
+**Examples of Governance Changes:**
+- Updating agent ownership tables in CLAUDE.md
+- Adding a new policy to `.claude/policies/`
+- Updating a fast-path trigger's sub-conditions in this policy
+- Editing a SKILL.md to clarify an agent's responsibility boundary (no runtime code change)
+- Adding a governance findings template to `.claude/templates/`
+- Updating the reporting README in `.claude/`
+- Correcting routing documentation for a workflow step
+
+**Counter-examples (not Governance Changes — use standard delivery or HOW path):**
+- Any change to `apps/backend/src/` or `apps/frontend/src/` — always delivery work
+- Adding a new REST endpoint, even if documented in a SKILL.md
+- Changing a SKILL.md in a way that causes an agent to call a different API or write different runtime code
+- Infrastructure changes affecting how the application runs (`docker-compose.yml`, `.run/*` scripts)
+- Dependency changes affecting runtime architecture (`pom.xml`, `package.json`)
+- Any change to application tests (`*Test.java`, `*.test.ts`, `*.spec.ts`)
+
+**Routing:** Apply Team Lead fast-path Trigger 6 (Governance Change). See Step 0.5 of `team-lead/SKILL.md`. Product Agent skipped. Architecture Agent skipped by default (conditional exception above). No delivery-agent orchestration. Direct execution. Branch + commit + PR required.
+
+---
+
 ### Ambiguous — Treat as Standard Path
 
 When the requirement could be read as either a WHAT-change or a HOW-change (e.g. "improve the loading screen", "make game state management cleaner"), treat as a WHAT-change and run the standard path. The cost of running Product Agent on a refactor is lower than the cost of missing a behavioral gate.
+
+When the requirement could be read as either a Governance Change or a delivery change (e.g. "improve how the factory handles multiplayer requirements"), treat as a WHAT-change and run the standard delivery path. The cost of running the full delivery factory on governance work is wasted agent time; the cost of misrouting a delivery requirement onto the governance path is a PR that bypassed Product and Architecture. Default to the delivery path when uncertain.
 
 ---
 
@@ -111,9 +168,10 @@ Record in `reports/runs/<workflow-run-id>/team-lead-classification.md`:
 ```md
 ## Intent Classification
 
-Intent: WHAT-change / DevEx WHAT-change / HOW-change / Ambiguous
+Intent: WHAT-change / DevEx WHAT-change / HOW-change / Governance Change / Ambiguous
 Reason: <1 sentence explaining the primary signal>
 DevEx Sub-type: Yes / No — <if Yes: all 5 DevEx conditions met; Product skipped; Architecture if contract change>
+Governance Change: Yes / No — <if Yes: all 5 Governance Change conditions met; Product skipped; Architecture skipped (or: Architecture required for governance consistency — reason)>
 Refactor Scope: test-only / single-layer / cross-layer / domain-model / full-flow / N/A
 Contract Change Detected: Yes / No
 Contract Change Reason: <if Yes — which fields, endpoints, or status codes change>
