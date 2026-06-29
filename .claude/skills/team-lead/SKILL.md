@@ -670,15 +670,7 @@ Only after warmup is confirmed ready: proceed to Step 5.
 
 **Cleanup — mandatory on success, failure, or early stop:**
 
-After `playwright-e2e-agent` finishes (pass or fail), and on any early stop (pre-gate failure, warmup failure, integration test failure that prevents E2E). Use the cleanup sequence matching the current OS from `.claude/runbooks/team-lead/e2e-warmup.md → Cleanup`:
-
-macOS/Linux (bash):
-```bash
-kill $(cat /tmp/e2e-backend.pid) 2>/dev/null || true
-rm -f /tmp/e2e-backend.pid /tmp/e2e-backend.log
-```
-
-Windows (PowerShell) — see `.claude/runbooks/team-lead/e2e-warmup.md → Cleanup` for the `taskkill`/`Remove-Item` sequence.
+After `playwright-e2e-agent` finishes (pass or fail), and on any early stop (pre-gate failure, warmup failure, integration test failure that prevents E2E). Load `.claude/runbooks/team-lead/e2e-warmup.md → Cleanup` and follow the OS-specific cleanup sequence (bash for macOS/Linux, PowerShell for Windows).
 
 Skip cleanup when no warmup was started (Smoke or None mode, or when the warmup reuse path exited early).
 
@@ -988,20 +980,7 @@ Load `.claude/skills/team-lead/policies/cve-remediation-routing-policy.md` when 
 
 ### Test-Only Testcontainers / Dependency Hygiene Reports
 
-When `backend-integration-tests-agent` submits a **Testcontainers Hygiene Report** (not a Security Agent CVE finding), follow the lightweight path in Section 8 of `cve-remediation-routing-policy.md`. Do not enter the CVE-1 through CVE-10 flow unless escalation conditions apply.
-
-**Steps for hygiene report receipt:**
-
-1. **Read the report.** Confirm `Production-Impacting Scope: test-only` is stated and no escalation flags are present.
-2. **Confirm all self-remediation preconditions were met.** If any were not met, route to Security Agent before proceeding.
-3. **Record the change** in `team-lead-plan.md` under `## Dependency Changes`.
-4. **Verify integration tests pass.** Run or confirm `./mvnw test -Dtest="*IntegrationTest"` passed.
-5. **No Security closure step.** Test-only scope with no supply-chain concern does not require Security closure.
-6. **No minimal-contract review required** unless the change touches manifests, contracts, or boundaries that code-review-agent must verify (Team Lead discretion).
-7. **No E2E trigger.** The E2E Decision Rule governs all E2E selection. Backend-only Testcontainers changes return No E2E — do not queue Playwright.
-8. **Include in PR summary** under CVE Remediation Evidence with `Scope: test-only` and `Security Closure: N/A — test-only`.
-
-**Escalation:** if the Testcontainers Hygiene Report flags any escalation condition (production impact, supply-chain concern, no-compatible-safe-version, risk acceptance required, ownership ambiguity), route per the escalation table in Section 8 of `cve-remediation-routing-policy.md` and enter the appropriate production CVE flow.
+When `backend-integration-tests-agent` submits a **Testcontainers Hygiene Report** (not a Security Agent CVE finding), load `.claude/skills/team-lead/policies/cve-remediation-routing-policy.md` Section 8 and follow the Test-Only Testcontainers Hygiene Path. Do not enter the CVE-1 through CVE-10 flow unless escalation conditions in Section 8 apply.
 
 When `security-agent` includes a CVE finding in its report:
 
@@ -1167,13 +1146,7 @@ If fix attempts are exhausted (per QA Cycle Limits below), write `workflow-block
 
 ### Post-Review Fix Severity Routing
 
-When code review or security review returns `REQUIRES CHANGES`, classify the fix by severity before routing. Load `.claude/metadata/review/review-validity-schema.md` for the full routing table per severity.
-
-| Severity | Definition | Code Re-review | Security Re-review |
-|----------|-----------|---------------|-------------------|
-| **Small** | Test selector, copy, comment, log message — no logic, no contract | Delta (`code-review-agent`, changed files only) | Not required (unless fix touches identity/auth/sanitization) |
-| **Medium** | API wrapper, hook, controller validation, DTO field, error mapping | Delta (`code-review-agent`, changed files only) | Required if fix touches identity, session, auth, hidden-data boundary, or input sanitization |
-| **Large** | Contract change, new endpoint, new domain class, new state transition, multi-layer | Full (`code-review-agent` full) + Architecture reopen if contract affected | Full (`security-agent` full) |
+When code review or security review returns `REQUIRES CHANGES`, classify the fix by severity before routing. Load `.claude/metadata/review/review-validity-schema.md` for the canonical Post-Review Fix Severity routing table (Small / Medium / Large definitions, step-by-step routing per severity, and security re-review conditions).
 
 After any fix: run SHA Validity Gate (Step 14) before spawning the re-review agent.
 
@@ -1307,29 +1280,7 @@ If Architecture reaches 3 reopens unresolved:
 
 ## Step 12 — Demo / Home Assignment Configuration Policy
 
-This repository is a demo/home-assignment/task repository. Visible local/demo config is acceptable.
-
-Classify config as:
-- `PUBLIC_CONFIG` — safe public value
-- `PLACEHOLDER_CONFIG` — explicit placeholder, safe
-- `DEMO_CONFIG_ACCEPTED` — demo/local value needed for task completion
-- `UNKNOWN_SENSITIVE_VALUE` — unknown risk; document but do not block by default
-- `OBVIOUS_REAL_LEAKED_CREDENTIAL` — hard block
-
-Examples that are `DEMO_CONFIG_ACCEPTED`:
-```
-JWT_SECRET=dev-secret
-DATABASE_PASSWORD=local-password
-GOOGLE_CLIENT_ID=demo-client-id
-SPRING_PROFILES_ACTIVE=local
-```
-
-Still block `OBVIOUS_REAL_LEAKED_CREDENTIAL`:
-- Real AWS access key
-- Real GitHub token (`ghp_...`, `ghs_...`)
-- Real SSH private key
-- Real production database URL with credentials
-- Real payment provider secret
+Load `.claude/policies/demo-config-policy.md` for the classification table (`PUBLIC_CONFIG`, `PLACEHOLDER_CONFIG`, `DEMO_CONFIG_ACCEPTED`, `UNKNOWN_SENSITIVE_VALUE`, `OBVIOUS_REAL_LEAKED_CREDENTIAL`), examples, block rules, and `.env.example` constraints.
 
 Write `reports/runs/<workflow-run-id>/demo-config-check.md` when config changes are present.
 
