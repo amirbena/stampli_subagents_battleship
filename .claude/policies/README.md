@@ -63,7 +63,7 @@ These are Team Lead internal routing and classification policies:
 | `frontend-split-decision-policy.md` | Criteria for splitting into two frontend agents |
 | `frontend-test-routing-policy.md` | Routes frontend test failures to correct agent |
 | `git-branch-policy.md` | Branch creation, sync, naming decisions (Cases A–J) |
-| `qa-failure-routing-policy.md` | Routes QA findings back to owning agent |
+| `qa-failure-routing-policy.md` | Routes QA findings to owning agent; reports contract-breaking failures to Team Lead for validation escalation |
 | `requirement-intent-classification-policy.md` | WHAT-change vs HOW-change classification |
 | `requirement-similarity-policy.md` | Interrupted-run similarity detection and branch routing |
 | `test-failure-routing-policy.md` | Classification and routing table for all test failures |

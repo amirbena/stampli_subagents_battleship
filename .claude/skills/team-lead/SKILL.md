@@ -828,6 +828,84 @@ security / config / secrets issue      → security-agent
 
 **No Code Review bypass is allowed under any circumstances.**
 
+### Contract-Breaking Evidence Escalation
+
+**Core principle:** Validation mode is plan-owned, but contract-breaking evidence can force validation escalation. Preserve validation mode while the change remains narrow. Escalate validation mode when evidence proves the change was not narrow.
+
+When Code Review, QA, Playwright, Security, Product, Architecture, or an implementation agent reports evidence that a **contract changed post-implementation** and this was **not known at initial classification time (Step 2)**, Team Lead must reclassify validation scope immediately.
+
+**Contract-breaking evidence includes, at minimum:**
+- API request or response shape changed (field added, removed, renamed, or retyped)
+- HTTP status code changed
+- Backend serialization/deserialization behavior changed
+- Frontend hook, API-client, or state interface changed
+- Frontend/backend integration contract changed
+- Persistence/data contract changed (schema, model, query behavior)
+- Auth/authz behavior changed (session, token, permission, role semantics)
+- Runtime behavior changed in a way callers depend on
+- Deployment/startup/container health contract changed
+- Build artifact or generated artifact behavior changed
+- Game rule, state machine, turn-order, session, multiplayer, or hidden-data contract changed
+- User-facing behavior or acceptance criteria drifted (user-visible outcome changed)
+
+Team Lead identifies contract-breaking evidence from the `Contract Breaking: Yes` field in Code Review findings, or from explicit root-cause descriptions in QA, Playwright, Security, Architecture, or implementation-agent reports.
+
+**Escalation procedure:**
+
+1. **Read the contract-breaking evidence** — identify the broken contract type.
+
+2. **Classify the contract scope:**
+   - **Frontend-only** (hook shape, component state, routing, client-side validation) → require frontend integration/API-client tests if not already present
+   - **Backend-only** (service logic, persistence internals, serialization internal to backend) → require backend integration/contract tests if not already present
+   - **Frontend + Backend** (API response shape, HTTP status code, serialization format visible to clients, state machine visible across boundary) → escalate E2E mode to Full E2E (real backend on port 8081) if not already Full
+   - **Multiplayer/Architecture-level** (game rules, hidden data visibility, session, turn order, multiplayer flow) → escalate to Full E2E + reopen Architecture
+
+3. **Escalate validation mode (validation may only be strengthened, never weakened):**
+   - `cheap` → `normal`: add unit tests + full Code Review + Smoke E2E minimum
+   - `normal` with Smoke E2E → `full`: switch to Full E2E (real backend on port 8081); pass E2E Infrastructure Pre-Gate before spawning Playwright
+   - `full` with Full E2E already running → no mode escalation needed; continue
+
+4. **Select validation layer(s) based on broken contract type. Full E2E does not replace lower-level integration/contract tests when those are the correct proof that the broken boundary is fixed:**
+
+   | Broken contract type | Required validation layer(s) |
+   |---|---|
+   | API contract break | API/contract tests + backend integration tests + frontend API/client integration tests if frontend consumes the shape + Full E2E if critical user path is affected |
+   | Frontend/backend integration break | Frontend API/client integration tests + backend integration tests as needed + Full E2E if critical user path is affected |
+   | Backend serialization/runtime break | Backend integration/contract tests + Full E2E if user-visible flow is affected |
+   | Persistence/data contract break | Repository/service integration tests + migration/data consistency checks where relevant + Full E2E if user-visible data flow is affected |
+   | Auth/security behavior break | Security/auth integration tests + Full E2E login/session/permission flow if user-facing |
+   | Deployment/startup/container contract break | Deployment/startup/container/health validation + Architecture review if topology/startup contract changed + Full E2E if app availability or user path is affected |
+   | Critical user-flow break | Full E2E required after fix + targeted integration tests for the broken boundary if identifiable |
+   | User-facing behavior or acceptance criteria drift | Product review + acceptance criteria update/confirmation + relevant user-flow validation |
+
+5. **Re-trigger Product Agent** when the finding affects or may affect:
+   - User-facing behavior, UX, acceptance criteria, product semantics, user-visible error handling, external API behavior visible to consumers, game flow/login/onboarding/critical user path behavior, or expected user outcome
+   - Do NOT re-trigger Product for purely internal implementation issues with no user-facing or acceptance-criteria impact
+   - Counts toward the 3-reopen limit per Step 10
+
+6. **Re-trigger Architecture Agent** when the finding affects or may affect:
+   - API/service contracts, runtime boundaries, frontend/backend integration boundary, persistence/data model, serialization/deserialization contracts, auth/authz behavior, networking/integration behavior, deployment/startup topology, observability contract, ownership/maintainability boundaries, major dependency/runtime behavior change, or cross-cutting libraries/shared infrastructure
+   - Do NOT re-trigger Architecture for purely local implementation issues with no contract, boundary, runtime, or maintainability impact
+   - Counts toward the 3-reopen limit per Step 11
+
+7. **Route the fix** to the responsible agent.
+
+8. **Re-run all tests required by the escalated mode** before re-triggering Code Review or release.
+
+9. **Require broader Code Review (not delta)** if the fix changes contracts, multiple layers, runtime behavior, build/deployment behavior, or user-facing behavior.
+
+10. **Document in the Finding Registry and release summary:**
+    - Original validation mode
+    - Escalated validation mode (or "no escalation needed" with reason)
+    - Evidence that triggered escalation
+    - Whether Architecture or Product was re-triggered
+
+**Rules:**
+- Validation may only be strengthened based on new contract-breaking evidence
+- Validation must never be silently downgraded after a contract-breaking finding
+- Full E2E does not replace lower-level integration/contract tests needed to prove the broken boundary is fixed
+- If root cause is unclear or potentially multi-layer, escalate to Full E2E as a precaution and require targeted integration tests once the broken boundary is identified
+
 ### Security REQUIRES_CHANGES — Continuation Path
 
 When `security-agent` returns `REQUIRES_CHANGES`:
@@ -868,6 +946,13 @@ When `security-agent` includes a CVE finding in its report:
 
 **Validation mode is plan-owned, not dependency-owned.** A CVE remediation must not silently downgrade the original run's validation mode.
 
+**Exception — CVE remediation that introduces contract-breaking evidence:** The preservation rule prevents silent downgrade. However, if a CVE or dependency remediation introduces or reveals contract-breaking evidence — such as breaking-change risk = `high`, changed runtime behavior, changed serialization, changed HTTP behavior, or changed auth behavior — the Contract-Breaking Evidence Escalation rule above overrides the preservation intent. In that case:
+- Team Lead must escalate validation mode according to the broken contract type (see Contract-Breaking Evidence Escalation table above)
+- Architecture may be re-triggered if the change affects contracts, boundaries, or cross-cutting libraries
+- Product may be re-triggered if user-facing behavior changed
+- "Preserve" means do not silently downgrade; it does not mean ignore evidence of contract change
+- Applies when Security Agent reports breaking-change risk = `high`, or when the implementing agent or Code Review reports a contract change after applying the CVE or dependency fix
+
 **Transitive CVE routing — apply when `Direct or transitive = transitive` in the Security Agent report:**
 
 ```
@@ -905,9 +990,15 @@ When `playwright-e2e-agent` reports a failure:
    b. Check which agents changed files. If both `frontend-api-agent` and `frontend-ui-agent` changed files in this fix cycle, both must re-run their tests and be green before re-triggering E2E.
    c. If `frontend-api-agent` changed files in any capacity, run `npm run build` before re-triggering E2E.
    d. For Full E2E mode: re-verify infrastructure pre-gate conditions unless confirmed still valid.
-4. **Re-spawn `playwright-e2e-agent`** using the same E2E mode (Full or Smoke) as the failed run, unless Team Lead explicitly reclassifies the mode based on new evidence.
-5. Read the new Playwright report before advancing the E2E gate.
-6. Update the Finding Registry — increment attempt count, record new evidence.
+4. **Determine whether to escalate E2E mode** based on the failure root cause before re-spawning:
+   - **UI rendering or local component issue** (CSS, layout, component missing, accessibility, copy/text) → re-run same Smoke or Full mode as before; no escalation
+   - **Contract mismatch root cause** (frontend reads wrong field; API response shape changed; HTTP status code changed; hook signature changed; serialization changed; auth/session behavior changed) → escalate to Full E2E if not already Full; the frontend/backend boundary or critical user path requires validation against the real backend
+   - **Root cause unclear or potentially multi-layer** → escalate to Full E2E as a precaution; require targeted integration tests once the broken boundary is identified
+   - **Deployment/startup issue** (container health check failed, startup crash, environment mismatch) → require deployment/startup/health validation; escalate to Full E2E if app availability or user path is affected
+   - Document the escalation decision (or "no escalation needed" with reason) in the Finding Registry before re-spawning
+5. **Re-spawn `playwright-e2e-agent`** using the (possibly escalated) E2E mode. For Full E2E: re-verify infrastructure pre-gate conditions before spawning.
+6. Read the new Playwright report before advancing the E2E gate.
+7. Update the Finding Registry — increment attempt count, record new evidence.
 
 If Playwright is exceptionally backgrounded, completion follows `background-agent-policy.md` — harness `task-notification` re-invokes Team Lead. No `ScheduleWakeup` and no manual user wakeup.
 

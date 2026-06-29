@@ -155,8 +155,15 @@ If a finding crosses boundaries, choose the owner that must make the first code 
 Every finding must include:
 - `Blocks PR: Yes/No`
 - `Severity: Critical / High / Medium / Low`
+- `Contract Breaking: Yes / No`
 
 Only Critical findings block PR. High/Medium/Low findings should be documented and returned to Team Lead. Team Lead decides whether to fix or document unresolved non-critical findings.
+
+**`Contract Breaking` field definition:**
+- `Yes` — this finding reveals that an API contract, state machine, serialization format, HTTP status code, frontend hook/state/API-client interface, persistence/data contract, auth/authz behavior, deployment/startup behavior, build artifact behavior, user-facing behavior, or system boundary changed post-implementation. Team Lead uses this field to trigger the Contract-Breaking Evidence Escalation rule.
+- `No` — this finding is a local implementation, style, test, maintainability, or code-quality issue with no contract change.
+
+Code Review must also flag when **broader review is required** because the fix affects contracts, multiple layers, runtime behavior, build/deployment behavior, or user-facing behavior — not just the immediate changed files.
 
 ## Delta Mode
 
