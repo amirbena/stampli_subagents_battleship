@@ -29,6 +29,7 @@ These apply to all agents or all implementation agents:
 | `gitignore-compliance-policy.md` | Files matching `.gitignore` must not be staged; `package-lock.json` always local | release-pr-agent, code-review-agent, all agents |
 | `reports-and-artifacts-policy.md` | `reports/` is local execution evidence — never staged or committed | release-pr-agent, code-review-agent, Team Lead |
 | `demo-config-policy.md` | Classifies demo/local config vs real credentials; what security must flag | infrastructure-agent, security-agent |
+| `transitive-cve-remediation-policy.md` | Strategy preference order, scope classification, escalation conditions, and code review expectations for CVEs affecting transitive dependencies | security-agent, team-lead, code-review-agent |
 
 ## Java Family Policies (`.claude/policies/java/`)
 

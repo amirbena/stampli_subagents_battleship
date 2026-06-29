@@ -158,6 +158,22 @@ The CVE finding block must include:
 | Verification command after fix | Yes (e.g. `npm audit`, `./mvnw dependency:check`) |
 | No compatible safe version | Yes — `false` / `true: <explanation>` |
 
+**When `Direct or transitive = transitive`, Security Agent must also report:**
+
+| Field | Value |
+|---|---|
+| Parent dependency | `<name>@<version>` |
+| Dependency chain | `<app → parent@ver → vuln-lib@ver>` |
+| Earliest safe parent ver | `<version or "none identified">` |
+| Transitive scope | `production-runtime` / `test-only` / `build-only` / `unknown` |
+| Possible remediation paths | `<comma-separated from: parent-patch, parent-minor, direct-resolution-override, exclusion-plus-replacement, parent-major, dependency-replacement, no-compatible-safe-path>` |
+| Recommended path | `<one of the above>` |
+| Rationale | `<why this path>` |
+| Narrow or expanded scope | `narrow` / `expanded` |
+| No compatible safe path | `true` / `false` |
+
+For transitive CVEs, apply the strategy preference order from `.claude/policies/transitive-cve-remediation-policy.md`. Distinguish production-impacting CVEs from dev/test/build-only findings; dev/test/build-only findings are risk-classified, not automatic production blockers, unless they affect build output, packaging, generated artifacts, CI/CD, deployment, or supply-chain integrity.
+
 After the implementing agent applies the fix, Team Lead re-routes to this agent for CVE closure verification. This agent must confirm:
 - The fixed version is applied
 - The vulnerability no longer appears in audit output

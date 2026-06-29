@@ -184,6 +184,18 @@ Escalate to **full review** when any of the following is true:
 - New public contracts, endpoints, or serialization formats were introduced
 - `security-agent` flagged breaking-change risk as `high`
 
+**Additional checks when `Direct or transitive = transitive`:**
+- [ ] Dependency Report includes transitive-specific fields: dependency chain, parent dependency name and version, transitive scope, possible remediation paths, recommended path, rationale, and narrow/expanded scope classification
+- [ ] Dependency chain is documented (full resolution path from application to vulnerable transitive — not just the vulnerable package name)
+- [ ] Selected remediation path is documented and consistent with the strategy preference order in `.claude/policies/transitive-cve-remediation-policy.md`
+- [ ] Effective dependency tree or lockfile evidence confirms the vulnerable transitive resolves to the fixed version in the full dependency graph (not only in the direct dependency list)
+- [ ] No unrelated transitive dependency drift present — no packages outside the documented remediation chain changed versions
+- [ ] Manifest and lockfile or effective dependency changes are consistent with the selected strategy
+- [ ] Override or exclusion scope matches the selected strategy and does not exclude more than the documented vulnerable transitive
+- [ ] No runtime, classpath, or deployed bundle mismatch is apparent from the evidence
+- [ ] Security closure (from the re-run Security Agent report) confirms the CVE is absent from the full dependency chain, not only from the direct dependency declaration
+- [ ] If strategy was expanded scope: confirm broader (full) review was used — delta review is not sufficient for expanded-scope remediations
+
 ## Outputs
 
 Create the `reports/runs/<workflow-run-id>/` directory if it does not exist before writing any file.
