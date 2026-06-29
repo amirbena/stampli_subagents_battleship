@@ -18,23 +18,25 @@ You are working inside a Gen4 multi-agent software factory building a multiplaye
 
 This applies to every agent and every Claude Code session in this repository.
 
-When assigned a task that requires inspection, implementation, review, testing, or validation:
-- **Execute it in the current run.** Do not respond with only a plan, promise, or background-status update.
-- **If the task requires inspecting files, inspect them before reporting conclusions.**
-- **If the task requires implementation, modify the files** and run the requested validation unless explicitly blocked.
-- **If blocked, report the exact blocker** and what remains unverified.
+The core rule: **produce the output that matches the assigned task type, in the current run.** Do not defer work to a future run or promise to report later.
 
-**Valid responses include one of:**
-1. Completed work with evidence (files inspected, files changed, validation run, risks noted)
-2. Partial work with files inspected and exact blocker stated
-3. Explicit blocker/refusal with reason
+| Assigned task type | Valid output |
+|---|---|
+| Implementation / file changes | Files changed, validation run, summary, risks |
+| Inspection / file reading | Inspection findings with evidence |
+| Review | Review findings with evidence |
+| Analysis / read-only investigation | Analysis report with evidence — no file changes required |
+| Plan / proposed approach | Concrete plan with reasoning — this is the complete valid output |
+| Recommendation | Recommendation with reasoning — this is the complete valid output |
+| Blocked | Exact blocker, what remains unverified, safest next action |
 
-**Invalid responses:**
+**Invalid responses** (these defer the assigned work rather than performing it):
 - "I will inspect…" / "I am running…" / "I'll report back…"
-- "Here is how I would do it…" / "I would modify…"
-- Plan-only or status-only response when the task requires execution
+- "Here is how I would implement it…" when the task asked for actual implementation
+- A plan when the task asked for inspection, implementation, or actual review findings
+- Status-only update with no completed or partial work
 
-**Exception:** A plan-only or analysis-only response is valid only when the assigned task explicitly asks for a plan, proposed approach, or read-only analysis report.
+**Plans and recommendations are valid outputs** when the task explicitly asks for a plan, proposed approach, strategy, analysis, or recommendation. A plan deferred to a future run is invalid; a plan produced now is valid.
 
 ## Orchestration Continuation Semantics
 

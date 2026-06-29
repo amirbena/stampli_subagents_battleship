@@ -426,20 +426,28 @@ Reason: <one sentence>
 
 Every agent Team Lead spawns — implementation agents, review agents, QA agents, research agents, Explore agents — must **execute the assigned task in the current run** and return one of three valid responses:
 
-**Valid responses:**
+**Valid responses — matched to the assigned task type:**
 
-1. **Completed result** — all of: files inspected, files changed (if modification was permitted), findings or implementation summary, validation commands and searches run, remaining risks or TODOs.
-2. **Partial result** — files inspected, work completed so far, exact blocker, what remains unverified.
-3. **Explicit blocker** — why the task could not be completed, missing permission/context/tooling, safest next action.
+| Assigned task type | Valid response |
+|---|---|
+| Implementation / file changes | Files changed, validation run, summary of changes, remaining risks |
+| Inspection / file reading | Files inspected, findings with evidence, remaining risks |
+| Review | Review findings with evidence (not a plan); file-change recommendations are valid findings |
+| Analysis / read-only investigation | Analysis report with evidence — no file changes required or expected |
+| Plan / proposed approach / strategy | Concrete plan or strategy with reasoning |
+| Recommendation | Recommendation with reasoning — no file changes required |
+| Partial completion (any type) | Work completed so far, exact blocker, what remains unverified |
+| Blocked | Why the task could not be completed, missing permission/context/tooling, safest next action |
 
 **Invalid responses (classify as `NO_WORK_PERFORMED`):**
 
-- "I will inspect the files…"
+These are responses that defer the assigned work rather than performing the requested task type:
+- "I will inspect the files…" (when the task asked for inspection)
 - "I am running in the background…"
 - "I will report back…"
-- "Here is how I would approach it…"
-- "I would change these files…"
-- A plan without actual file inspection, findings, implementation, validation, or blocker evidence
+- "Here is how I would approach it…" (when the task asked for implementation or inspection)
+- "I would change these files…" (when the task asked for actual changes)
+- A plan without analysis, findings, or reasoning — when the task asked for implementation, inspection, or actual review findings
 - A status update without completed work, partial work, or explicit blocker
 
 **NO_WORK_PERFORMED handling:**
@@ -454,11 +462,19 @@ Team Lead must not treat a `NO_WORK_PERFORMED` response as completed analysis, i
 
 Every Team Lead delegation prompt must include this instruction or its equivalent:
 
-> Execute the assigned task now. Do not return a plan, promise future work, or say you will report later. Return completed work, partial work with blockers, or an explicit blocker.
+> Execute the assigned task now. Do not defer work or promise to report later. Return the output that matches the assigned task type: implementation evidence, inspection findings, review findings, analysis report, plan, or recommendation — completed in this run, or partial with an explicit blocker.
 
-**Plan-only exception:**
+**Task-type matching rule:**
 
-A plan-only or analysis-only response is valid only when the assigned task explicitly asks for a plan, proposed approach, or analysis-only report (e.g. "propose an implementation approach" or "analyze and report findings without modifying files"). If the task asks for inspection, implementation, review, testing, or validation, a plan-only response is invalid.
+A response is valid when it contains the output that the assigned task type requires. A response is invalid when it defers that output to a future run instead of producing it now.
+
+- Task asks for implementation → return implementation evidence (files changed, validation run)
+- Task asks for inspection → return inspection findings with evidence
+- Task asks for review → return review findings with evidence (not a plan to review later)
+- Task asks for analysis → return analysis report with evidence (no file changes required)
+- Task asks for a plan → return a concrete plan (this is the complete valid output)
+- Task asks for a recommendation → return a recommendation with reasoning (this is the complete valid output)
+- Task cannot be completed → return an explicit blocker with reason and safest next action
 
 ---
 
