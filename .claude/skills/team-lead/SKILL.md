@@ -267,7 +267,7 @@ When Architecture returns `REQUIRES_CHANGES` with a product-semantic gap (behavi
 4. **Block** backend and frontend implementation agents until Architecture is finalized.
 5. **Re-spawn architect-agent** only after the refreshed `product-spec.md` is available. Do not assume a prior architect-agent invocation continues — each reopen is a fresh architect-agent spawn that reads the updated `product-spec.md` from the start.
 
-Document this as a Product Reopen in `team-lead-classification.md` (counts against the 3-reopen limit per Step 10).
+Document this as a Product Reopen in `team-lead-classification.md` (counts against the 3-reopen limit per `.claude/skills/team-lead/policies/reopen-policy.md`).
 
 Examples that must trigger this path (from Architecture's REQUIRES_CHANGES finding):
 - Product did not define opponent-facing behavior in HUMAN vs HUMAN mode
@@ -880,81 +880,31 @@ security / config / secrets issue      → security-agent
 
 ### Contract-Breaking Evidence Escalation
 
-**Core principle:** Validation mode is plan-owned, but contract-breaking evidence can force validation escalation. Preserve validation mode while the change remains narrow. Escalate validation mode when evidence proves the change was not narrow.
+When Code Review, QA, Playwright, Security, Product, Architecture, or an implementation agent reports evidence that a **contract changed post-implementation** and this was **not known at initial classification time (Step 2)**:
 
-When Code Review, QA, Playwright, Security, Product, Architecture, or an implementation agent reports evidence that a **contract changed post-implementation** and this was **not known at initial classification time (Step 2)**, Team Lead must reclassify validation scope immediately.
+Load `.claude/skills/team-lead/policies/contract-breaking-escalation-policy.md` before routing the next owner.
 
-**Contract-breaking evidence includes, at minimum:**
-- API request or response shape changed (field added, removed, renamed, or retyped)
-- HTTP status code changed
-- Backend serialization/deserialization behavior changed
-- Frontend hook, API-client, or state interface changed
-- Frontend/backend integration contract changed
-- Persistence/data contract changed (schema, model, query behavior)
-- Auth/authz behavior changed (session, token, permission, role semantics)
-- Runtime behavior changed in a way callers depend on
-- Deployment/startup/container health contract changed
-- Build artifact or generated artifact behavior changed
-- Game rule, state machine, turn-order, session, multiplayer, or hidden-data contract changed
-- User-facing behavior or acceptance criteria drifted (user-visible outcome changed)
+Apply policy steps for:
+- evidence identification (Section 1 — evidence list)
+- evidence source identification (Section 2 — source list)
+- contract scope classification (escalation procedure Step 2)
+- validation mode escalation (escalation procedure Step 3)
+- required validation layer selection (escalation procedure Step 4)
+- Product re-trigger conditions (escalation procedure Step 5)
+- Architecture re-trigger conditions (escalation procedure Step 6)
+- broader Code Review conditions (escalation procedure Step 9)
+- documentation requirements (escalation procedure Step 10)
 
-Team Lead identifies contract-breaking evidence from the `Contract Breaking: Yes` field in Code Review findings, or from explicit root-cause descriptions in QA, Playwright, Security, Architecture, or implementation-agent reports.
-
-**Escalation procedure:**
-
-1. **Read the contract-breaking evidence** — identify the broken contract type.
-
-2. **Classify the contract scope:**
-   - **Frontend-only** (hook shape, component state, routing, client-side validation) → require frontend integration/API-client tests if not already present
-   - **Backend-only** (service logic, persistence internals, serialization internal to backend) → require backend integration/contract tests if not already present
-   - **Frontend + Backend** (API response shape, HTTP status code, serialization format visible to clients, state machine visible across boundary) → escalate E2E mode to Full E2E (real backend on port 8081) if not already Full
-   - **Multiplayer/Architecture-level** (game rules, hidden data visibility, session, turn order, multiplayer flow) → escalate to Full E2E + reopen Architecture
-
-3. **Escalate validation mode (validation may only be strengthened, never weakened):**
-   - `cheap` → `normal`: add unit tests + full Code Review + Smoke E2E minimum
-   - `normal` with Smoke E2E → `full`: switch to Full E2E (real backend on port 8081); pass E2E Infrastructure Pre-Gate before spawning Playwright
-   - `full` with Full E2E already running → no mode escalation needed; continue
-
-4. **Select validation layer(s) based on broken contract type. Full E2E does not replace lower-level integration/contract tests when those are the correct proof that the broken boundary is fixed:**
-
-   | Broken contract type | Required validation layer(s) |
-   |---|---|
-   | API contract break | API/contract tests + backend integration tests + frontend API/client integration tests if frontend consumes the shape + Full E2E if critical user path is affected |
-   | Frontend/backend integration break | Frontend API/client integration tests + backend integration tests as needed + Full E2E if critical user path is affected |
-   | Backend serialization/runtime break | Backend integration/contract tests + Full E2E if user-visible flow is affected |
-   | Persistence/data contract break | Repository/service integration tests + migration/data consistency checks where relevant + Full E2E if user-visible data flow is affected |
-   | Auth/security behavior break | Security/auth integration tests + Full E2E login/session/permission flow if user-facing |
-   | Deployment/startup/container contract break | Deployment/startup/container/health validation + Architecture review if topology/startup contract changed + Full E2E if app availability or user path is affected |
-   | Critical user-flow break | Full E2E required after fix + targeted integration tests for the broken boundary if identifiable |
-   | User-facing behavior or acceptance criteria drift | Product review + acceptance criteria update/confirmation + relevant user-flow validation |
-
-5. **Re-trigger Product Agent** when the finding affects or may affect:
-   - User-facing behavior, UX, acceptance criteria, product semantics, user-visible error handling, external API behavior visible to consumers, game flow/login/onboarding/critical user path behavior, or expected user outcome
-   - Do NOT re-trigger Product for purely internal implementation issues with no user-facing or acceptance-criteria impact
-   - Counts toward the 3-reopen limit per Step 10
-
-6. **Re-trigger Architecture Agent** when the finding affects or may affect:
-   - API/service contracts, runtime boundaries, frontend/backend integration boundary, persistence/data model, serialization/deserialization contracts, auth/authz behavior, networking/integration behavior, deployment/startup topology, observability contract, ownership/maintainability boundaries, major dependency/runtime behavior change, or cross-cutting libraries/shared infrastructure
-   - Do NOT re-trigger Architecture for purely local implementation issues with no contract, boundary, runtime, or maintainability impact
-   - Counts toward the 3-reopen limit per Step 11
+Then Team Lead performs these orchestration actions inline:
 
 7. **Route the fix** to the responsible agent.
-
 8. **Re-run all tests required by the escalated mode** before re-triggering Code Review or release.
 
-9. **Require broader Code Review (not delta)** if the fix changes contracts, multiple layers, runtime behavior, build/deployment behavior, or user-facing behavior.
-
-10. **Document in the Finding Registry and release summary:**
-    - Original validation mode
-    - Escalated validation mode (or "no escalation needed" with reason)
-    - Evidence that triggered escalation
-    - Whether Architecture or Product was re-triggered
-
-**Rules:**
-- Validation may only be strengthened based on new contract-breaking evidence
-- Validation must never be silently downgraded after a contract-breaking finding
-- Full E2E does not replace lower-level integration/contract tests needed to prove the broken boundary is fixed
-- If root cause is unclear or potentially multi-layer, escalate to Full E2E as a precaution and require targeted integration tests once the broken boundary is identified
+**Terminal rules always enforced inline:**
+- Validation may only be strengthened based on new contract-breaking evidence.
+- Validation must never be silently downgraded after a contract-breaking finding.
+- Full E2E does not replace lower-level integration/contract tests needed to prove the broken boundary is fixed.
+- E2E remains governed only by the E2E Decision Rule.
 
 ### Security REQUIRES_CHANGES — Continuation Path
 
@@ -989,12 +939,10 @@ When `security-agent` includes a CVE finding in its report:
 Extract: CVE ID, affected package, current version, fixed version/range, production-impacting scope, remediation type, breaking-change risk, recommended implementation owner, and `No compatible safe version` / `No compatible safe path` status.
 
 **If `No compatible safe version: true` or remediation type = `no-compatible-safe-path`:**
-Route jointly to Security Agent + Architecture Agent for guidance before any implementation. Do not route to an implementation agent. If no safe path is determined within the current run, write `reports/runs/<workflow-run-id>/workflow-blocker.md` including: CVE ID, affected package, Security explanation, required human decision options (library replacement / compensating control / formal risk acceptance / defer). Add Critical finding (`Blocks PR: Yes`) to the Finding Registry. Stop — do not proceed to release.
+Apply Section 5 (No-Compatible-Safe-Path Handling) from `.claude/skills/team-lead/policies/cve-remediation-routing-policy.md`. Stop. Write `workflow-blocker.md`. Do not route to an implementing agent.
 
 **Step CVE-2. Classify production-impacting scope.**
-
-- `production-runtime` or `ci-artifact` → route per routing table; may block production release
-- `build-only`, `test-only`, `dev-only` → hygiene remediation; document but do not automatically block release unless Security reports supply-chain or artifact integrity concern
+Apply Section 3 scope values and decision rule from `.claude/skills/team-lead/policies/cve-remediation-routing-policy.md`.
 
 **Step CVE-3. Route to the correct implementation agent.**
 
@@ -1009,15 +957,7 @@ The validation mode selected in the original work plan (`cheap` / `normal` / `fu
 **Exception:** If the CVE or dependency remediation introduces or reveals contract-breaking evidence (breaking-change risk = `high`, changed runtime behavior, serialization, HTTP behavior, auth behavior), the Contract-Breaking Evidence Escalation rule overrides the preservation intent. Escalate validation mode accordingly.
 
 **Step CVE-5. Determine whether to run minimal-contract review before E2E.**
-
-Check triggers from cve-remediation-routing-policy.md Section 6. Minimal-contract review is required when any is true:
-- Remediation touched a runtime dependency with unknown or high breaking-change risk
-- Remediation touched a serialization, auth, HTTP client, persistence, API client, or deployment dependency
-- Remediation is expanded scope (see transitive-cve-remediation-policy.md)
-- Architecture was required or contract impact is unclear
-- Security reports `Breaking-Change Risk: high` or `unknown`
-
-May skip when all are true: patch/minor remediation, risk = none/low, no contract-sensitive library, E2E not required.
+Load Section 6 trigger list from `.claude/skills/team-lead/policies/cve-remediation-routing-policy.md`. Minimal-contract review is required when any Section 6 trigger is true.
 
 If minimal-contract review is required:
 - Spawn `code-review-agent` with `Review Mode: minimal-contract`
@@ -1095,29 +1035,15 @@ After Security closure is APPROVED:
 
 **Transitive CVE routing — apply when `Direct or transitive = transitive` in the Security Agent report:**
 
-```
-If Direct or transitive = transitive:
-  1. Read .claude/policies/transitive-cve-remediation-policy.md
-  2. Read the transitive CVE fields from Security Agent's report:
-     parent dependency, dependency chain, earliest safe parent version,
-     transitive scope, possible remediation paths, recommended path,
-     rationale, narrow/expanded scope, and no-compatible-safe-path status.
-  3. Apply the policy preference order to confirm or select the remediation strategy.
-  4. If strategy is parent-major, OR exclusion-plus-replacement affecting runtime/classpath/bundle,
-     OR direct-resolution-override of a cross-cutting runtime library:
-     → Trigger Architecture Agent before routing to the implementing agent.
-  5. If no-compatible-safe-path = true:
-     → Use the No compatible safe version: true hard-stop path in Step CVE-1.
-     Do not route to an implementing agent.
-  6. Route to the owning implementation agent with the confirmed strategy name.
-     Do not encode package-manager syntax — pass the ecosystem-neutral strategy name only.
-  7. Preserve the original validation mode. Do not downgrade or replace quality gates.
-  8. After the implementing agent reports done, route to Security Agent for CVE closure verification.
-     Security Agent must confirm the CVE is absent from the full resolved dependency chain.
-  9. If strategy was classified as expanded scope: route to Code Review for broader (full) review,
-     not delta review.
-  10. If strategy was classified as narrow scope: route to Code Review for delta review.
-```
+1. Load `.claude/policies/transitive-cve-remediation-policy.md`.
+2. Read transitive CVE fields from Security Agent's report: parent dependency, dependency chain, earliest safe parent version, transitive scope, possible remediation paths, recommended path, rationale, narrow/expanded scope, no-compatible-safe-path status.
+3. Apply preference order (Section 2) to confirm or select the remediation strategy.
+4. If strategy is `parent-major`, `exclusion-plus-replacement` affecting runtime/classpath/bundle, or `direct-resolution-override` of a cross-cutting runtime library → apply Architecture escalation conditions (Section 6). Trigger Architecture Agent before routing to the implementing agent.
+5. If no-compatible-safe-path = true → apply CVE-1 hard-stop above. Do not route to an implementing agent.
+6. Route to the owning implementation agent with the confirmed strategy name only. Do not encode package-manager syntax.
+7. Preserve the original validation mode. Do not downgrade or replace quality gates.
+8. After the implementing agent reports done, route to Security Agent for CVE closure verification. Security Agent must confirm the CVE is absent from the full resolved dependency chain.
+9. If expanded scope → full Code Review, not delta. If narrow scope → delta Code Review.
 
 ### Playwright/E2E Re-trigger Continuation
 
@@ -1218,63 +1144,17 @@ QA findings must include `Blocks PR: Yes/No`.
 
 ## Step 10 — Product Reopen Policy
 
-Product may be reopened up to 3 times per run. Document in `reports/runs/<workflow-run-id>/product-spec.md` reopen section:
+Load `.claude/skills/team-lead/policies/reopen-policy.md` → `## Product Reopen Policy` when reopening Product Agent. Apply the allow conditions, output block format, and at-limit resolution from the policy.
 
-```md
-## Product Reopen
-
-Reopen Number:
-Reason:
-Finding ID:
-Evidence:
-Question / Ambiguity:
-Updated Product Decision:
-Updated Acceptance Criteria:
-Impact On Team Lead Plan:
-Does Architecture Need Re-evaluation: Yes/No
-```
-
-Allow reopen when:
-- Acceptance criteria are missing or ambiguous
-- QA exposes unclear product behavior
-- Developer cannot safely infer behavior
-- Two fixes fail because expected behavior is unclear
-- PR review feedback affects product behavior
-
-If Product reaches 3 reopens and ambiguity remains:
-- Safe assumption exists → continue with documented assumption
-- No safe assumption → hard blocker
+**Reopen limit: 3 per run** (enforced here and in QA Cycle Limits, Step 9). Every Product reopen counts toward this limit regardless of trigger source, including Architecture REQUIRES_CHANGES, Contract-Breaking escalation, QA failure, or PR review feedback.
 
 ---
 
 ## Step 11 — Architecture Reopen Policy
 
-Architecture may be reopened up to 3 times per run. Document in `reports/runs/<workflow-run-id>/architecture.md` reopen section:
+Load `.claude/skills/team-lead/policies/reopen-policy.md` → `## Architecture Reopen Policy` when reopening Architecture Agent. Apply the allow conditions, output block format, and at-limit resolution from the policy.
 
-```md
-## Architecture Reopen
-
-Reopen Number:
-Reason:
-Finding ID:
-Evidence:
-Previous Architecture Assumption:
-Updated Architecture Decision:
-Impact On Developer Assignments:
-Impact On Tests:
-Impact On Security:
-Impact On Cost:
-```
-
-Allow reopen when:
-- Planned approach cannot work with existing code
-- API contract assumption is wrong
-- Auth/session implications were missed
-- Implementation exposed a missing technical boundary
-
-If Architecture reaches 3 reopens unresolved:
-- Continue safely → document architecture risk in PR
-- Unsafe/impossible → hard blocker
+**Reopen limit: 3 per run** (enforced here and in QA Cycle Limits, Step 9). Every Architecture reopen counts toward this limit regardless of trigger source.
 
 ---
 
