@@ -12,17 +12,21 @@ metadata:
 Dependency changes (additions, removals, and updates) are allowed when justified. The goal is **visibility, reporting, validation, and risk-based review** — not prohibition.
 
 Every dependency change must be:
-- Reported to Team Lead before the manifest is modified
-- Validated by the implementing agent after authorization
-- Included in the execution report using the dependency report template
+- Added by the implementing agent when justified, without pre-authorization
+- Validated by the implementing agent immediately after the change
+- Reported to Team Lead via the `## Dependency Report` block in the execution report
 - Included in the PR summary
-- Escalated for Architecture or Security review when trigger conditions are met
+- Escalated for Architecture or Security review by Team Lead when trigger conditions are met
 
 ## Default Rule
 
 **Prefer existing dependencies.** Prefer platform capabilities and libraries already present in the project before introducing new ones.
 
-No agent may modify `package.json` or `pom.xml` — to add, remove, or update a dependency — without explicit Team Lead authorization. Team Lead owns all dependency authorization and escalation decisions.
+Implementing agents may add, remove, or update dependencies independently when justified. Pre-authorization from Team Lead is not required. Team Lead reviews the dependency report after the fact and decides on escalation.
+
+## Product Agent
+
+Dependency addition alone does **not** trigger Product Agent. Product is involved only when the dependency is part of a user-visible behavior change, a new product capability, a UX change, an API contract change exposed to users, or an acceptance-criteria change.
 
 ---
 
@@ -30,18 +34,9 @@ No agent may modify `package.json` or `pom.xml` — to add, remove, or update a 
 
 ### Agent rules
 
-`frontend-ui-agent` and `frontend-api-agent` must not run `npm install <package>` to add a new package.
+When a new frontend package is necessary, `frontend-ui-agent` or `frontend-api-agent` adds it directly. No pre-authorization required.
 
-If a package appears necessary:
-1. **Stop** — do not install.
-2. **Report to Team Lead** with:
-   - Package name and version (if known)
-   - Reason the existing dependencies are insufficient
-   - Alternatives considered (including platform-native or already-installed options)
-   - Whether Architecture or Security review may be required
-3. **Wait** for Team Lead to authorize before touching `package.json`.
-
-### Dependency validation (after authorization)
+### Dependency validation (after change)
 
 When `package.json` changes are authorized, the implementing agent (`frontend-ui-agent` or `frontend-api-agent`) must run the strongest available npm validation present in the repository:
 
@@ -63,19 +58,9 @@ Results must appear in the `## Dependency Report` block of the execution report.
 
 ### Agent rules
 
-`java-backend-agent` must not modify `pom.xml` without Team Lead authorization.
+When a new Maven dependency is necessary, `java-backend-agent` or `backend-integration-tests-agent` adds it directly. No pre-authorization required. `backend-integration-tests-agent` is limited to `scope=test` dependencies only.
 
-If a dependency appears necessary:
-1. **Stop** — do not edit `pom.xml`.
-2. **Report to Team Lead** with:
-   - Dependency `groupId:artifactId` and proposed version
-   - Maven scope (`compile`, `provided`, `test`, `runtime`)
-   - Reason the existing classpath is insufficient
-   - Alternatives considered
-   - Whether Architecture or Security review may be required
-3. **Wait** for Team Lead to authorize before touching `pom.xml`.
-
-### Dependency validation (after authorization)
+### Dependency validation (after change)
 
 When `pom.xml` changes are authorized, `java-backend-agent` must run the strongest available Maven validation present in the repository:
 
@@ -89,17 +74,18 @@ Results must appear in the `## Dependency Report` block of the execution report.
 
 ## Architecture Review Trigger
 
-Architecture review is required when the dependency changes any of the following:
+Dependency addition alone does **not** trigger Architecture Agent. Architecture is triggered only when the dependency materially affects the architecture:
 
-- System architecture or module boundaries
-- Runtime model (e.g. adding a reactive stack, virtual threads)
-- Persistence model (e.g. new ORM, new database driver)
-- Communication model (e.g. new messaging library, WebSocket library)
-- Deployment or runtime behavior (e.g. embedding a server, changing the classpath profile)
-- Security model (e.g. authentication, authorization, secrets handling)
-- Cross-agent contracts (shared types, serialization format)
+- Runtime boundaries (e.g. adding a reactive stack, virtual threads, embedded server)
+- Service contracts or cross-agent shared types / serialization format
+- Persistence model (e.g. new ORM, new database driver, schema migration tooling)
+- Networking or communication model (e.g. new HTTP client, WebSocket library, messaging library)
+- Authentication or authorization model
+- Deployment topology or classpath profile
+- Observability strategy (e.g. new metrics or tracing library that changes the instrumentation model)
+- Long-term maintainability or ownership (e.g. replacing a core framework, adding a second ORM)
 
-When any of these apply, Team Lead must route to Architecture Agent before authorizing the dependency.
+When any of these apply, Team Lead routes to Architecture Agent. This is a routing decision, not a blocking gate — Team Lead records the decision and sequences Architecture alongside or before the next implementation step.
 
 ---
 
@@ -182,8 +168,8 @@ Every authorized dependency change must be documented in the PR summary with:
 
 | Agent | When | Action on violation |
 |---|---|---|
-| `code-review-agent` | Review checklist | Flag any `package.json` or `pom.xml` change lacking Team Lead authorization evidence; return `REQUIRES_CHANGES` |
-| `release-pr-agent` | Pre-commit gate | Check `git diff --cached --name-only` for `package.json` / `pom.xml` changes; verify Team Lead authorization is recorded |
+| `code-review-agent` | Review checklist | Flag any `package.json` or `pom.xml` change lacking a `## Dependency Report` block in the execution report; return `REQUIRES_CHANGES` |
+| `release-pr-agent` | Pre-commit gate | Check `git diff --cached --name-only` for `package.json` / `pom.xml` changes; verify a dependency report is recorded in `team-lead-plan.md` |
 
 ---
 
