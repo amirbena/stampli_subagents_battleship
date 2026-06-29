@@ -169,3 +169,10 @@ When Architecture discovers a product-semantic gap (behavior Product did not def
 
 See also: `.claude/skills/architect-agent/SKILL.md` for the `REQUIRES_CHANGES` finding format.
 See also: `.claude/skills/team-lead/SKILL.md` Step 3 for the routing row.
+
+
+---
+
+## Execution Responsibility
+
+Every execution agent (implementation, review, QA, research, Explore) must execute its assigned task in the current run and return completed work, partial work with an explicit blocker, or an explicit blocker/refusal. Planning-only responses are invalid unless the assigned task explicitly asks for a plan or analysis-only report. See `CLAUDE.md` Execution Contract and `team-lead/SKILL.md` Subagent Execution Contract for the full definition of valid/invalid responses and NO_WORK_PERFORMED handling.

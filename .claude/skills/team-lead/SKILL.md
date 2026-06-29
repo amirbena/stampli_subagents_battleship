@@ -422,6 +422,46 @@ Reason: <one sentence>
 
 ## Step 6 — Developer Agents
 
+### Subagent Execution Contract
+
+Every agent Team Lead spawns — implementation agents, review agents, QA agents, research agents, Explore agents — must **execute the assigned task in the current run** and return one of three valid responses:
+
+**Valid responses:**
+
+1. **Completed result** — all of: files inspected, files changed (if modification was permitted), findings or implementation summary, validation commands and searches run, remaining risks or TODOs.
+2. **Partial result** — files inspected, work completed so far, exact blocker, what remains unverified.
+3. **Explicit blocker** — why the task could not be completed, missing permission/context/tooling, safest next action.
+
+**Invalid responses (classify as `NO_WORK_PERFORMED`):**
+
+- "I will inspect the files…"
+- "I am running in the background…"
+- "I will report back…"
+- "Here is how I would approach it…"
+- "I would change these files…"
+- A plan without actual file inspection, findings, implementation, validation, or blocker evidence
+- A status update without completed work, partial work, or explicit blocker
+
+**NO_WORK_PERFORMED handling:**
+
+If a delegated agent returns only a meta-response, future-work promise, or background-status message, Team Lead must classify the result as `NO_WORK_PERFORMED`. Team Lead must then either:
+- Re-run the delegated agent with a stricter execution prompt, or
+- Perform the work directly
+
+Team Lead must not treat a `NO_WORK_PERFORMED` response as completed analysis, implementation, review, QA, or validation evidence. Advancing any gate on a meta-response is prohibited.
+
+**Required delegation prompt phrase:**
+
+Every Team Lead delegation prompt must include this instruction or its equivalent:
+
+> Execute the assigned task now. Do not return a plan, promise future work, or say you will report later. Return completed work, partial work with blockers, or an explicit blocker.
+
+**Plan-only exception:**
+
+A plan-only or analysis-only response is valid only when the assigned task explicitly asks for a plan, proposed approach, or analysis-only report (e.g. "propose an implementation approach" or "analyze and report findings without modifying files"). If the task asks for inspection, implementation, review, testing, or validation, a plan-only response is invalid.
+
+---
+
 Load `.claude/skills/team-lead/policies/background-agent-policy.md` before using `run_in_background` on any agent invocation. If any agent is spawned with `run_in_background: true`, record the agent name and expected output path in `team-lead-plan.md`. No gate may be marked complete while a background agent result is outstanding — collect and confirm every background result before advancing.
 
 > **Universal Continuation Rule — No Manual Wakeup:**

@@ -14,6 +14,28 @@ You are working inside a Gen4 multi-agent software factory building a multiplaye
 - Product defines what the user should experience, not how the code implements it. Product implementation notes are non-binding — execution agents choose the smallest safe implementation.
 - If a frontend-only implementation requires state or capabilities not already present in the data layer, the agent must stop and return to Team Lead for reclassification rather than inventing missing state.
 
+## Execution Contract
+
+This applies to every agent and every Claude Code session in this repository.
+
+When assigned a task that requires inspection, implementation, review, testing, or validation:
+- **Execute it in the current run.** Do not respond with only a plan, promise, or background-status update.
+- **If the task requires inspecting files, inspect them before reporting conclusions.**
+- **If the task requires implementation, modify the files** and run the requested validation unless explicitly blocked.
+- **If blocked, report the exact blocker** and what remains unverified.
+
+**Valid responses include one of:**
+1. Completed work with evidence (files inspected, files changed, validation run, risks noted)
+2. Partial work with files inspected and exact blocker stated
+3. Explicit blocker/refusal with reason
+
+**Invalid responses:**
+- "I will inspect…" / "I am running…" / "I'll report back…"
+- "Here is how I would do it…" / "I would modify…"
+- Plan-only or status-only response when the task requires execution
+
+**Exception:** A plan-only or analysis-only response is valid only when the assigned task explicitly asks for a plan, proposed approach, or read-only analysis report.
+
 ## Orchestration Continuation Semantics
 
 - Foreground agent calls return inline to Team Lead, which reads the artifact and continues immediately.
