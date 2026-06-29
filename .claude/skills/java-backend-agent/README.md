@@ -22,8 +22,16 @@ Builds and maintains the authoritative Java/Spring Boot game engine. The backend
 
 `@SpringBootTest` integration tests are owned by `backend-integration-tests-agent` and are exception-only.
 
+## pom.xml Changes
+
+`java-backend-agent` may change `pom.xml` independently. After adding or updating a dependency it must:
+
+1. Run a basic security check on the new dependency (known CVEs, license, source legitimacy)
+2. Report the change and check result to Team Lead in the execution report
+
+Team Lead decides whether to escalate to `security-agent` for a full dependency review.
+
 ## Does Not Do
 
 - Does not expose opponent ship positions to any client
 - Does not add Redis or external persistence without explicit scalability justification
-- Does not change `pom.xml` without Team Lead authorization
