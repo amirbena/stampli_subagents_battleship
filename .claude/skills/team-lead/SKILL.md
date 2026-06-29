@@ -1144,63 +1144,17 @@ QA findings must include `Blocks PR: Yes/No`.
 
 ## Step 10 — Product Reopen Policy
 
-Product may be reopened up to 3 times per run. Document in `reports/runs/<workflow-run-id>/product-spec.md` reopen section:
+Load `.claude/skills/team-lead/policies/reopen-policy.md` → `## Product Reopen Policy` when reopening Product Agent. Apply the allow conditions, output block format, and at-limit resolution from the policy.
 
-```md
-## Product Reopen
-
-Reopen Number:
-Reason:
-Finding ID:
-Evidence:
-Question / Ambiguity:
-Updated Product Decision:
-Updated Acceptance Criteria:
-Impact On Team Lead Plan:
-Does Architecture Need Re-evaluation: Yes/No
-```
-
-Allow reopen when:
-- Acceptance criteria are missing or ambiguous
-- QA exposes unclear product behavior
-- Developer cannot safely infer behavior
-- Two fixes fail because expected behavior is unclear
-- PR review feedback affects product behavior
-
-If Product reaches 3 reopens and ambiguity remains:
-- Safe assumption exists → continue with documented assumption
-- No safe assumption → hard blocker
+**Reopen limit: 3 per run** (enforced here and in QA Cycle Limits, Step 9). Every Product reopen counts toward this limit regardless of trigger source, including Architecture REQUIRES_CHANGES, Contract-Breaking escalation, QA failure, or PR review feedback.
 
 ---
 
 ## Step 11 — Architecture Reopen Policy
 
-Architecture may be reopened up to 3 times per run. Document in `reports/runs/<workflow-run-id>/architecture.md` reopen section:
+Load `.claude/skills/team-lead/policies/reopen-policy.md` → `## Architecture Reopen Policy` when reopening Architecture Agent. Apply the allow conditions, output block format, and at-limit resolution from the policy.
 
-```md
-## Architecture Reopen
-
-Reopen Number:
-Reason:
-Finding ID:
-Evidence:
-Previous Architecture Assumption:
-Updated Architecture Decision:
-Impact On Developer Assignments:
-Impact On Tests:
-Impact On Security:
-Impact On Cost:
-```
-
-Allow reopen when:
-- Planned approach cannot work with existing code
-- API contract assumption is wrong
-- Auth/session implications were missed
-- Implementation exposed a missing technical boundary
-
-If Architecture reaches 3 reopens unresolved:
-- Continue safely → document architecture risk in PR
-- Unsafe/impossible → hard blocker
+**Reopen limit: 3 per run** (enforced here and in QA Cycle Limits, Step 9). Every Architecture reopen counts toward this limit regardless of trigger source.
 
 ---
 
