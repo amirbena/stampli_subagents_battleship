@@ -449,6 +449,8 @@ Run in order after every `pom.xml` change:
 3. OWASP Dependency Check — only if already configured in `pom.xml`; do not add the plugin
 4. Basic security check — verify the dependency against known CVEs, confirm legitimate source, confirm license is compatible
 
+Production runtime/classpath dependencies are production-impacting and escalate to Security Agent per `dependency-addition-policy.md` when the Security review trigger applies. Ordinary `scope=test` dependencies are non-production by default and do not require Security Agent unless they affect generated code, packaging, released artifacts, deployment, CI artifact integrity, or supply-chain integrity.
+
 Include the `## Dependency Report` block (load `.claude/templates/dependency-report-template.md`) in the execution report. Report the dependency change and security check result to Team Lead. Team Lead decides whether to escalate to `security-agent` for a full dependency review.
 
 Load `.claude/policies/dependency-addition-policy.md` for Architecture Review and Security Review trigger conditions.

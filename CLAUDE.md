@@ -242,14 +242,17 @@ When `code-review-agent` returns `REQUIRES_CHANGES`, Team Lead stops the release
 See `.claude/policies/reports-and-artifacts-policy.md` and `.claude/policies/gitignore-compliance-policy.md`.
 
 ## Quality Gates (all required before PR, run in this order)
+
+**Canonical gate model:** Unit/integration/build tests run first (cheapest). E2E runs after targeted validation when required. Final Code Review and Security verdict run after all validation evidence exists. Minimal-contract review is an optional early classification gate for CVE remediation — it is not final Code Review and does not appear in this checklist. See `.claude/metadata/team-lead/execution-modes.yml` for the gate set per mode.
+
 - [ ] No `reports/**` or gitignored files are staged (enforced by `release-pr-agent` pre-commit gate and `code-review-agent` checklist)
 - [ ] `./mvnw test` passes (backend unit tests — if backend touched)
 - [ ] `npm run test` + `npm run build` pass (frontend — if frontend touched): single-agent path: running agent owns gate; split path: Team Lead runs once after both agents finish
 - [ ] `./mvnw test -Dtest="*IntegrationTest"` passes (backend integration tests — after unit tests green, when HTTP layer changed)
 - [ ] Cross-layer frontend integration tests pass — `*.integration.test.tsx` files included in `npm run test`; `frontend-ui-agent` self-diagnoses when one is needed (per-layer unit tests pass but runtime behavior fails due to seam, timing race, provider wiring, or async side-effect ordering) and writes it before any production fix
-- [ ] `npm run test:e2e` passes (Playwright — after all tests green, Full or Smoke mode depending on change)
-- [ ] `reports/runs/<id>/security-report.md` verdict: APPROVED
-- [ ] `reports/runs/<id>/code-review-report.md` verdict: APPROVED
+- [ ] `npm run test:e2e` passes (Playwright — after all tests green, Full or Smoke mode depending on change; E2E is only run when required by the E2E Decision Rule — do not run E2E automatically)
+- [ ] `reports/runs/<id>/security-report.md` verdict: APPROVED (Security closure runs after validation evidence)
+- [ ] `reports/runs/<id>/code-review-report.md` verdict: APPROVED with `Review Purpose: final` (final Code Review runs after validation evidence — not minimal-contract review)
 - [ ] `README.md` documents how to run the full app
 - [ ] `reports/runs/<id>/release-summary.md` exists
 

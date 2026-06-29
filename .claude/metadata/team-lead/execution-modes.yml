@@ -2,6 +2,24 @@
 # Team Lead loads this during Step 2 classification when selecting mode.
 # Mode selection logic and binding rules stay in Team Lead.
 
+# Canonical gate ordering model:
+# 1. This file defines the default gate set and order.
+# 2. Team Lead may add or reorder gates when evidence requires it (e.g., minimal-contract
+#    review before E2E for CVE remediation with contract risk).
+# 3. Any evidence-driven gate reordering must be documented in team-lead-plan.md and
+#    the Finding Registry.
+# 4. Minimal contract review (Review Mode: minimal-contract) is an optional early
+#    classification gate for CVE remediation — it is NOT final Code Review and is not
+#    listed in the gate set below.
+# 5. Final Code Review (code-review-report.md with Review Purpose: final) always runs
+#    after validation evidence exists (after E2E if E2E ran, after targeted validation
+#    if E2E was not required).
+# 6. E2E (playwright) runs before final Code Review and Security verdict.
+# 7. Passing minimal-contract or delta review opens the path to the next required gate.
+#    It does not automatically require or trigger E2E.
+# 8. A blocking contract-breaking finding stops forward progress regardless of whether
+#    E2E is required.
+
 modes:
   cheap:
     description: product-lite, one implementation agent, build test only
@@ -15,15 +33,26 @@ modes:
 
   normal:
     description: product-lite, architect-lite when contracts change, relevant agents and tests
-    gates: [unit-tests, build, code-review, validation-gap-check, release]
-    notes: architect-lite runs only when API/contract changes
+    gates: [unit-tests, build, playwright, security, code-review, validation-gap-check, release]
+    notes: >
+      architect-lite runs only when API/contract changes.
+      playwright runs only when E2E mode is Full or Smoke per E2E Decision Rule.
+      security runs only when route triggers it.
+      code-review is the final Code Review after validation evidence.
 
   full:
     description: product-full, architect-full, all relevant agents, all test levels
-    gates: [unit-tests, integration-tests, build, security, code-review, playwright, release]
-    notes: security required; Playwright required
+    gates: [unit-tests, integration-tests, build, playwright, security, code-review, validation-gap-check, release]
+    notes: >
+      security required; Playwright required only when the E2E Decision Rule or Team Lead
+      validation classification records E2E Required: Yes.
+      playwright (E2E) runs before final code-review and security verdict.
+      code-review here is the final Code Review after all validation evidence exists.
 
 # Binding rules (always enforced by Team Lead regardless of mode):
-# - Code review runs in every mode — at minimum review-lite for cheap.
+# - Code review runs in every mode — at minimum review-lite for cheap. Never skip entirely.
 # - Security review is optional in cheap/normal unless the route triggers it.
+# - Playwright/E2E runs before final Code Review when E2E is required by the E2E Decision Rule.
 # - All findings return to Team Lead — never directly to developer agents.
+# - CVE remediation may add a minimal-contract review gate before E2E; see
+#   .claude/skills/team-lead/policies/cve-remediation-routing-policy.md.

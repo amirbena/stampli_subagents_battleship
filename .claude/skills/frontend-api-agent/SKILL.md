@@ -166,6 +166,8 @@ After adding or updating a dependency, run in order:
 1. `npm install` — verify dependency resolution succeeds without errors
 2. `npm audit` — record findings by severity; include full summary in execution report
 
+When interpreting `npm audit` results: findings in production `dependencies` are production-impacting and escalate per `dependency-addition-policy.md`. Findings in `devDependencies` are recorded as evidence in the `## Dependency Report` but are not treated as production CVE flow unless the affected package affects the production bundle, CI artifact, build output, or supply-chain integrity.
+
 Include the `## Dependency Report` block (load `.claude/templates/dependency-report-template.md`) in the execution report. Do not omit even when no findings are present.
 
 Load `.claude/policies/dependency-addition-policy.md` for full governance, escalation, and reporting rules.
