@@ -284,6 +284,28 @@ The pipeline runs autonomously: requirement intake → product spec → architec
 
 ---
 
+## Governance Structure
+
+Agent policies, metadata, templates, and runbooks live under `.claude/` organized by ownership:
+
+| Location | Contents |
+|---|---|
+| `.claude/policies/` | Global policies (all agents) |
+| `.claude/policies/java/` | Java backend family policies |
+| `.claude/policies/frontend/` | Frontend family policies |
+| `.claude/policies/e2e/` | E2E execution policies |
+| `.claude/skills/team-lead/policies/` | Team Lead routing policies |
+| `.claude/metadata/team-lead/` | Team Lead execution config |
+| `.claude/metadata/review/` | Review lifecycle schema |
+| `.claude/templates/team-lead/` | Team Lead internal templates |
+| `.claude/templates/review/` | Review finding templates |
+| `.claude/templates/architecture/` | Architecture phase templates |
+| `.claude/skills/<agent>/templates/` | Agent-local templates |
+| `.claude/runbooks/team-lead/` | Team Lead operational runbooks |
+
+Place new governance files at the narrowest correct ownership scope.
+See `.claude/policies/README.md` for the full policy index.
+
 ## Reports
 
 Pipeline artifacts write to `reports/` (gitignored — never committed). Each run produces `reports/runs/<id>/` with product spec, architecture, security report, code review, and release summary.

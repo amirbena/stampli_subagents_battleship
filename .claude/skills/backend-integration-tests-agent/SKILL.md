@@ -12,7 +12,7 @@ Validate cross-layer backend behavior that requires a real Spring Boot context �
 
 **This agent is exception-only. It runs only when Team Lead explicitly assigns it after confirming that `@WebMvcTest` cannot cover the scenario. Do not run by default.**
 
-Load `.claude/policies/backend-test-ownership-policy.md` and `.claude/policies/spring-test-runtime-policy.md` before writing any test.
+Load `.claude/policies/java/backend-test-ownership-policy.md` and `.claude/policies/java/spring-test-runtime-policy.md` before writing any test.
 
 ## Exception-Only Triggers
 
@@ -29,7 +29,7 @@ If none of these triggers applies, Team Lead must not spawn this agent. The test
 
 ## Responsibilities
 - Write `@SpringBootTest` + `MockMvc` tests only for cross-layer flows and profile-specific scenarios (see triggers above).
-- Every `@SpringBootTest` class must include a class-level Javadoc comment explaining which trigger applies and why `@WebMvcTest` was insufficient. See `.claude/policies/spring-test-runtime-policy.md` for the required comment format.
+- Every `@SpringBootTest` class must include a class-level Javadoc comment explaining which trigger applies and why `@WebMvcTest` was insufficient. See `.claude/policies/java/spring-test-runtime-policy.md` for the required comment format.
 - Never duplicate tests that `java-backend-agent`'s `@WebMvcTest` already covers (HTTP status, JSON shape, `@Valid` firing, error body shape).
 - Never test domain logic directly — that belongs to backend unit tests owned by `java-backend-agent`.
 - Never start a browser or depend on the frontend.
@@ -74,7 +74,7 @@ Never edit production code. Never edit unit test files (`*Test.java` without `In
 
 ## Coding Standards
 
-Load `.claude/policies/java-coding-standards.md` for field injection (@Autowired placement) and Lombok constructor rules.
+Load `.claude/policies/java/java-coding-standards.md` for field injection (@Autowired placement) and Lombok constructor rules.
 
 ---
 
@@ -105,7 +105,19 @@ class GameControllerIntegrationTest {
 - `@WebMvcTest` mocks services with `@MockBean` — correct for controller contract tests, but not for cross-layer flow verification
 - `@SpringBootTest` with H2 is required only when the test must exercise the real request → service → repository → response chain without mocking
 - H2 is `scope=test` in pom.xml, so it is on the classpath automatically during `./mvnw test` — no extra Maven profile needed for running tests (only for `spring-boot:run` E2E)
-- Each `@SpringBootTest` class must carry a justification comment — load `.claude/policies/spring-test-runtime-policy.md` for the exact format
+- Each `@SpringBootTest` class must carry a justification comment — load `.claude/policies/java/spring-test-runtime-policy.md` for the exact format
+
+### Adding test-scoped dependencies to pom.xml
+
+When an integration test requires a new `scope=test` dependency (e.g. Testcontainers, WireMock, REST Assured), add it directly to `pom.xml`. After the change:
+
+1. `./mvnw dependency:resolve` — verify all dependencies resolve
+2. `./mvnw dependency:tree` — capture tree for audit trail
+3. Basic security check — verify against known CVEs, confirm legitimate source, confirm license is compatible
+
+Report the dependency change and security check result to Team Lead. Team Lead decides whether to escalate to `security-agent` for a full review.
+
+Only `scope=test` dependencies belong here. Production-scoped dependencies are owned by `java-backend-agent`.
 
 ## Test File Naming
 

@@ -23,7 +23,7 @@ agents:
     owns:
       - apps/backend/src/main/java/
       - apps/backend/src/test/**/*Test.java  # unit tests only — NOT *IntegrationTest.java
-      - apps/backend/pom.xml  # implementation owner; Team Lead authorization required before changes
+      - apps/backend/pom.xml  # implementation owner; agent adds dependencies independently, validates, reports to Team Lead
 
   backend-integration-tests-agent:
     owns:
@@ -76,7 +76,7 @@ agents:
 
 shared_files:
   - README.md
-  - package.json  # Team Lead authorization required before changes; see dependency-addition-policy.md
+  - package.json  # frontend agents add dependencies independently, validate, report to Team Lead; see dependency-addition-policy.md
   - package-lock.json  # local-only; never staged or committed
   - pnpm-lock.yaml
   - yarn.lock

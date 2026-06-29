@@ -181,7 +181,7 @@ User Requirement
 - **Team Lead** owns all decisions — branch, scope, agent routing, quality gates. No other agent makes decisions.
 - **Product Agent** runs in three modes: Full (new feature, API change), Light (UX interaction risk on fast-path — clarifies what must feel instant, what shows loading, scope risks; returns control to Team Lead), or Skipped (fast-path Triggers 1–4 + no UX risk, OR fast-path Trigger 5 DevEx). Trigger 5 applies when the requirement changes only developer-local/tooling behavior with no end-user product impact; skipping Product via Trigger 5 does not skip Architecture. Team Lead selects the mode; Product Agent never selects its own mode or advances the pipeline.
 - **Architect** owns structure (domain model, API contract, folder layout) — never environment setup or implementation.
-- **Java Backend Agent** owns JUnit 5 unit tests for domain and service layer **and `@WebMvcTest` controller tests** — no separate backend unit test agent. `@WebMvcTest` is the default for all controller-layer tests (HTTP status, JSON shape, `@Valid` firing, error body). `backend-integration-tests-agent` is exception-only for cross-layer flows and profile-specific wiring where `@WebMvcTest` is insufficient. See `.claude/policies/backend-test-ownership-policy.md`.
+- **Java Backend Agent** owns JUnit 5 unit tests for domain and service layer **and `@WebMvcTest` controller tests** — no separate backend unit test agent. `@WebMvcTest` is the default for all controller-layer tests (HTTP status, JSON shape, `@Valid` firing, error body). `backend-integration-tests-agent` is exception-only for cross-layer flows and profile-specific wiring where `@WebMvcTest` is insufficient. See `.claude/policies/java/backend-test-ownership-policy.md`.
 - **Frontend API Agent** owns Vitest unit tests for `api/`, `hooks/`, and `types/` — co-located in those directories.
 - **Frontend UI Agent** owns Vitest component tests for `components/`, `pages/`, and `utils/` — co-located. It is also the sole agent for cheap/styling-only changes. It owns test selection within its scope — Team Lead does not prescribe individual test cases. It applies a priority ladder: (1) unit test for isolated DOM/state/class issues, (2) frontend integration test for seam/timing/wiring/async-ordering issues where per-layer unit tests cannot exercise the risk together, (3) Playwright smoke for real-browser layout and responsive confidence. It self-diagnoses when a frontend integration test is needed: when runtime behavior is broken but per-layer unit tests all pass — including timing races (interceptor fires before React renders), provider wiring, and shared state ordering, not only A→B seam breaks. It writes the failing `*.integration.test.tsx` (real component + real hook/store/interceptor, network boundary mocked) **before** touching production code — see [TDD rule in SKILL.md](.claude/skills/frontend-ui-agent/SKILL.md).
 - **Frontend split is conservative.** `frontend-ui-agent` is the default for any single-agent case (small, tightly-coupled, or UI-only). `frontend-api-agent` runs alone for hook/type-only changes. Both run in parallel only when the requirement has clearly independent API/data-layer work AND independent UI/render-layer work. Team Lead pre-writes `types/game.ts` before spawning both. When both run in parallel, Team Lead is the synchronization point — it waits for both to finish, then runs the full gate as a cross-agent contract check before advancing.
@@ -190,7 +190,7 @@ User Requirement
 
 ### AC-to-Test Coverage Matrix
 
-Every `architecture.md` produced by Architect Agent must include an `## AC-to-Test Coverage Matrix`. This matrix maps every acceptance criterion from the product spec to a test type, owner, framework, gate, and notes. Format and column definitions: `.claude/templates/ac-coverage-matrix-template.md`.
+Every `architecture.md` produced by Architect Agent must include an `## AC-to-Test Coverage Matrix`. This matrix maps every acceptance criterion from the product spec to a test type, owner, framework, gate, and notes. Format and column definitions: `.claude/templates/architecture/ac-coverage-matrix-template.md`.
 
 The matrix is the authoritative source Team Lead uses to:
 1. Determine which agents and test types to spawn during implementation.
@@ -207,11 +207,11 @@ Cross-layer backend flow         → backend-integration-tests-agent → @Spring
 Profile-specific wiring          → backend-integration-tests-agent → @SpringBootTest (justification required)
 ```
 
-`@WebMvcTest` is always attempted first. `@SpringBootTest` requires an explicit justification comment and is owned by `backend-integration-tests-agent`. See `.claude/policies/backend-test-ownership-policy.md` and `.claude/policies/spring-test-runtime-policy.md`.
+`@WebMvcTest` is always attempted first. `@SpringBootTest` requires an explicit justification comment and is owned by `backend-integration-tests-agent`. See `.claude/policies/java/backend-test-ownership-policy.md` and `.claude/policies/java/spring-test-runtime-policy.md`.
 
 ### Review Validity Model
 
-Every `code-review-report.md` and `security-report.md` records the SHA (`Generated From Commit`) at the time of review. Before routing to release, Team Lead runs `git diff --name-only <last-reviewed-sha>..HEAD`. If production code changed after the review, a delta or full re-review is required. Post-review fix routing follows three severity levels (Small / Medium / Large). See `.claude/metadata/review-validity-schema.md`.
+Every `code-review-report.md` and `security-report.md` records the SHA (`Generated From Commit`) at the time of review. Before routing to release, Team Lead runs `git diff --name-only <last-reviewed-sha>..HEAD`. If production code changed after the review, a delta or full re-review is required. Post-review fix routing follows three severity levels (Small / Medium / Large). See `.claude/metadata/review/review-validity-schema.md`.
 
 ### Run Isolation
 Every workflow run writes to its own directory:
@@ -257,7 +257,7 @@ On stale-lock recovery, any dirty working tree is preserved via a labeled `git s
 
 Valid `status` values: `"running"`, `"blocked"`, `"interrupted"`, `"complete"`.
 
-**Step 5.5 — Requirement Similarity Detection** runs in Team Lead when a prior interrupted run was detected. It classifies the new requirement as `same | extension | related | unrelated | unclear` by comparing five signals (branch slug alignment, requirement area overlap, AC inheritance, stash file scope, prior PR title/body). The classification drives which branch Case (A–I) applies — `same/extension` may continue on the prior branch; `related/unrelated/unclear` always create a new branch from main. Stash contents are never popped or dropped automatically; the stash ref is recorded for human inspection. See `.claude/policies/requirement-similarity-policy.md`.
+**Step 5.5 — Requirement Similarity Detection** runs in Team Lead when a prior interrupted run was detected. It classifies the new requirement as `same | extension | related | unrelated | unclear` by comparing five signals (branch slug alignment, requirement area overlap, AC inheritance, stash file scope, prior PR title/body). The classification drives which branch Case (A–I) applies — `same/extension` may continue on the prior branch; `related/unrelated/unclear` always create a new branch from main. Stash contents are never popped or dropped automatically; the stash ref is recorded for human inspection. See `.claude/skills/team-lead/policies/requirement-similarity-policy.md`.
 
 This makes the pipeline **single-tenant by design**: one requirement in flight at a time per working tree, with safe automatic recovery from aborted runs and intelligent routing for continuation vs isolation.
 

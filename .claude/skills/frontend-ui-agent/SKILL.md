@@ -97,7 +97,7 @@ Risks:
 
 ## Evidence
 
-Load `.claude/policies/frontend-coding-standards.md` → "Evidence Block" for the required structure and field definitions.
+Load `.claude/policies/frontend/frontend-coding-standards.md` → "Evidence Block" for the required structure and field definitions.
 
 **Cheap/simple mode** (styling-only, single-file tweak):
 ```
@@ -125,7 +125,7 @@ Never place a `.tsx` file directly in a folder that contains other component fol
 
 ## Code Standards
 
-Load `.claude/policies/frontend-coding-standards.md` → "Comment Philosophy" for the shared principle. UI-layer requirements follow.
+Load `.claude/policies/frontend/frontend-coding-standards.md` → "Comment Philosophy" for the shared principle. UI-layer requirements follow.
 
 ### Inline comments for non-obvious render logic
 
@@ -161,7 +161,7 @@ Co-located under `components/`, `pages/`, `utils/`.
 
 **Single-agent path** (Team Lead spawned only this agent — no `frontend-api-agent` running in parallel):
 
-Load `.claude/policies/frontend-coding-standards.md` → "Single-Agent Gate Commands" for the gate sequence and → "Self-Heal Escalation Rule" for the escalation threshold.
+Load `.claude/policies/frontend/frontend-coding-standards.md` → "Single-Agent Gate Commands" for the gate sequence and → "Self-Heal Escalation Rule" for the escalation threshold.
 
 If the change affects user-visible behavior, also run the Playwright UI smoke check with mocked backend (see Smoke Test Gate below). When the full gate is green, report done to Team Lead. Do not advance to review or PR directly.
 
@@ -177,7 +177,7 @@ cd apps/frontend && npx vitest run src/components src/pages src/utils
 
 Report done to Team Lead when the co-located slice is green. Team Lead runs `npm run test` + `npm run build` once after both agents finish. Do not advance past this point without Team Lead instruction.
 
-See `.claude/policies/frontend-coding-standards.md` → "Self-Heal Escalation Rule".
+See `.claude/policies/frontend/frontend-coding-standards.md` → "Self-Heal Escalation Rule".
 
 ---
 
@@ -343,23 +343,13 @@ Applies to: turn ownership, permissions, loading/recovery status, identity/sessi
 
 **Default: do not add npm packages.**
 
-Do not run `npm install <package-name>` to add a new dependency.
-
-If a package appears necessary:
-
-1. **Stop** — do not install.
-2. **Report to Team Lead** with:
-   - Package name (and version if known)
-   - Reason existing dependencies are insufficient
-   - Alternatives considered
-   - Whether Architecture or Security review may be required
-3. **Wait** for explicit Team Lead authorization before modifying `package.json`.
+When a new package is necessary, add it directly. No pre-authorization required.
 
 Never stage `package-lock.json`.
 
-### Dependency validation (required after authorized change)
+### Dependency validation (required after every package.json change)
 
-After Team Lead authorizes a `package.json` change, run in order:
+After adding or updating a dependency, run in order:
 
 1. `npm install` — verify dependency resolution succeeds without errors
 2. `npm audit` — record findings by severity; include full summary in execution report

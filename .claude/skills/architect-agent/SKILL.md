@@ -158,7 +158,7 @@ Create the `reports/runs/<workflow-run-id>/` directory if it does not exist befo
 
 Every `architecture.md` must include an `## AC-to-Test Coverage Matrix` section. This is a **binding artifact**: Team Lead uses it to determine which agents and test types to spawn, and to drive the Validation Gap Check in Step 14 instead of re-deriving coverage from the product spec from scratch.
 
-Load `.claude/templates/ac-coverage-matrix-template.md` for the column definitions, test type vocabulary, and example rows.
+Load `.claude/templates/architecture/ac-coverage-matrix-template.md` for the column definitions, test type vocabulary, and example rows.
 
 **Rules:**
 - Every acceptance criterion from `product-spec.md` must appear as a row.

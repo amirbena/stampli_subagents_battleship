@@ -15,7 +15,7 @@ All PRs are opened via **GitHub CLI (`gh`)**. GitHub MCP is not used.
 ## Responsibilities
 - Read current run context from `reports/current-run.json` to get `<workflow-run-id>`.
 - Verify all quality gate reports exist under `reports/runs/<workflow-run-id>/`, belong to the current Workflow Run ID, and are approved.
-- Generate `reports/runs/<workflow-run-id>/release-summary.md` with the current Workflow Run ID metadata block. Load `.claude/templates/pr-summary-template.md` for the exact format.
+- Generate `reports/runs/<workflow-run-id>/release-summary.md` with the current Workflow Run ID metadata block. Load `.claude/skills/release-pr-agent/templates/pr-summary-template.md` for the exact format.
 - Verify the release branch is not `main`.
 - Verify the working tree is clean before final freshness checks.
 - Verify the branch is fresh against `origin/main`.
@@ -200,7 +200,7 @@ Install/authenticate gh and rerun release.
      --body-file reports/runs/<workflow-run-id>/release-summary.md
    ```
 
-   Load `.claude/templates/pr-summary-template.md` for the exact format. Keep it short and review-focused.
+   Load `.claude/skills/release-pr-agent/templates/pr-summary-template.md` for the exact format. Keep it short and review-focused.
 
 4. Print the PR URL returned by `gh pr create`.
 

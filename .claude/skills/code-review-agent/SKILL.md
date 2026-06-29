@@ -87,6 +87,27 @@ Load `.claude/policies/gitignore-compliance-policy.md` and `.claude/policies/rep
 
 Do not fix the violation. Return the structured output below to Team Lead.
 
+### Dependency Manifest Changes
+
+If `package.json` or `pom.xml` appears in the diff, verify that the implementing agent's execution report contains a `## Dependency Report` block.
+
+The block must include all of the following:
+- [ ] Manifest changed (`package.json` / `pom.xml`)
+- [ ] Each dependency added, removed, or updated — name, version or version range, scope/type (`compile`, `test`, `devDependencies`, etc.), and reason
+- [ ] Validation command/tool executed (e.g. `npm audit`, `./mvnw dependency:resolve`, `./mvnw dependency:tree`)
+- [ ] Validation result and any findings
+
+If lockfiles appear in the diff (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`):
+- [ ] `package-lock.json` must never be staged (existing gitignore gate handles this — flag if it slipped through)
+- [ ] Other lockfiles in the diff must be consistent with the stated dependency change
+
+If `package.json` or `pom.xml` changed and no `## Dependency Report` block exists in the execution report:
+
+Return `REQUIRES_CHANGES` with finding:
+> Dependency manifest changed without required `## Dependency Report` evidence. Implementing agent must emit this block when adding, removing, or updating dependencies.
+
+**Do not** check for Team Lead pre-authorization. The `## Dependency Report` block is the required evidence. Pre-authorization is not required under the current policy.
+
 ### Backend
 - [ ] Domain logic is in `domain/` classes, not in controllers or repositories.
 - [ ] Controllers are thin: validate input, call service, return DTO.
@@ -141,7 +162,27 @@ Only Critical findings block PR. High/Medium/Low findings should be documented a
 
 When Team Lead invokes this agent with `Review Mode: delta`, review only the files listed in `Delta Changed Files` (the diff between `Delta Base SHA` and HEAD). Do not re-review files that were already reviewed and unchanged.
 
-Delta mode is used for post-fix re-reviews after a Small or Medium fix was routed by Team Lead. Load `.claude/metadata/review-validity-schema.md` for review mode definitions and severity routing.
+Delta mode is used for post-fix re-reviews after a Small or Medium fix was routed by Team Lead. Load `.claude/metadata/review/review-validity-schema.md` for review mode definitions and severity routing.
+
+### CVE Remediation Delta Review
+
+When Team Lead routes a CVE remediation for Code Review, the default mode is **delta review** covering only the remediation diff.
+
+Delta review for CVE remediation verifies:
+- [ ] The patch is limited to the intended remediation (no scope expansion beyond the vulnerable dependency and direct callers)
+- [ ] Manifest (`package.json` / `pom.xml`) and lockfile changes are consistent and match the stated fix
+- [ ] `## Dependency Report` block is present and includes CVE fields (CVE ID, current vulnerable version, fixed version/range, direct/transitive, severity, remediation type)
+- [ ] Team Lead CVE routing is documented in the Dependency Report or agent execution report
+- [ ] Original validation mode is preserved (no quality gates were downgraded or replaced)
+- [ ] Dependency validation command was run and result is recorded
+- [ ] Security verification (CVE closure pass) has passed or is pending with explicit Team Lead note
+
+Escalate to **full review** when any of the following is true:
+- Remediation is a major version upgrade (`X.y.z` → `(X+1).y.z`) and the library has public-facing contracts or runtime behavior
+- Build output, deployment configuration, or CI/CD was changed
+- The scope of changes in the diff extends beyond the dependency and its direct callers
+- New public contracts, endpoints, or serialization formats were introduced
+- `security-agent` flagged breaking-change risk as `high`
 
 ## Outputs
 
@@ -166,7 +207,7 @@ APPROVED | REQUIRES CHANGES
 
 ## Findings
 
-<load .claude/templates/finding-report-template.md for the Finding CR-001 field structure>
+<load .claude/templates/review/finding-report-template.md for the Finding CR-001 field structure>
 
 ## Notes
 <optional non-blocking observations>

@@ -301,7 +301,7 @@ logging:
 
 ## Coding Standards
 
-Load `.claude/policies/java-coding-standards.md` for field injection (@Autowired placement) and Lombok constructor rules.
+Load `.claude/policies/java/java-coding-standards.md` for field injection (@Autowired placement) and Lombok constructor rules.
 
 ---
 
@@ -309,7 +309,7 @@ Load `.claude/policies/java-coding-standards.md` for field injection (@Autowired
 
 After every implementation change, add or update unit tests in `src/test/java/`. Run `./mvnw test` and report results before finishing.
 
-Load `.claude/policies/backend-test-ownership-policy.md` to determine which test type to use for each test scope. Load `.claude/policies/spring-test-runtime-policy.md` for `@WebMvcTest` and `@SpringBootTest` rules.
+Load `.claude/policies/java/backend-test-ownership-policy.md` to determine which test type to use for each test scope. Load `.claude/policies/java/spring-test-runtime-policy.md` for `@WebMvcTest` and `@SpringBootTest` rules.
 
 ### Test ownership — this agent
 
@@ -438,31 +438,17 @@ Never delete or weaken an existing test to make the suite pass — fix the produ
 
 ## Maven Dependency Governance
 
-**Default: do not add Maven dependencies.**
+`pom.xml` is owned by this agent. When a Maven dependency is necessary, add it and then immediately run the validation sequence below — no pre-authorization from Team Lead required.
 
-`pom.xml` is owned by this agent for implementation edits, but **Team Lead authorization is required before any dependency change**.
+### Dependency validation (required after every pom.xml change)
 
-If a Maven dependency appears necessary:
-
-1. **Stop** — do not edit `pom.xml`.
-2. **Report to Team Lead** with all of the following:
-   - Dependency `groupId:artifactId` and proposed version
-   - Maven scope (`compile`, `provided`, `test`, `runtime`)
-   - Reason the existing classpath is insufficient
-   - Alternatives considered (including what already exists on the classpath)
-   - Whether Architecture or Security review may be required
-3. **Wait** for explicit Team Lead authorization before touching `pom.xml`.
-
-Do not edit `pom.xml` for any reason other than an authorized dependency change or an authorized plugin/configuration update.
-
-### Dependency validation (required after authorized change)
-
-After Team Lead authorizes a `pom.xml` change, run in order:
+Run in order after every `pom.xml` change:
 
 1. `./mvnw dependency:resolve` — verify all dependencies resolve without errors
 2. `./mvnw dependency:tree` — capture tree for audit trail
 3. OWASP Dependency Check — only if already configured in `pom.xml`; do not add the plugin
+4. Basic security check — verify the dependency against known CVEs, confirm legitimate source, confirm license is compatible
 
-Include the `## Dependency Report` block (load `.claude/templates/dependency-report-template.md`) in the execution report. No dependency change may be omitted.
+Include the `## Dependency Report` block (load `.claude/templates/dependency-report-template.md`) in the execution report. Report the dependency change and security check result to Team Lead. Team Lead decides whether to escalate to `security-agent` for a full dependency review.
 
-Load `.claude/policies/dependency-addition-policy.md` for full Architecture Review, Security Review trigger conditions, and reporting requirements.
+Load `.claude/policies/dependency-addition-policy.md` for Architecture Review and Security Review trigger conditions.

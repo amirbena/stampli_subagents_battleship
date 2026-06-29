@@ -26,7 +26,7 @@ Team Lead reads this block to record the change in `team-lead-plan.md` and to de
 |---|---|
 | Manifest changed | `package.json` / `pom.xml` / both |
 | Files changed | (list exact paths) |
-| Team Lead authorization | Recorded in `reports/runs/<id>/team-lead-plan.md` — Yes |
+| Team Lead review | Recorded in `reports/runs/<id>/team-lead-plan.md` under `## Dependency Changes` |
 
 #### Added Dependencies
 
@@ -80,6 +80,25 @@ Team Lead reads this block to record the change in `team-lead-plan.md` and to de
 #### Tool Not Available
 
 (If a validation tool is not configured in this repository — e.g. OWASP plugin not in pom.xml — record it here. Write "N/A" if all tools are available and ran.)
+
+---
+
+### CVE Remediation Fields (optional — include only when this report is for a CVE fix)
+
+| Field | Value |
+|---|---|
+| CVE ID | (e.g. `CVE-2024-12345` — or audit finding reference if no CVE ID) |
+| Affected package | (name of vulnerable package) |
+| Current vulnerable version | (version before this fix) |
+| Fixed version or safe range | (version applied or range that resolves the CVE) |
+| Direct or transitive | `direct` / `transitive` |
+| Severity / CVSS score | (e.g. `High / 8.1` — write `Unknown` if not available) |
+| Remediation type | `patch` / `minor` / `major` / `override` / `exclusion` / `dependencyManagement` |
+| Breaking-change risk | `none` / `low` / `high` / `unknown` |
+| Supply-chain concerns | (confirm patch is from original maintainer; flag if unsigned or from unknown fork) |
+| Security verification command | (e.g. `npm audit`, `./mvnw dependency:check`) |
+| Security verification result | (paste relevant audit output confirming the CVE is resolved) |
+| No compatible safe version | `false` / `true: <explanation>` |
 ```
 
 ---
@@ -93,4 +112,4 @@ Team Lead reads this block to record the change in `team-lead-plan.md` and to de
 
 ## Governance Reference
 
-Load `.claude/policies/dependency-addition-policy.md` for full authorization, escalation, and reporting requirements.
+Load `.claude/policies/dependency-addition-policy.md` for escalation trigger conditions and reporting requirements.

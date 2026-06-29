@@ -13,8 +13,8 @@ Validate the real multiplayer game experience from the browser against a running
 ## Policies
 
 Load these before any E2E run:
-- `.claude/policies/e2e-dependency-preflight-policy.md` — Chromium pre-gate, port conventions, E2E script verification
-- `.claude/policies/os-path-aware-execution-policy.md` — OS detection, runtime environment evidence, forbidden path patterns
+- `.claude/policies/e2e/e2e-dependency-preflight-policy.md` — Chromium pre-gate, port conventions, E2E script verification
+- `.claude/policies/e2e/os-path-aware-execution-policy.md` — OS detection, runtime environment evidence, forbidden path patterns
 
 ## Runtime Environment Detection — Mandatory First Step
 
