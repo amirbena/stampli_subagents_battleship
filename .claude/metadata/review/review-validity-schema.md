@@ -11,7 +11,7 @@ Workflow Run ID: <workflow-run-id>
 Generated From Branch: <branch-name>
 Generated From Commit: <full 40-character SHA — output of `git rev-parse HEAD` at time of review>
 Generated At: <ISO-8601 timestamp>
-Review Mode: full | delta
+Review Mode: full | delta | minimal-contract
 Review Purpose: minimal-contract | delta | final
 Delta Base SHA: <SHA of the commit that was previously reviewed — omit for Review Mode: full>
 Delta Changed Files:
@@ -21,7 +21,7 @@ Delta Changed Files:
 
 **`Review Purpose` field:**
 - `minimal-contract` — early classification gate for frontend-backend boundary contract risk; may run for CVE remediation or for any non-CVE finding that presents frontend-backend boundary contract risk before expensive Full E2E. Written to `code-review-minimal-contract.md`, NOT `code-review-report.md`. Does NOT satisfy the final Code Review release gate. Only used when E2E mode is `Full` and the Full E2E validates a flow that depends on the potentially broken frontend-backend contract.
-- `delta` — post-fix re-review after a Small or Medium fix; written to `code-review-report.md`. Does NOT satisfy the final Code Review release gate unless Team Lead determines no additional changes were made.
+- `delta` — post-fix re-review after a Small or Medium fix; written to `code-review-report.md`. Does NOT satisfy the final Code Review release gate. A delta-scope review may satisfy the release gate only when it is explicitly written with `Review Purpose: final`.
 - `final` — final Code Review after all validation evidence exists; written to `code-review-report.md`. Required for release. `Release PR Agent` must reject any `code-review-report.md` that lacks `Review Purpose: final`.
 
 **SHA tracking for delta review loops (when minimal-contract review precedes a delta review):**
@@ -52,7 +52,7 @@ Delta Changed Files:
 |------|-------------|----------------|
 | `full` | First review in a run, broad/architectural/cross-cutting change, or Large fix after a `REQUIRES CHANGES` verdict | All files changed since the branch diverged from `main` |
 | `delta` | Post-fix re-review after a Small or Medium targeted fix was routed by Team Lead | Only the files that changed between `Delta Base SHA` and `HEAD` |
-| `minimal-contract` | Optional early classification gate for frontend-backend boundary contract risk — invoked by Team Lead before expensive Full E2E when there is evidence or high risk that the frontend-backend contract changed or broke. May run for CVE remediation or for non-CVE findings. Only applies when E2E mode is `Full`; do not invoke for `Smoke` or `None` modes. See `cve-remediation-routing-policy.md` Section 6 for trigger and skip conditions. | Only dependency manifest/lockfile changes (or the changed files and callers for non-CVE findings), immediate callers, and contract-sensitive surfaces — type signatures, serialization shapes, HTTP headers, auth contracts |
+| `minimal-contract` | Optional early classification gate for frontend-backend boundary contract risk before expensive Full E2E; may run for CVE remediation or non-CVE findings when E2E mode is `Full` and the Full E2E depends on the potentially broken contract. See `cve-remediation-routing-policy.md` Section 6 for trigger and skip conditions. | Only changed files, immediate callers, dependency manifests/lockfiles when relevant, generated clients/API wrappers, and contract-sensitive frontend-backend surfaces — type signatures, serialization shapes, HTTP headers, auth contracts, DTO fields consumed by the frontend |
 
 **`minimal-contract` mode rules:**
 - Always writes to `code-review-minimal-contract.md`, never to `code-review-report.md`
