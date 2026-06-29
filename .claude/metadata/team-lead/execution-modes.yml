@@ -44,7 +44,8 @@ modes:
     description: product-full, architect-full, all relevant agents, all test levels
     gates: [unit-tests, integration-tests, build, playwright, security, code-review, validation-gap-check, release]
     notes: >
-      security required; Playwright required.
+      security required; Playwright required only when the E2E Decision Rule or Team Lead
+      validation classification records E2E Required: Yes.
       playwright (E2E) runs before final code-review and security verdict.
       code-review here is the final Code Review after all validation evidence exists.
 

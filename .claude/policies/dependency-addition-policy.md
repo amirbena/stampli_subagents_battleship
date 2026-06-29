@@ -108,7 +108,11 @@ Security review is required for **production-scoped** dependencies touching any 
 
 ## CVE Remediation Carve-Out
 
-When Security Agent has identified a CVE and reported a recommended remediation path, implementation agents may apply **minimal safe CVE remediations without pre-patch Security review**, provided all of the following are true:
+This carve-out covers two paths:
+
+**Path A — Production CVE remediation (Security-discovered or tool-discovered):**
+
+When Security Agent or a dependency audit tool/advisory has identified a production-impacting CVE and reported a recommended remediation path, implementation agents may apply **minimal safe CVE remediations without pre-patch Security review**, provided all of the following are true:
 
 - Security Agent (or a dependency audit tool/advisory) has already identified the CVE and the fix path
 - The remediation type is `patch` or `minor` (no major version upgrade, no override/exclusion/replacement)
@@ -116,6 +120,20 @@ When Security Agent has identified a CVE and reported a recommended remediation 
 - The change is a manifest/lockfile/base-image update with no risky strategy change (no new transitive pull-in of suspicious packages, no new install scripts)
 - The implementing agent emits a complete `## Dependency Report` block including all CVE fields
 - Security closure still happens after the remediation is applied
+
+**Path B — Test-only Testcontainers/dependency hygiene (agent-detected):**
+
+`backend-integration-tests-agent` may detect and self-remediate ordinary test-only Testcontainers or `scope=test` dependency CVE/advisory hygiene issues **without prior Security Agent discovery** when all of the following are true:
+
+- The finding is limited to `scope=test` dependencies or Testcontainers Docker image tags used only by backend integration tests
+- The dependency/image is not part of production runtime, deployment image, released artifact generation, CI artifact generation, or supply-chain integrity
+- No supply-chain concern requiring Security judgment (no suspicious registry, no unknown source, no install scripts with external execution)
+- No `no-compatible-safe-version` decision required
+- No risk acceptance required
+- A safe patch version or image tag bump exists and is obvious
+- The agent emits a Testcontainers Hygiene Report to Team Lead (see `backend-integration-tests-agent/SKILL.md`)
+
+Security Agent is required on this path only when the finding is production-impacting, supply-chain-impacting, ambiguous, unresolved, or requires security risk judgment. Infrastructure Agent is required only when production Dockerfiles, deployment images, production runtime images, CI/CD infrastructure, or production artifact generation are affected.
 
 **The CVE remediation carve-out takes precedence over the generic production-scoped dependency Security-review trigger** only for straightforward patch/minor remediation on an existing dependency family. The full Security review trigger continues to apply to: new dependency additions, dependency replacement, override/exclusion strategies, parent-major upgrades, high/unknown security risk, security-sensitive behavior changes, suspicious supply-chain behavior, new install/build scripts, no-compatible-safe-version paths.
 

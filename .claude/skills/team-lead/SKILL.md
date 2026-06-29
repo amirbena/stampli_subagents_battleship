@@ -649,6 +649,8 @@ Spawn `backend-integration-tests-agent` only if any of the five HTTP-layer trigg
 
 **Step 4 — Gate: integration tests must be green before E2E starts.**
 
+This gate only applies when E2E was already selected by the E2E Decision Rule for this run. Backend integration test failures, Testcontainers changes, or test-harness changes do not create a new E2E trigger — the E2E Decision Rule is the sole source of truth for E2E selection.
+
 If integration tests fail, Team Lead reads the failure output and applies `.claude/policies/test-failure-routing-policy.md`. Route to `java-backend-agent` first. Route to `backend-integration-tests-agent` only after `java-backend-agent` fails to fix after 2 cycles. After the fix, re-run `./mvnw test -Dtest="*IntegrationTest"`. E2E may not start until this gate is green. This is a gate failure path — `backend-integration-tests-agent` is not a first-class QA re-trigger agent; it is the escalation target after `java-backend-agent` fix cycles are exhausted.
 
 **Before Step 5 — Collect warmup result (Full E2E mode only):**
@@ -982,7 +984,24 @@ If multiple fix agents are routed in parallel, all must return and all relevant 
 
 ### CVE Remediation Routing
 
-Load `.claude/skills/team-lead/policies/cve-remediation-routing-policy.md` when any CVE remediation routing decision is needed. This policy defines: CVE-to-agent routing table, same-package-family definition, production-impacting scope classification, multi-CVE coordination, no-compatible-safe-path handling, minimal-contract review triggers, and Product/Architecture sequencing.
+Load `.claude/skills/team-lead/policies/cve-remediation-routing-policy.md` when any CVE remediation routing decision is needed. This policy defines: CVE-to-agent routing table, same-package-family definition, production-impacting scope classification, multi-CVE coordination, no-compatible-safe-path handling, minimal-contract review triggers, Product/Architecture sequencing, and the test-only Testcontainers hygiene path (Section 8).
+
+### Test-Only Testcontainers / Dependency Hygiene Reports
+
+When `backend-integration-tests-agent` submits a **Testcontainers Hygiene Report** (not a Security Agent CVE finding), follow the lightweight path in Section 8 of `cve-remediation-routing-policy.md`. Do not enter the CVE-1 through CVE-10 flow unless escalation conditions apply.
+
+**Steps for hygiene report receipt:**
+
+1. **Read the report.** Confirm `Production-Impacting Scope: test-only` is stated and no escalation flags are present.
+2. **Confirm all self-remediation preconditions were met.** If any were not met, route to Security Agent before proceeding.
+3. **Record the change** in `team-lead-plan.md` under `## Dependency Changes`.
+4. **Verify integration tests pass.** Run or confirm `./mvnw test -Dtest="*IntegrationTest"` passed.
+5. **No Security closure step.** Test-only scope with no supply-chain concern does not require Security closure.
+6. **No minimal-contract review required** unless the change touches manifests, contracts, or boundaries that code-review-agent must verify (Team Lead discretion).
+7. **No E2E trigger.** The E2E Decision Rule governs all E2E selection. Backend-only Testcontainers changes return No E2E — do not queue Playwright.
+8. **Include in PR summary** under CVE Remediation Evidence with `Scope: test-only` and `Security Closure: N/A — test-only`.
+
+**Escalation:** if the Testcontainers Hygiene Report flags any escalation condition (production impact, supply-chain concern, no-compatible-safe-version, risk acceptance required, ownership ambiguity), route per the escalation table in Section 8 of `cve-remediation-routing-policy.md` and enter the appropriate production CVE flow.
 
 When `security-agent` includes a CVE finding in its report:
 
@@ -1052,6 +1071,8 @@ When both Architecture Impact: High and Product Impact: High:
 
 E2E is governed by the E2E Decision Rule (see CLAUDE.md and E2E Decision Rule section). Minimal-contract review passing does NOT trigger E2E. Final Code Review passing does NOT trigger E2E. Read the `E2E Required` field from `code-review-minimal-contract.md` for classification guidance — but apply the E2E Decision Rule to make the final determination. Document the E2E decision (Required/Not Required + reason) in `team-lead-plan.md`.
 
+When `E2E Required: No`, Team Lead must run the validation layer specified in `Required Validation Layer` before routing to final Code Review, Security closure, release evidence, or release readiness. Exception: when `Required Validation Layer` is explicitly `none` and the reason is documented in `team-lead-plan.md`.
+
 **Step CVE-8. Delta review loop (after minimal-contract blocking finding is fixed).**
 
 When `Contract Integrity: Blocked` and the fix has been applied by the implementation agent:
@@ -1077,6 +1098,8 @@ After the implementation agent reports done and the delta review loop resolves (
    - `CVE Closure: unresolved` → route back to implementing agent for correction. This is re-verification attempt 1.
    - If unresolved again after correction → re-verification attempt 2.
    - If still unresolved after 2 re-verification attempts → write `workflow-blocker.md`. Stop.
+
+After any correction that resolves a Security closure failure: if the correction changes files or behavior that would trigger E2E under the E2E Decision Rule or Team Lead validation classification, Team Lead must re-queue the required E2E mode before proceeding to CVE-10 / final Code Review. Prior E2E evidence recorded before the correction may be stale — re-evaluate the E2E Required field and re-run if applicable.
 
 For multi-CVE runs: Security closure must verify every CVE in the run. Release evidence must list every CVE remediated and the closure status for each.
 

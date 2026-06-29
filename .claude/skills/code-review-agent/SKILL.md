@@ -212,7 +212,7 @@ Write to `reports/runs/<workflow-run-id>/code-review-minimal-contract.md` — **
 ### Scope
 
 Inspect only:
-- The dependency manifest/lockfile changes (or Dockerfile changes for image CVEs)
+- The dependency manifest/lockfile changes (or Dockerfile changes for image CVEs — note: Testcontainers image tag changes used only by backend integration tests are test-only evidence, not production Docker/base-image evidence; do not classify them as production Docker CVE findings)
 - The immediate callers/consumers of the changed dependency
 - Any type signatures, serialization shapes, HTTP headers, or auth contracts that the changed library participates in
 - The `## Dependency Report` block from the implementing agent

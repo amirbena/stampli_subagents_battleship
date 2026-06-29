@@ -119,6 +119,99 @@ Report the dependency change and security check result to Team Lead. Team Lead d
 
 Only `scope=test` dependencies belong here. Production-scoped dependencies are owned by `java-backend-agent`.
 
+## Testcontainers Dependency and Image Ownership
+
+This agent owns:
+- `org.testcontainers:*` dependencies (`scope=test`) used by backend integration tests
+- Testcontainers-managed Docker image tags used only by backend integration tests
+- Integration-test-only container image versions and configuration
+- Test harness container configuration
+- Test-only database, message-broker, cache, and search containers used by backend integration tests
+
+**Examples of owned images:** `postgres`, `rabbitmq`, `kafka`, `redis`, `localstack`, and any image referenced only through `@Container` / Testcontainers in `*IntegrationTest.java` files.
+
+These are **test infrastructure, not production infrastructure.** `infrastructure-agent` owns production Dockerfiles, deployment images, and runtime images. `infrastructure-agent` does not own Testcontainers used only by backend integration tests.
+
+### Test-Only Hygiene/CVE Self-Remediation
+
+This agent **may detect and self-remediate** ordinary test-only Testcontainers/dependency CVEs or advisory hygiene issues when **all** of the following are true:
+
+- Issue is limited to backend integration tests
+- Dependency or image is test-only (not production runtime, not deployment image, not released artifact)
+- No CI/CD artifact integrity impact
+- No generated production code impact
+- No production packaging impact
+- No supply-chain concern requiring Security (no suspicious registry, no unknown source, no install scripts with external execution)
+- No `no-compatible-safe-version` decision required
+- No risk acceptance required
+- No Architecture or Product decision required
+- Ownership is unambiguous (image/dependency is used only in `*IntegrationTest.java` or test harness config)
+- A safe patch version or image tag bump exists and is obvious
+
+**Allowed self-remediation examples:**
+- Bump `org.testcontainers:*` test dependency to a safe patch/minor version
+- Bump `postgres`, `rabbitmq`, `kafka`, `redis`, `localstack`, or equivalent image tag used only by backend integration tests
+- Update integration-test-only container configuration
+- Fix test harness container startup configuration
+
+**Security Agent is required only when the finding is production-impacting, supply-chain-impacting, ambiguous, unresolved, or requires security risk judgment.**
+
+**Infrastructure Agent is required only when production Dockerfiles, deployment images, production runtime images, CI/CD infrastructure, or production artifact generation are affected.**
+
+### Self-Remediation Evidence Report
+
+After self-remediating, this agent must report to Team Lead. Include in the execution report:
+
+```md
+## Testcontainers Hygiene Report
+
+Files changed:
+- ...
+
+Dependency/image before and after:
+- Before: <name>@<old-version-or-tag>
+- After: <name>@<new-version-or-tag>
+
+Detection source:
+- <how the advisory/CVE was identified: basic security check / dependency-tree output / known advisory>
+
+Production-Impacting Scope: test-only
+
+Validation evidence:
+- ./mvnw test -Dtest="*IntegrationTest" — PASS / FAIL
+
+Escalation considered:
+- Security Agent: not required — <reason, e.g., test-only scope, safe tag bump, no supply-chain concern>
+- Infrastructure Agent: not required — <reason, e.g., image not in production Dockerfile or deployment config>
+- Architecture: not required — <reason>
+
+Remaining risks/blockers:
+- <none, or describe>
+```
+
+### Escalation Triggers
+
+This agent **must escalate to Team Lead before or during remediation** when any of the following is true:
+
+- CI/CD artifact generation is affected
+- Released artifact integrity is affected
+- Generated production code is affected
+- Production packaging is affected
+- Deployment image is affected
+- Production/runtime image is affected
+- Supply-chain concern exists (suspicious registry, unknown source, install scripts with external execution)
+- Security closure is required
+- Comprehensive production Security report is required
+- No-compatible-safe-path decision is required
+- Risk acceptance is required
+- Dependency replacement, override, exclusion, or major upgrade has uncertain impact
+- Architecture, runtime boundary, or validation strategy is affected
+- Product or acceptance behavior is affected
+- Ownership is ambiguous (image also appears in production Dockerfile or CI pipeline)
+- Safe remediation is not obvious or not available
+
+Do not route test-only Testcontainers hygiene fixes to `infrastructure-agent` by default. Route to `infrastructure-agent` only when production Dockerfile, deployment image, CI/CD infrastructure, or production runtime image ownership is involved.
+
 ## Test File Naming
 
 ```
