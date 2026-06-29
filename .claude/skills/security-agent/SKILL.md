@@ -139,6 +139,8 @@ When this agent identifies a CVE or vulnerable dependency during any review pass
 
 **This agent does not implement the dependency update.** It reports findings and recommendations. Team Lead owns routing.
 
+When recommending a remediation type, prefer the smallest safe remediation path: `patch` first, `minor` second, `major` only when no safe patch or minor version fully resolves the CVE. If no compatible safe version exists at any level, set `No compatible safe version: true` with a brief explanation.
+
 The CVE finding block must include:
 
 | Field | Required |
