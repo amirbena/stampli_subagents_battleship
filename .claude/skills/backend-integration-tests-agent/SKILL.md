@@ -149,10 +149,22 @@ This agent **may detect and self-remediate** ordinary test-only Testcontainers/d
 - A safe patch version or image tag bump exists and is obvious
 
 **Allowed self-remediation examples:**
+
+Testcontainers-family:
 - Bump `org.testcontainers:*` test dependency to a safe patch/minor version
 - Bump `postgres`, `rabbitmq`, `kafka`, `redis`, `localstack`, or equivalent image tag used only by backend integration tests
 - Update integration-test-only container configuration
 - Fix test harness container startup configuration
+
+Other `scope=test` backend integration test dependencies (same preconditions apply):
+- Bump `wiremock` / `com.github.tomakehurst:wiremock-*` to a safe patch/minor version
+- Bump `io.rest-assured:rest-assured` or related REST Assured modules to a safe patch/minor version
+- Bump JUnit extensions (`org.junit.jupiter:*`, `org.junit.platform:*`) to a safe patch/minor version
+- Bump Mockito extensions (`org.mockito:*`) to a safe patch/minor version
+- Bump Spring test libraries (`org.springframework:spring-test`, `org.springframework.boot:spring-boot-test*`) to a safe patch/minor version
+- Bump other `scope=test` backend integration test dependencies to a safe patch/minor version when no production artifact, CI artifact, supply-chain, or risk-acceptance concern exists
+
+All examples above are limited to test-only, non-production-impacting hygiene. The same preconditions from §Test-Only Hygiene/CVE Self-Remediation apply: safe patch/minor version must exist and be obvious, no production artifact impact, no CI artifact integrity impact, no supply-chain concern requiring Security, no risk acceptance required, no Architecture or Product decision required, and ownership must be unambiguous.
 
 **Security Agent is required only when the finding is production-impacting, supply-chain-impacting, ambiguous, unresolved, or requires security risk judgment.**
 

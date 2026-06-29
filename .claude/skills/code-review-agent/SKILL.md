@@ -244,7 +244,22 @@ OK | Blocked — <one-line reason>
 Yes — <why, referencing E2E Decision Rule> | No — <why not>
 
 ## Required Validation Layer
-<what validation is needed before final Code Review: unit-tests / integration-tests / targeted-smoke / none>
+<one of: unit-tests | integration-tests | backend-contract-tests | frontend-tests | build | targeted-smoke | security-validation | none>
+
+Allowed values:
+- `unit-tests` — run `./mvnw test` (backend) or `npm run test` (frontend)
+- `integration-tests` — run `./mvnw test -Dtest="*IntegrationTest"`
+- `backend-contract-tests` — run backend controller / @WebMvcTest layer tests
+- `frontend-tests` — run `npm run test` + `npm run build`
+- `build` — run build only (no test suite change warranted)
+- `targeted-smoke` — run `smoke.spec.ts` (frontend-only change, no contract change)
+- `security-validation` — targeted Security Agent closure or re-verification
+- `none` — no additional validation is required; **reason must be stated inline**
+
+Notes:
+- `none` is only valid when the reviewer documents why no further validation is needed.
+- This field does not trigger E2E. E2E is governed exclusively by `E2E Required` and the E2E Decision Rule.
+- Multiple values may be listed when more than one validation layer is required.
 
 ## Owner Ambiguous
 Yes — <which agents may be affected, and why unclear> | No
