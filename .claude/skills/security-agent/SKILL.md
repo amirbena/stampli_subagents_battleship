@@ -131,6 +131,36 @@ If findings are present, return them to Team Lead with owner routing. Team Lead 
 
 If Team Lead indicated Security review should reuse an already-running review pass (dependency change falls within existing scope), incorporate the dependency check into that pass rather than producing a separate report.
 
+**`devDependencies` and `scope=test` dependencies** do not automatically require security review when they have no runtime exposure and do not affect auth, secrets, networking, persistence, serialization, file handling, code execution, build output, or deployment behavior. Security may still be triggered if the dependency is unknown or suspicious, executes install scripts, affects build output, is flagged by audit tooling, or otherwise presents supply-chain risk.
+
+## CVE Remediation Findings
+
+When this agent identifies a CVE or vulnerable dependency during any review pass, it must include a remediation recommendation in `security-report.md` alongside the standard finding block.
+
+**This agent does not implement the dependency update.** It reports findings and recommendations. Team Lead owns routing.
+
+The CVE finding block must include:
+
+| Field | Required |
+|---|---|
+| CVE ID | Yes (if available; otherwise: audit finding reference) |
+| Affected package | Yes |
+| Current vulnerable version | Yes |
+| Fixed version or safe version range | Yes |
+| Direct or transitive dependency | Yes |
+| Severity / CVSS score | Yes (if available) |
+| Remediation type | Yes — `patch` / `minor` / `major` / `override` / `exclusion` / `dependencyManagement` |
+| Breaking-change risk | Yes — `none` / `low` / `high` / `unknown` |
+| Supply-chain concerns | Yes — confirm patch is from original maintainer; flag if unsigned or from unknown fork |
+| Recommended implementation owner | Yes (e.g. `java-backend-agent`, `frontend-api-agent`) |
+| Verification command after fix | Yes (e.g. `npm audit`, `./mvnw dependency:check`) |
+| No compatible safe version | Yes — `false` / `true: <explanation>` |
+
+After the implementing agent applies the fix, Team Lead re-routes to this agent for CVE closure verification. This agent must confirm:
+- The fixed version is applied
+- The vulnerability no longer appears in audit output
+- No new vulnerabilities were introduced by the remediation
+
 ## Delta Mode
 
 When Team Lead invokes this agent with `Review Mode: delta`, review only the files listed in `Delta Changed Files` (the diff between `Delta Base SHA` and HEAD) for security-sensitive changes. For any change touching identity, session, auth, hidden-data boundary, or input sanitization — always run a targeted re-review even if the change is labeled Small.

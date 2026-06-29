@@ -164,6 +164,26 @@ When Team Lead invokes this agent with `Review Mode: delta`, review only the fil
 
 Delta mode is used for post-fix re-reviews after a Small or Medium fix was routed by Team Lead. Load `.claude/metadata/review/review-validity-schema.md` for review mode definitions and severity routing.
 
+### CVE Remediation Delta Review
+
+When Team Lead routes a CVE remediation for Code Review, the default mode is **delta review** covering only the remediation diff.
+
+Delta review for CVE remediation verifies:
+- [ ] The patch is limited to the intended remediation (no scope expansion beyond the vulnerable dependency and direct callers)
+- [ ] Manifest (`package.json` / `pom.xml`) and lockfile changes are consistent and match the stated fix
+- [ ] `## Dependency Report` block is present and includes CVE fields (CVE ID, current vulnerable version, fixed version/range, direct/transitive, severity, remediation type)
+- [ ] Team Lead CVE routing is documented in the Dependency Report or agent execution report
+- [ ] Original validation mode is preserved (no quality gates were downgraded or replaced)
+- [ ] Dependency validation command was run and result is recorded
+- [ ] Security verification (CVE closure pass) has passed or is pending with explicit Team Lead note
+
+Escalate to **full review** when any of the following is true:
+- Remediation is a major version upgrade (`X.y.z` → `(X+1).y.z`) and the library has public-facing contracts or runtime behavior
+- Build output, deployment configuration, or CI/CD was changed
+- The scope of changes in the diff extends beyond the dependency and its direct callers
+- New public contracts, endpoints, or serialization formats were introduced
+- `security-agent` flagged breaking-change risk as `high`
+
 ## Outputs
 
 Create the `reports/runs/<workflow-run-id>/` directory if it does not exist before writing any file.

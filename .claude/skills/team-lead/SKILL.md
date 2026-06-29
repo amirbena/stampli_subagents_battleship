@@ -846,6 +846,25 @@ When `security-agent` returns `REQUIRES_CHANGES`:
 
 If multiple fix agents are routed in parallel, all must return and all relevant fixes must be validated before `security-agent` is re-spawned. Do not ask the user to manually resume between the owner fix and the security re-run — this is a foreground loop that returns inline to Team Lead.
 
+### CVE Remediation Routing
+
+When `security-agent` includes a CVE finding in its report:
+
+1. **Read the CVE finding block** — extract: affected package, current version, fixed version/range, remediation type, breaking-change risk, recommended implementation owner.
+2. **Preserve the current validation mode.** The validation mode selected in the original Team Lead work plan (`cheap` / `normal` / `full` / `E2E`) is plan-owned and must not be replaced or downgraded by the dependency update. The implementing agent may add targeted dependency validation steps (e.g. `npm audit`, `./mvnw dependency:resolve`), but these are additive — they do not substitute for the original quality gates.
+3. **Route the fix** to the recommended implementation owner (e.g. `java-backend-agent`, `frontend-api-agent`). Pass: CVE ID, affected package, fixed version or range, remediation type, verification command.
+4. Require the implementing agent to emit a `## Dependency Report` block including the optional CVE fields (CVE ID, current vulnerable version, fixed version, direct/transitive, severity/CVSS, remediation type, verification result).
+5. After the implementing agent reports done:
+   a. Confirm the Dependency Report block is present and includes CVE fields.
+   b. Run the SHA Validity Gate (Step 14).
+   c. Re-spawn `security-agent` for CVE closure verification (delta mode targeting the remediation diff unless the remediation also requires a full re-review).
+6. After `security-agent` returns `APPROVED` on CVE closure:
+   a. Route to `code-review-agent` for delta review of the remediation diff.
+   b. Architecture is only required if the remediation is a major version upgrade or changes runtime contracts/behavior. Product is only required if the fix has a user-facing behavior impact.
+7. Update the Finding Registry.
+
+**Validation mode is plan-owned, not dependency-owned.** A CVE remediation must not silently downgrade the original run's validation mode.
+
 ### Playwright/E2E Re-trigger Continuation
 
 When `playwright-e2e-agent` reports a failure:

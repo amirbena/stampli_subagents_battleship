@@ -104,7 +104,13 @@ Security review is required for **production-scoped** dependencies touching any 
 | External integrations | Payment SDKs, email clients, analytics |
 | Data handling | Encryption libs, hashing libs, PII processing |
 
-`test`-scoped and `devDependencies`-only additions do not automatically require security review, but Team Lead may require it when the library behavior is non-obvious.
+`test`-scoped and `devDependencies`-only additions do **not** automatically require security review when they have no runtime exposure and do not affect auth, secrets, networking, persistence, serialization, file handling, code execution, build output, or deployment behavior. Security may still be triggered if the dependency is unknown or suspicious, executes install scripts, affects build output, is flagged by audit tooling, or otherwise presents supply-chain risk.
+
+## Validation Mode Preservation
+
+**Validation mode is plan-owned, not dependency-owned.** The validation mode selected in the Team Lead work plan (`cheap` / `normal` / `full` / `E2E`) reflects the risk profile of the planned change. A dependency update — including CVE remediation — must not downgrade or replace that mode.
+
+An implementing agent may add targeted dependency validation steps (e.g. `npm audit`, `./mvnw dependency:resolve`) as additive checks alongside the original gates. These do not substitute for the original quality gates.
 
 ---
 
