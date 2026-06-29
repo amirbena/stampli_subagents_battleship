@@ -337,6 +337,50 @@ npm run dev
 - If a command cannot be verified locally, state that clearly in the verification block.
 - `package-lock.json` is local-only. Running `npm install` during verification may modify it locally — this is expected. Do not stage `package-lock.json`. Mention it in the Evidence section as local ignored output only.
 
+## Docker/Image CVE Remediation
+
+When Team Lead routes a Docker base image or OS-level package CVE remediation to this agent:
+
+### What to implement
+
+- Update the `FROM` line in affected Dockerfiles to the patched image tag (same image family, patch/minor update only unless Architecture has approved a family change)
+- Update OS-level package version pins if the Dockerfile explicitly installs the vulnerable package
+- Do not add new base images, new image families, or new OS packages without Team Lead + Architecture approval
+
+### Required implementation evidence
+
+Emit a `## Dependency Report` block that includes:
+- Dockerfile(s) changed
+- Previous `FROM` value and new `FROM` value
+- CVE ID being addressed
+- CVE production-impacting scope (must be `production-runtime` or `ci-artifact` for image CVEs affecting deployed containers)
+- Remediation type (patch/minor for same-family tag update)
+- Image scan evidence command and result (see below)
+
+### Image scan evidence
+
+After updating the Dockerfile:
+1. Run `docker build -t <image-name>:cve-check .` to confirm the image builds with the updated base
+2. Run `docker run --rm <image-name>:cve-check <startup-health-check-command>` or equivalent startup/health validation confirming the container starts normally
+3. If a container image scan tool is available (e.g., `trivy`, `grype`, `docker scout`), run it and include the output — but do not require it if not already configured in the project
+4. Record all outputs in the `## Dependency Report` block
+
+If the image build fails, report the failure to Team Lead immediately — do not attempt to change base image family, install missing packages, or restructure the Dockerfile without Architecture guidance.
+
+### Startup/health validation gate
+
+Before reporting done:
+- Confirm the container image builds cleanly
+- Confirm `docker compose up` or equivalent startup passes
+- Confirm the health check (if defined in docker-compose.yml) reaches a healthy state, or confirm startup log output indicates the service is up
+
+### Architecture escalation
+
+Trigger Architecture before proceeding if any is true:
+- The patch/minor tag is not available and a major version upgrade or family change is required
+- The base image change adds or removes a runtime component (JRE, glibc, libc variant) that affects the JVM runtime or startup topology
+- The health check, network topology, or port configuration must change to support the new base image
+
 ## Demo Config Policy
 
 Load `.claude/policies/demo-config-policy.md` for the full classification table and rules. Do not add real secrets to any file. `.env.example` is for documentation and placeholders only.

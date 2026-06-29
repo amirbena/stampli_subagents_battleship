@@ -106,6 +106,43 @@ Security review is required for **production-scoped** dependencies touching any 
 
 `test`-scoped and `devDependencies`-only additions do **not** automatically require security review when they have no runtime exposure and do not affect auth, secrets, networking, persistence, serialization, file handling, code execution, build output, or deployment behavior. Security may still be triggered if the dependency is unknown or suspicious, executes install scripts, affects build output, is flagged by audit tooling, or otherwise presents supply-chain risk.
 
+## CVE Remediation Carve-Out
+
+When Security Agent has identified a CVE and reported a recommended remediation path, implementation agents may apply **minimal safe CVE remediations without pre-patch Security review**, provided all of the following are true:
+
+- Security Agent (or a dependency audit tool/advisory) has already identified the CVE and the fix path
+- The remediation type is `patch` or `minor` (no major version upgrade, no override/exclusion/replacement)
+- The affected package is an **existing dependency in the same package family** (see same-package-family definition in `.claude/skills/team-lead/policies/cve-remediation-routing-policy.md`)
+- The change is a manifest/lockfile/base-image update with no risky strategy change (no new transitive pull-in of suspicious packages, no new install scripts)
+- The implementing agent emits a complete `## Dependency Report` block including all CVE fields
+- Security closure still happens after the remediation is applied
+
+**The CVE remediation carve-out takes precedence over the generic production-scoped dependency Security-review trigger** only for straightforward patch/minor remediation on an existing dependency family. The full Security review trigger continues to apply to: new dependency additions, dependency replacement, override/exclusion strategies, parent-major upgrades, high/unknown security risk, security-sensitive behavior changes, suspicious supply-chain behavior, new install/build scripts, no-compatible-safe-version paths.
+
+### What implementation agents may do under the carve-out
+
+- Apply safe patch/minor version bumps to existing packages in the same family
+- Update manifest (`package.json` / `pom.xml`) and lockfile
+- Update Dockerfile base image or container config when infrastructure-owned (same image family, patch/minor tag update)
+- Run basic audit/dependency verification (`npm audit`, `./mvnw dependency:resolve`, `./mvnw dependency:tree`)
+- Record: CVE ID, affected package, previous version, fixed version/range, direct/transitive status, production-impacting scope, remediation type, and breaking-change risk if known
+- Run relevant build/unit/integration/startup checks appropriate to their layer
+- Report blockers, unsafe version gaps, or uncertainty to Team Lead
+
+### What implementation agents must not do
+
+Implementation agents must never own:
+- Security risk acceptance (deciding an unresolved CVE is acceptable to ship)
+- Deciding that no compatible safe version exists without escalating to Team Lead + Security
+- Approving override/exclusion/replacement safety
+- Approving auth/crypto/session/deserialization security behavior changes
+- Supply-chain risk acceptance
+- Final CVE closure verification
+
+These decisions belong to Team Lead + Security Agent.
+
+---
+
 ## Validation Mode Preservation
 
 **Validation mode is plan-owned, not dependency-owned.** The validation mode selected in the Team Lead work plan (`cheap` / `normal` / `full` / `E2E`) reflects the risk profile of the planned change. A dependency update — including CVE remediation — must not downgrade or replace that mode.

@@ -982,32 +982,114 @@ If multiple fix agents are routed in parallel, all must return and all relevant 
 
 ### CVE Remediation Routing
 
+Load `.claude/skills/team-lead/policies/cve-remediation-routing-policy.md` when any CVE remediation routing decision is needed. This policy defines: CVE-to-agent routing table, same-package-family definition, production-impacting scope classification, multi-CVE coordination, no-compatible-safe-path handling, minimal-contract review triggers, and Product/Architecture sequencing.
+
 When `security-agent` includes a CVE finding in its report:
 
-1. **Read the CVE finding block** — extract: affected package, current version, fixed version/range, remediation type, breaking-change risk, recommended implementation owner, and `No compatible safe version` status.
+**Step CVE-1. Read and classify the CVE finding block.**
 
-   **If `No compatible safe version: true`:** Do not route to an implementation agent. Write `reports/runs/<workflow-run-id>/workflow-blocker.md` including: CVE ID, affected package, Security Agent explanation of why no compatible safe version exists, and the required human decision (evaluate library replacement, apply a compensating control, formally accept risk with documented rationale, or defer until upstream releases a safe version). Add a Critical finding to the Finding Registry (`Blocks PR: Yes`). Stop the workflow — do not proceed to release until one of the following is true: a safe version becomes available and CVE routing restarts, the dependency is replaced with a safe alternative, a compensating control is approved and documented, or risk is formally accepted and documented.
+Extract: CVE ID, affected package, current version, fixed version/range, production-impacting scope, remediation type, breaking-change risk, recommended implementation owner, and `No compatible safe version` / `No compatible safe path` status.
 
-2. **Preserve the current validation mode.** The validation mode selected in the original Team Lead work plan (`cheap` / `normal` / `full` / `E2E`) is plan-owned and must not be replaced or downgraded by the dependency update. This includes E2E mode: if Full E2E was required before the CVE remediation, Full E2E remains required after the remediation. The implementing agent may add targeted dependency validation steps (e.g. `npm audit`, `./mvnw dependency:resolve`), but these are additive — they do not substitute for the original quality gates.
-3. **Route the fix** to the recommended implementation owner (e.g. `java-backend-agent`, `frontend-api-agent`). Pass: CVE ID, affected package, fixed version or range, remediation type, verification command.
-4. Require the implementing agent to emit a `## Dependency Report` block including the optional CVE fields (CVE ID, current vulnerable version, fixed version, direct/transitive, severity/CVSS, remediation type, verification result).
-5. After the implementing agent reports done:
-   a. Confirm the Dependency Report block is present and includes CVE fields.
-   b. Run the SHA Validity Gate (Step 14).
-   c. Re-spawn `security-agent` for CVE closure verification (delta mode targeting the remediation diff unless the remediation also requires a full re-review).
-6. After `security-agent` returns `APPROVED` on CVE closure:
-   a. Route to `code-review-agent` for delta review of the remediation diff.
-   b. Architecture is only required if the remediation is a major version upgrade or changes runtime contracts/behavior. Product is only required if the fix has a user-facing behavior impact.
-7. Update the Finding Registry.
+**If `No compatible safe version: true` or remediation type = `no-compatible-safe-path`:**
+Route jointly to Security Agent + Architecture Agent for guidance before any implementation. Do not route to an implementation agent. If no safe path is determined within the current run, write `reports/runs/<workflow-run-id>/workflow-blocker.md` including: CVE ID, affected package, Security explanation, required human decision options (library replacement / compensating control / formal risk acceptance / defer). Add Critical finding (`Blocks PR: Yes`) to the Finding Registry. Stop — do not proceed to release.
+
+**Step CVE-2. Classify production-impacting scope.**
+
+- `production-runtime` or `ci-artifact` → route per routing table; may block production release
+- `build-only`, `test-only`, `dev-only` → hygiene remediation; document but do not automatically block release unless Security reports supply-chain or artifact integrity concern
+
+**Step CVE-3. Route to the correct implementation agent.**
+
+Load the CVE-to-Implementation-Agent Routing Table from cve-remediation-routing-policy.md Section 1. Route based on where the affected dependency is consumed, not by the symptom.
+
+For multi-CVE runs: apply cve-remediation-routing-policy.md Section 4. Run in parallel only when scopes are independent. Run sequentially when manifests, runtime boundaries, or contracts overlap.
+
+**Step CVE-4. Preserve the current validation mode.**
+
+The validation mode selected in the original work plan (`cheap` / `normal` / `full` / `E2E`) is plan-owned and must not be replaced or downgraded by the dependency update. The implementing agent may add targeted dependency validation steps (e.g. `npm audit`, `./mvnw dependency:resolve`) but these are additive — they do not substitute for the original quality gates.
+
+**Exception:** If the CVE or dependency remediation introduces or reveals contract-breaking evidence (breaking-change risk = `high`, changed runtime behavior, serialization, HTTP behavior, auth behavior), the Contract-Breaking Evidence Escalation rule overrides the preservation intent. Escalate validation mode accordingly.
+
+**Step CVE-5. Determine whether to run minimal-contract review before E2E.**
+
+Check triggers from cve-remediation-routing-policy.md Section 6. Minimal-contract review is required when any is true:
+- Remediation touched a runtime dependency with unknown or high breaking-change risk
+- Remediation touched a serialization, auth, HTTP client, persistence, API client, or deployment dependency
+- Remediation is expanded scope (see transitive-cve-remediation-policy.md)
+- Architecture was required or contract impact is unclear
+- Security reports `Breaking-Change Risk: high` or `unknown`
+
+May skip when all are true: patch/minor remediation, risk = none/low, no contract-sensitive library, E2E not required.
+
+If minimal-contract review is required:
+- Spawn `code-review-agent` with `Review Mode: minimal-contract`
+- Pass the list of changed files and the `## Dependency Report` block
+- The report writes to `reports/runs/<workflow-run-id>/code-review-minimal-contract.md`, NOT `code-review-report.md`
+- Store the `Generated From Commit` SHA from this report in `team-lead-plan.md` as `Minimal Contract Review SHA`
+
+**Step CVE-6. Evaluate minimal-contract review result.**
+
+Read `code-review-minimal-contract.md`:
+
+- **`Contract Integrity: OK`**: proceed to Step CVE-7 (next required gate per `Required Validation Layer`)
+- **`Contract Integrity: Blocked`**: stop forward progress regardless of `E2E Required`. Route the blocking finding to the correct owner (see Step CVE-8 delta loop below).
+
+Do NOT proceed to E2E automatically because minimal-contract review passed. Read `E2E Required: Yes/No` from the minimal-contract report and apply the E2E Decision Rule independently.
+
+Read impact dimensions:
+- `Architecture Impact: High` → trigger Architecture Agent before proceeding (counts against 3-reopen limit)
+- `Product Impact: High` → trigger Product Agent after Architecture guidance if both are High; or directly if Architecture not required (counts against 3-reopen limit)
+- `Security Impact: High` → note for Security closure mode (will require Deeper closure, not Lightweight)
+- `Owner Ambiguous: Yes` → consult `Suggested Owner` field; do not route to both owners simultaneously without explicit Team Lead decision
+- `Dependency Scope Drift: Yes` → classify as expanded scope and apply transitive CVE expanded-scope rules
+
+When both Architecture Impact: High and Product Impact: High:
+1. Architecture runs first (technical contract/boundary resolution)
+2. Product runs after Architecture guidance
+3. Conflict between Architecture and Product guidance → write `workflow-blocker.md`, stop
+
+**Step CVE-7. E2E guard — do not trigger E2E automatically.**
+
+E2E is governed by the E2E Decision Rule (see CLAUDE.md and E2E Decision Rule section). Minimal-contract review passing does NOT trigger E2E. Final Code Review passing does NOT trigger E2E. Read the `E2E Required` field from `code-review-minimal-contract.md` for classification guidance — but apply the E2E Decision Rule to make the final determination. Document the E2E decision (Required/Not Required + reason) in `team-lead-plan.md`.
+
+**Step CVE-8. Delta review loop (after minimal-contract blocking finding is fixed).**
+
+When `Contract Integrity: Blocked` and the fix has been applied by the implementation agent:
+
+1. Run the SHA Validity Gate (Step 14).
+2. Spawn `code-review-agent` with `Review Mode: delta`, setting `Delta Base SHA` = `Minimal Contract Review SHA` (or, for subsequent loops, the prior delta review's `Generated From Commit`).
+3. Record the new `Generated From Commit` in `team-lead-plan.md` as the new `Delta Base SHA` for the next iteration.
+4. Read the delta review result:
+   - `APPROVED`: proceed to next gate
+   - `REQUIRES CHANGES`: increment delta loop counter; route finding per Post-Review Fix Severity Routing
+5. Delta loop limit: **maximum 3 delta review cycles** per CVE remediation run.
+   - After 3 cycles without APPROVED: write `workflow-blocker.md` identifying the persistent blocker. Stop the workflow. Do not open a PR.
+   - This limit is separate from and does not affect the max QA cycles counter.
+
+**Step CVE-9. Security CVE closure verification.**
+
+After the implementation agent reports done and the delta review loop resolves (or minimal-contract review was skipped):
+1. Run SHA Validity Gate (Step 14).
+2. Re-spawn `security-agent` for CVE closure verification (delta mode targeting the remediation diff unless full re-review is required).
+3. Pass the `Production-Impacting Scope` and `Breaking-Change Risk` to Security Agent so it selects the correct closure mode (Lightweight vs Deeper).
+4. Read the security closure result:
+   - `CVE Closure: resolved` → advance to next gate
+   - `CVE Closure: unresolved` → route back to implementing agent for correction. This is re-verification attempt 1.
+   - If unresolved again after correction → re-verification attempt 2.
+   - If still unresolved after 2 re-verification attempts → write `workflow-blocker.md`. Stop.
+
+For multi-CVE runs: Security closure must verify every CVE in the run. Release evidence must list every CVE remediated and the closure status for each.
+
+**Step CVE-10. Final Code Review and release gates.**
+
+After Security closure is APPROVED:
+- Route to `code-review-agent` for final delta or full review (per remediation scope) — this is `Review Mode` = `delta` or `full` with `Review Purpose: final`
+- The final Code Review writes to `code-review-report.md` with `Review Purpose: final`
+- Architecture is only required if remediation is a major version upgrade or changes runtime contracts/behavior (if not already triggered in CVE-6)
+- Product is only required if the fix has a user-facing behavior impact (if not already triggered in CVE-6)
+- Proceed to the release gates in normal order
 
 **Validation mode is plan-owned, not dependency-owned.** A CVE remediation must not silently downgrade the original run's validation mode.
-
-**Exception — CVE remediation that introduces contract-breaking evidence:** The preservation rule prevents silent downgrade. However, if a CVE or dependency remediation introduces or reveals contract-breaking evidence — such as breaking-change risk = `high`, changed runtime behavior, changed serialization, changed HTTP behavior, or changed auth behavior — the Contract-Breaking Evidence Escalation rule above overrides the preservation intent. In that case:
-- Team Lead must escalate validation mode according to the broken contract type (see Contract-Breaking Evidence Escalation table above)
-- Architecture may be re-triggered if the change affects contracts, boundaries, or cross-cutting libraries
-- Product may be re-triggered if user-facing behavior changed
-- "Preserve" means do not silently downgrade; it does not mean ignore evidence of contract change
-- Applies when Security Agent reports breaking-change risk = `high`, or when the implementing agent or Code Review reports a contract change after applying the CVE or dependency fix
 
 **Transitive CVE routing — apply when `Direct or transitive = transitive` in the Security Agent report:**
 
@@ -1023,7 +1105,7 @@ If Direct or transitive = transitive:
      OR direct-resolution-override of a cross-cutting runtime library:
      → Trigger Architecture Agent before routing to the implementing agent.
   5. If no-compatible-safe-path = true:
-     → Use the existing No compatible safe version: true hard-stop path above.
+     → Use the No compatible safe version: true hard-stop path in Step CVE-1.
      Do not route to an implementing agent.
   6. Route to the owning implementation agent with the confirmed strategy name.
      Do not encode package-manager syntax — pass the ecosystem-neutral strategy name only.

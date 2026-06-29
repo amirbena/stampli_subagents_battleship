@@ -12,11 +12,23 @@ Generated From Branch: <branch-name>
 Generated From Commit: <full 40-character SHA — output of `git rev-parse HEAD` at time of review>
 Generated At: <ISO-8601 timestamp>
 Review Mode: full | delta
+Review Purpose: minimal-contract | delta | final
 Delta Base SHA: <SHA of the commit that was previously reviewed — omit for Review Mode: full>
 Delta Changed Files:
   - <file path 1 — only when Review Mode: delta>
   - <file path 2>
 ```
+
+**`Review Purpose` field:**
+- `minimal-contract` — early classification gate for CVE remediation; written to `code-review-minimal-contract.md`, NOT `code-review-report.md`. Does NOT satisfy the final Code Review release gate.
+- `delta` — post-fix re-review after a Small or Medium fix; written to `code-review-report.md`. Does NOT satisfy the final Code Review release gate unless Team Lead determines no additional changes were made.
+- `final` — final Code Review after all validation evidence exists; written to `code-review-report.md`. Required for release. `Release PR Agent` must reject any `code-review-report.md` that lacks `Review Purpose: final`.
+
+**SHA tracking for delta review loops (CVE remediation):**
+- When a minimal-contract review is run first, store its `Generated From Commit` SHA separately in `team-lead-plan.md` as `Minimal Contract Review SHA`.
+- When the delta review loop begins (after a minimal-contract blocking finding is fixed), the `Delta Base SHA` for the first delta review is the `Minimal Contract Review SHA`, not the branch diverge point.
+- Each subsequent delta review in the loop uses the prior delta review's `Generated From Commit` as the new `Delta Base SHA`.
+- Team Lead must record all SHA transitions in `team-lead-plan.md`.
 
 ## Required Metadata: Security Report Header
 
@@ -40,6 +52,13 @@ Delta Changed Files:
 |------|-------------|----------------|
 | `full` | First review in a run, broad/architectural/cross-cutting change, or Large fix after a `REQUIRES CHANGES` verdict | All files changed since the branch diverged from `main` |
 | `delta` | Post-fix re-review after a Small or Medium targeted fix was routed by Team Lead | Only the files that changed between `Delta Base SHA` and `HEAD` |
+| `minimal-contract` | Optional early classification gate for CVE remediation; invoked by Team Lead before expensive E2E when contract risk is unknown or high | Only dependency manifest/lockfile changes, immediate callers, and contract-sensitive surfaces |
+
+**`minimal-contract` mode rules:**
+- Always writes to `code-review-minimal-contract.md`, never to `code-review-report.md`
+- Reports `Review Purpose: minimal-contract`
+- A `PASS` verdict opens the path to the next required gate — it does NOT satisfy the final Code Review gate
+- A `BLOCKING` verdict stops forward progress regardless of whether E2E is required
 
 ## Team Lead: SHA Validity Gate (Step 14)
 

@@ -151,7 +151,8 @@ The CVE finding block must include:
 | Fixed version or safe version range | Yes |
 | Direct or transitive dependency | Yes |
 | Severity / CVSS score | Yes (if available) |
-| Remediation type | Yes — `patch` / `minor` / `major` / `override` / `exclusion` / `dependencyManagement` |
+| Production-Impacting Scope | Yes — `production-runtime` / `build-only` / `test-only` / `dev-only` / `ci-artifact` |
+| Remediation type | Yes — `patch` / `minor` / `major` / `direct-resolution-override` / `exclusion-plus-replacement` / `dependency-replacement` / `delete-dependency` / `no-compatible-safe-path` |
 | Breaking-change risk | Yes — `none` / `low` / `high` / `unknown` |
 | Supply-chain concerns | Yes — confirm patch is from original maintainer; flag if unsigned or from unknown fork |
 | Recommended implementation owner | Yes (e.g. `java-backend-agent`, `frontend-api-agent`) |
@@ -173,6 +174,55 @@ The CVE finding block must include:
 | No compatible safe path | `true` / `false` |
 
 For transitive CVEs, apply the strategy preference order from `.claude/policies/transitive-cve-remediation-policy.md`. Distinguish production-impacting CVEs from dev/test/build-only findings; dev/test/build-only findings are risk-classified, not automatic production blockers, unless they affect build output, packaging, generated artifacts, CI/CD, deployment, or supply-chain integrity.
+
+## Security Closure Modes
+
+After the implementing agent applies the fix, Team Lead re-routes to this agent for CVE closure verification. The closure mode depends on remediation risk.
+
+### Lightweight Closure
+
+Use when all of the following are true:
+- Remediation type is `patch` or `minor`
+- Breaking-change risk is `none` or `low`
+- No auth/crypto/session/serialization behavior change
+- No supply-chain concern
+- No new dependency introduced
+
+Lightweight closure confirms:
+1. The fixed version appears in the manifest and/or lockfile
+2. The CVE no longer appears in audit output (`npm audit` / `./mvnw dependency:tree` / image scan output as appropriate)
+3. No new vulnerabilities were introduced by the remediation
+4. For Docker/image CVEs: image scan evidence output showing the base image or OS package is at the patched version; `docker compose up` or startup health check passes
+
+Report as: `CVE Closure: Lightweight — resolved` or `CVE Closure: Lightweight — unresolved: <reason>`.
+
+### Deeper Closure
+
+Required when any of the following is true:
+- Breaking-change risk is `high` or `unknown`
+- Remediation type is `major`, `direct-resolution-override`, `exclusion-plus-replacement`, or `dependency-replacement`
+- Auth/crypto/session/deserialization library is affected
+- Supply-chain concern was flagged
+- New dependency or dependency family was introduced
+- Architecture was invoked or contract impact was flagged
+
+Deeper closure additionally confirms:
+1. Runtime behavior of the affected security surface is still correct (auth, session, deserialization, networking, persistence)
+2. No regression in auth/crypto/serialization behavior based on reading relevant tests and inspecting changed code paths
+3. Contract-level assertions are consistent with pre-remediation behavior (read architecture.md contract for reference)
+4. Supply-chain sanity check: package from official registry, maintainer aligns, no new install scripts, no hash discrepancies
+5. Explicitly state which of the above were checked
+
+Report as: `CVE Closure: Deeper — resolved` or `CVE Closure: Deeper — unresolved: <reason>`.
+
+### Closure Failure Recovery
+
+If closure verification fails (CVE still present, new vulnerability introduced, or supply-chain anomaly detected):
+1. Return `CVE Closure: unresolved — <reason>` to Team Lead. Do not self-route the fix.
+2. Team Lead re-routes to the implementing agent for correction (counts as one additional attempt).
+3. After correction, Team Lead re-routes to this agent for re-verification (counts as attempt 2).
+4. If verification fails again after 2 re-verification attempts: Team Lead writes `workflow-blocker.md` and stops the run. Do not proceed to release.
+5. This 2-attempt limit is separate from and in addition to the delta review loop limit.
 
 After the implementing agent applies the fix, Team Lead re-routes to this agent for CVE closure verification. This agent must confirm:
 - The fixed version is applied

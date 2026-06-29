@@ -30,6 +30,19 @@
 - <only include real risks, known gaps, or important reviewer notes>
 - If none: `No known blocking risks.`
 
+<!-- ## CVE Remediation Evidence
+Include this section ONLY when one or more CVE remediations were performed in this run.
+Omit entirely for runs with no CVE remediation.
+
+| CVE ID | Package | Scope | Remediation Type | Security Closure | E2E Required |
+|---|---|---|---|---|---|
+| CVE-XXXX-XXXXX | <package@version> | production-runtime | patch | resolved | No |
+
+Notes:
+- <any CVE that required no-compatible-safe-path handling, blocker disposition, or risk acceptance>
+- If all CVEs resolved: `All CVEs remediated and Security closure verified.`
+-->
+
 ## Files Changed
 - <main changed areas — not a full file-by-file dump unless the change is small>
 

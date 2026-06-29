@@ -203,6 +203,91 @@ Escalate to **full review** when any of the following is true:
 - [ ] Security closure (from the re-run Security Agent report) confirms the CVE is absent from the full dependency chain, not only from the direct dependency declaration
 - [ ] If strategy was expanded scope: confirm broader (full) review was used — delta review is not sufficient for expanded-scope remediations
 
+## Minimal-Contract Review Mode
+
+When Team Lead invokes this agent with `Review Mode: minimal-contract`, this is an **early classification gate**, not final Code Review. It determines whether the CVE remediation is safe to proceed to the next validation step.
+
+Write to `reports/runs/<workflow-run-id>/code-review-minimal-contract.md` — **never** to `code-review-report.md`. These are separate files with separate purposes.
+
+### Scope
+
+Inspect only:
+- The dependency manifest/lockfile changes (or Dockerfile changes for image CVEs)
+- The immediate callers/consumers of the changed dependency
+- Any type signatures, serialization shapes, HTTP headers, or auth contracts that the changed library participates in
+- The `## Dependency Report` block from the implementing agent
+
+Do not perform a full code review in this mode.
+
+### Required Output Fields
+
+```markdown
+# Code Review — Minimal Contract
+
+Workflow Run ID:
+Generated From Branch:
+Generated From Commit: <full 40-character SHA from `git rev-parse HEAD`>
+Generated At:
+Review Mode: minimal-contract
+Review Purpose: minimal-contract
+Delta Base SHA: <SHA of previous review if applicable — omit if first review>
+Delta Changed Files:
+  - <list changed files>
+
+## Verdict
+PASS | BLOCKING
+
+## Contract Integrity
+OK | Blocked — <one-line reason>
+
+## E2E Required
+Yes — <why, referencing E2E Decision Rule> | No — <why not>
+
+## Required Validation Layer
+<what validation is needed before final Code Review: unit-tests / integration-tests / targeted-smoke / none>
+
+## Owner Ambiguous
+Yes — <which agents may be affected, and why unclear> | No
+
+## Suggested Owner
+<agent name if ambiguous, otherwise "already routed correctly">
+
+## Dependency Scope Drift
+Yes — <description of scope expansion beyond the stated CVE> | No
+
+## Next Required Gate
+<explicit next step: e.g., "fix Contract Integrity blocker → re-run delta review" or "run unit tests → route to final Code Review">
+
+## Security Impact
+<None | Low | High> — <brief reason. High = auth/crypto/session/deserialization behavior changed or ambiguous.>
+
+## Product Impact
+<None | Low | High> — <brief reason. High = user-visible behavior changed or acceptance criteria may be affected.>
+
+## Architecture Impact
+<None | Low | High> — <brief reason. High = runtime boundary, contract shape, deployment topology, or ownership changed.>
+
+## Findings
+<Standard Finding CR-xxx format, only contract-relevant findings. Non-critical style/quality findings are out of scope for this mode.>
+```
+
+### Impact Thresholds
+
+**Security Impact: High** — auth/crypto/TLS/session/deserialization library changed behavior, supply-chain concern present, behavior of a security-enforcing component is ambiguous post-update.
+**Product Impact: High** — user-visible flow, error message, or API response shape changed in a way that may invalidate acceptance criteria.
+**Architecture Impact: High** — runtime boundary shape changed, contract/type changed at a service seam, deployment/startup topology changed, ownership assignment is ambiguous.
+
+For High on any dimension, Team Lead must invoke that dimension's agent before proceeding (Architecture first if both Architecture and Product are High — see `cve-remediation-routing-policy.md` Section 7).
+
+### Verdict Rules
+
+- `PASS` — Contract Integrity is OK, no blocking scope drift, no High impact dimension that would stop forward progress.
+- `BLOCKING` — Contract Integrity is Blocked, OR scope drift requires immediate stop, OR a Critical finding exists.
+
+A `PASS` here opens the path to the next required gate. It does NOT satisfy the final Code Review release gate.
+
+---
+
 ## Outputs
 
 Create the `reports/runs/<workflow-run-id>/` directory if it does not exist before writing any file.
@@ -217,6 +302,7 @@ Generated From Branch:
 Generated From Commit: <full 40-character SHA from `git rev-parse HEAD`>
 Generated At:
 Review Mode: full | delta
+Review Purpose: final
 Delta Base SHA: <SHA of previous review — omit for full mode>
 Delta Changed Files:
   - <only when Review Mode: delta>

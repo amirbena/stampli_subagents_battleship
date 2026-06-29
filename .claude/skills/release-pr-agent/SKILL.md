@@ -93,6 +93,7 @@ Before writing `release-summary.md` or creating the PR, read every artifact list
 | Test results | `reports/runs/<id>/test-results.md` | If it exists |
 | Infra non-modification check | `reports/runs/<id>/infra-non-modification-check.md` | If it exists |
 | Validation gap check | `reports/runs/<id>/validation-gap-check.md` | If it exists |
+| Minimal contract review | `reports/runs/<id>/code-review-minimal-contract.md` | If it exists (CVE remediation runs only — read for evidence summary, do NOT treat as final Code Review) |
 
 If any always-required artifact is missing or stale, stop and report to Team Lead before continuing.
 
@@ -100,8 +101,9 @@ If any always-required artifact is missing or stale, stop and report to Team Lea
 
 Read current run ID from `reports/current-run.json`. All gate reports must be read from `reports/runs/<workflow-run-id>/`:
 
-- [ ] `reports/runs/<workflow-run-id>/security-report.md` verdict: `APPROVED` (or only non-Critical findings with `Blocks PR: No`)
-- [ ] `reports/runs/<workflow-run-id>/code-review-report.md` verdict: `APPROVED` (or only non-Critical findings with `Blocks PR: No`)
+- [ ] `reports/runs/<workflow-run-id>/security-report.md` verdict: `APPROVED` (or only non-Critical findings with `Blocks PR: No`). Security closure is NOT release readiness on its own — all other gates must also pass.
+- [ ] `reports/runs/<workflow-run-id>/code-review-report.md` verdict: `APPROVED` AND `Review Purpose: final` (or only non-Critical findings with `Blocks PR: No`). **A report with `Review Purpose: minimal-contract` does NOT satisfy this gate.** If the code-review-report.md exists but `Review Purpose` is `minimal-contract` or `delta`, stop and report to Team Lead that final Code Review has not been completed.
+- [ ] If CVE remediation was performed in this run: verify that `team-lead-plan.md` includes a CVE Remediation Evidence block listing every CVE remediated and the Security closure status for each (`resolved` or `unresolved`). If any CVE closure status is `unresolved`, stop and report to Team Lead.
 - [ ] Backend unit tests: `./mvnw test` exits 0 (if backend was in scope)
 - [ ] Frontend build: `npm run build` exits 0 (if frontend was in scope)
 - [ ] Frontend unit tests: `npm run test` exits 0 (if frontend was in scope)

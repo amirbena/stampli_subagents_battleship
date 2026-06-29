@@ -59,6 +59,7 @@ These are Team Lead internal routing and classification policies:
 | File | Purpose |
 |---|---|
 | `background-agent-policy.md` | Governs `run_in_background` usage |
+| `cve-remediation-routing-policy.md` | CVE-to-agent routing table, same-package-family definition, production-impacting scope, multi-CVE coordination, no-compatible-safe-path handling, minimal-contract review triggers, Product/Architecture sequencing | Team Lead |
 | `documentation-parity-policy.md` | Change-trigger matrix for keeping docs in sync |
 | `frontend-split-decision-policy.md` | Criteria for splitting into two frontend agents |
 | `frontend-test-routing-policy.md` | Routes frontend test failures to correct agent |
