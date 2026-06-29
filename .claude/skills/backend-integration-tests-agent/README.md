@@ -21,8 +21,15 @@ Writes `@SpringBootTest` + MockMvc integration tests for cross-layer flows that 
 
 Every `@SpringBootTest` class must include a class-level justification comment explaining which trigger applies and why `@WebMvcTest` was insufficient.
 
+## pom.xml Changes
+
+May add `scope=test` dependencies to `pom.xml` (e.g. Testcontainers, WireMock, REST Assured) without pre-authorization. After adding, runs `dependency:resolve`, `dependency:tree`, and a basic CVE/license check, then reports to Team Lead. Team Lead decides whether to escalate to `security-agent`.
+
+Production-scoped dependencies are owned by `java-backend-agent`.
+
 ## Does Not Do
 
 - Does not write `@WebMvcTest` tests (owned by `java-backend-agent`)
 - Does not write unit tests (owned by `java-backend-agent`)
 - Does not write frontend or E2E tests
+- Does not add production-scoped dependencies to `pom.xml`

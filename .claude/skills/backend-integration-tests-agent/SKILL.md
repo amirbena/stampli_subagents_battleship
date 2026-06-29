@@ -107,6 +107,18 @@ class GameControllerIntegrationTest {
 - H2 is `scope=test` in pom.xml, so it is on the classpath automatically during `./mvnw test` — no extra Maven profile needed for running tests (only for `spring-boot:run` E2E)
 - Each `@SpringBootTest` class must carry a justification comment — load `.claude/policies/java/spring-test-runtime-policy.md` for the exact format
 
+### Adding test-scoped dependencies to pom.xml
+
+When an integration test requires a new `scope=test` dependency (e.g. Testcontainers, WireMock, REST Assured), add it directly to `pom.xml`. After the change:
+
+1. `./mvnw dependency:resolve` — verify all dependencies resolve
+2. `./mvnw dependency:tree` — capture tree for audit trail
+3. Basic security check — verify against known CVEs, confirm legitimate source, confirm license is compatible
+
+Report the dependency change and security check result to Team Lead. Team Lead decides whether to escalate to `security-agent` for a full review.
+
+Only `scope=test` dependencies belong here. Production-scoped dependencies are owned by `java-backend-agent`.
+
 ## Test File Naming
 
 ```
