@@ -989,12 +989,10 @@ When `security-agent` includes a CVE finding in its report:
 Extract: CVE ID, affected package, current version, fixed version/range, production-impacting scope, remediation type, breaking-change risk, recommended implementation owner, and `No compatible safe version` / `No compatible safe path` status.
 
 **If `No compatible safe version: true` or remediation type = `no-compatible-safe-path`:**
-Route jointly to Security Agent + Architecture Agent for guidance before any implementation. Do not route to an implementation agent. If no safe path is determined within the current run, write `reports/runs/<workflow-run-id>/workflow-blocker.md` including: CVE ID, affected package, Security explanation, required human decision options (library replacement / compensating control / formal risk acceptance / defer). Add Critical finding (`Blocks PR: Yes`) to the Finding Registry. Stop — do not proceed to release.
+Apply Section 5 (No-Compatible-Safe-Path Handling) from `.claude/skills/team-lead/policies/cve-remediation-routing-policy.md`. Stop. Write `workflow-blocker.md`. Do not route to an implementing agent.
 
 **Step CVE-2. Classify production-impacting scope.**
-
-- `production-runtime` or `ci-artifact` → route per routing table; may block production release
-- `build-only`, `test-only`, `dev-only` → hygiene remediation; document but do not automatically block release unless Security reports supply-chain or artifact integrity concern
+Apply Section 3 scope values and decision rule from `.claude/skills/team-lead/policies/cve-remediation-routing-policy.md`.
 
 **Step CVE-3. Route to the correct implementation agent.**
 
@@ -1009,15 +1007,7 @@ The validation mode selected in the original work plan (`cheap` / `normal` / `fu
 **Exception:** If the CVE or dependency remediation introduces or reveals contract-breaking evidence (breaking-change risk = `high`, changed runtime behavior, serialization, HTTP behavior, auth behavior), the Contract-Breaking Evidence Escalation rule overrides the preservation intent. Escalate validation mode accordingly.
 
 **Step CVE-5. Determine whether to run minimal-contract review before E2E.**
-
-Check triggers from cve-remediation-routing-policy.md Section 6. Minimal-contract review is required when any is true:
-- Remediation touched a runtime dependency with unknown or high breaking-change risk
-- Remediation touched a serialization, auth, HTTP client, persistence, API client, or deployment dependency
-- Remediation is expanded scope (see transitive-cve-remediation-policy.md)
-- Architecture was required or contract impact is unclear
-- Security reports `Breaking-Change Risk: high` or `unknown`
-
-May skip when all are true: patch/minor remediation, risk = none/low, no contract-sensitive library, E2E not required.
+Load Section 6 trigger list from `.claude/skills/team-lead/policies/cve-remediation-routing-policy.md`. Minimal-contract review is required when any Section 6 trigger is true.
 
 If minimal-contract review is required:
 - Spawn `code-review-agent` with `Review Mode: minimal-contract`
