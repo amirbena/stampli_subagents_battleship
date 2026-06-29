@@ -205,7 +205,14 @@ Escalate to **full review** when any of the following is true:
 
 ## Minimal-Contract Review Mode
 
-When Team Lead invokes this agent with `Review Mode: minimal-contract`, this is an **early classification gate**, not final Code Review. It determines whether the CVE remediation is safe to proceed to the next validation step.
+When Team Lead invokes this agent with `Review Mode: minimal-contract`, this is an **early classification gate**, not final Code Review. It determines whether a change presenting frontend-backend boundary contract risk is safe to proceed to the next validation step — specifically before expensive Full E2E / Playwright warmup when the Full E2E validates a gameplay or critical-path flow that depends on the potentially broken frontend-backend contract. Team Lead may invoke this mode for CVE remediation or for any non-CVE finding that presents frontend-backend boundary contract risk.
+
+**This mode must not be used for:**
+- Backend-only changes with no frontend/API contract impact
+- Frontend-only changes with no backend contract dependency
+- Frontend + backend changes where the frontend-backend contract did not change
+- Non-boundary contract breaks (persistence-internal, module-internal, test-only)
+- E2E mode `None` or `Smoke` — only invoke before Full E2E
 
 Write to `reports/runs/<workflow-run-id>/code-review-minimal-contract.md` — **never** to `code-review-report.md`. These are separate files with separate purposes.
 

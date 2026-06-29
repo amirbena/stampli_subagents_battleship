@@ -163,6 +163,49 @@ Do NOT re-trigger Architecture for purely local implementation issues with no co
 
 Counts toward the 3-reopen limit (see `reopen-policy.md` → `## Architecture Reopen Policy`).
 
+### Security Re-trigger Conditions
+
+Re-trigger Security Agent when the contract-breaking evidence involves:
+- Auth behavior changed (session, token, permission, role semantics)
+- Authorization or credential handling changed
+- Security-sensitive behavior changed (TLS, deserialization, input sanitization, hidden-data boundary)
+- The finding was reported by `security-agent`
+
+Do NOT re-trigger Security Agent for every contract break — only when the evidence involves security-sensitive behavior or the original finding source is `security-agent`.
+
+Security re-trigger is independent of minimal-contract review and does not count against the Product/Architecture 3-reopen limit. Security closure is a separate gate. Run Security Agent after the implementation fix is applied and the SHA Validity Gate passes.
+
+### Optional Minimal-Contract Review Before Full E2E
+
+When Step 2 scope classification is `Frontend + Backend` (API response shape, DTO consumed by frontend, endpoint path/method/status/error contract changed, generated client/API wrapper behavior changed, frontend API hook changed because backend request/response shape changed, backend validation or error mapping visible to frontend changed, auth/session response behavior visible to frontend changed), **and the selected E2E mode is `Full`**, Team Lead **may** invoke minimal-contract review (`code-review-agent` with `Review Mode: minimal-contract`) before Playwright warmup.
+
+**Trigger conditions — both must be true:**
+1. Frontend-backend boundary contract risk exists (per scope classification above)
+2. Selected E2E mode is `Full` and the Full E2E validates gameplay / critical-path flow that depends on the potentially broken frontend-backend contract
+
+**Do not invoke minimal-contract review when:**
+- E2E mode is `None` or `Smoke`
+- Scope is `Frontend-only` — no backend contract dependency
+- Scope is `Backend-only` — no frontend/API contract impact
+- Frontend and backend both changed but the frontend-backend contract did not change (both-sides change is not enough — the contract must have changed or have high risk of having changed)
+- Backend-only internal refactor or persistence/internal contract with no frontend/API impact
+- Frontend-only local UI/state/hook change with no backend contract dependency
+- Product ambiguity alone without frontend-backend contract drift
+- Architecture concern without frontend-backend boundary impact
+- Demo/config classification issue
+- Test-only hygiene issue
+- Dependency update without observed or generated API/client contract drift
+
+**Behavior when invoked:**
+- Report writes to `code-review-minimal-contract.md`, not `code-review-report.md`
+- A PASS does not satisfy the final Code Review gate
+- A BLOCKING verdict stops forward progress until the responsible owner fixes the finding; do not start Playwright warmup before the blocker is resolved
+- Does not trigger E2E — E2E remains governed only by the E2E Decision Rule
+- Does not replace Required Validation Layer
+- Does not replace final Code Review
+
+This gate may apply to CVE remediation or non-CVE findings. Invoking it for a non-CVE finding does not make the flow a CVE remediation flow.
+
 ### Step 9 — Require broader Code Review conditions
 
 Require broader Code Review (not delta) if the fix:
