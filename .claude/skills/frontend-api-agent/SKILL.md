@@ -155,23 +155,13 @@ If `backend-contract-changed: yes`, confirm types/game.ts matches the locked arc
 
 **Default: do not add npm packages.**
 
-Do not run `npm install <package-name>` to add a new dependency.
-
-If a package appears necessary:
-
-1. **Stop** — do not install.
-2. **Report to Team Lead** with:
-   - Package name (and version if known)
-   - Reason existing dependencies are insufficient
-   - Alternatives considered
-   - Whether Architecture or Security review may be required
-3. **Wait** for explicit Team Lead authorization before modifying `package.json`.
+When a new package is necessary, add it directly. No pre-authorization required.
 
 Never stage `package-lock.json`.
 
-### Dependency validation (required after authorized change)
+### Dependency validation (required after every package.json change)
 
-After Team Lead authorizes a `package.json` change, run in order:
+After adding or updating a dependency, run in order:
 
 1. `npm install` — verify dependency resolution succeeds without errors
 2. `npm audit` — record findings by severity; include full summary in execution report

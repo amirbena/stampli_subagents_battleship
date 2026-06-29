@@ -24,7 +24,7 @@ These apply to all agents or all implementation agents:
 |---|---|---|
 | `agent-communication-policy.md` | Strict tree topology; prohibits lateral contact | All agents |
 | `agent-responsibility-boundaries-policy.md` | Defines which agent owns which decision type; Architecture→Product reopen flow | Requirement, Product, Architect, Team Lead |
-| `dependency-addition-policy.md` | Governs dependency changes in `package.json` and `pom.xml`: visibility, reporting, validation, Team Lead authorization, Architecture/Security escalation triggers, and lockfile rules | java-backend-agent, frontend-ui-agent, frontend-api-agent, Team Lead, security-agent |
+| `dependency-addition-policy.md` | Governs dependency changes in `package.json` and `pom.xml`: visibility, reporting, validation, Architecture/Security escalation triggers, and lockfile rules | java-backend-agent, backend-integration-tests-agent, frontend-ui-agent, frontend-api-agent, Team Lead, security-agent |
 | `git-preflight-policy.md` | Branch confirmation + Git Summary block required before any file edit | All implementation agents |
 | `gitignore-compliance-policy.md` | Files matching `.gitignore` must not be staged; `package-lock.json` always local | release-pr-agent, code-review-agent, all agents |
 | `reports-and-artifacts-policy.md` | `reports/` is local execution evidence — never staged or committed | release-pr-agent, code-review-agent, Team Lead |

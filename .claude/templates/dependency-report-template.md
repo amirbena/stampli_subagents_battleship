@@ -26,7 +26,7 @@ Team Lead reads this block to record the change in `team-lead-plan.md` and to de
 |---|---|
 | Manifest changed | `package.json` / `pom.xml` / both |
 | Files changed | (list exact paths) |
-| Team Lead authorization | Recorded in `reports/runs/<id>/team-lead-plan.md` — Yes |
+| Team Lead review | Recorded in `reports/runs/<id>/team-lead-plan.md` under `## Dependency Changes` |
 
 #### Added Dependencies
 
@@ -93,4 +93,4 @@ Team Lead reads this block to record the change in `team-lead-plan.md` and to de
 
 ## Governance Reference
 
-Load `.claude/policies/dependency-addition-policy.md` for full authorization, escalation, and reporting requirements.
+Load `.claude/policies/dependency-addition-policy.md` for escalation trigger conditions and reporting requirements.

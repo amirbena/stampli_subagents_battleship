@@ -13,7 +13,7 @@ Builds and maintains the authoritative Java/Spring Boot game engine. The backend
 |---|---|
 | `apps/backend/src/main/java/` | All production backend code |
 | `apps/backend/src/test/**/*Test.java` | JUnit 5 unit tests (domain + service layer) and `@WebMvcTest` controller tests |
-| `apps/backend/pom.xml` | Dependency and build config (Team Lead authorization required before changes) |
+| `apps/backend/pom.xml` | Dependency and build config — agent adds dependencies independently, validates, and reports to Team Lead |
 
 ## Test Ownership
 

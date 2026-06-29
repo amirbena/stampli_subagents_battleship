@@ -1,6 +1,6 @@
 ---
 name: dependency-addition-policy
-description: Governs dependency changes in package.json and pom.xml. Goal is visibility, reporting, validation, and risk-based review. Team Lead owns authorization. All changes must be auditable.
+description: Governs dependency changes in package.json and pom.xml. Goal is visibility, reporting, validation, and risk-based review. Agents add independently; Team Lead reviews and decides escalation. All changes must be auditable.
 metadata:
   type: project
 ---
@@ -49,7 +49,7 @@ Results must appear in the `## Dependency Report` block of the execution report.
 
 - `package-lock.json` is always local-only.
 - `package-lock.json` must never be staged, committed, or pushed.
-- Running `npm install <package>` without Team Lead authorization is prohibited.
+- Running `npm install <package>` updates `package.json` — always follow with validation and include a `## Dependency Report` in the execution report.
 - `npm install` (no arguments) to restore existing dependencies is permitted; it must not result in net-new entries in `package.json`.
 
 ---
@@ -132,7 +132,7 @@ When a dependency change is reported, Team Lead must:
 5. Decide whether Architecture review is required (see Architecture Escalation triggers).
 6. Decide whether Security review is required (see Security Escalation triggers).
 
-Dependency changes must be visible in Team Lead decision records. No dependency change may be silently authorized.
+Dependency changes must be visible in Team Lead decision records. No dependency change may be omitted from the report.
 
 ## Security Review Integration
 
@@ -155,7 +155,7 @@ When Security Agent reviews a dependency:
 
 ## Documentation
 
-Every authorized dependency change must be documented in the PR summary with:
+Every dependency change must be documented in the PR summary with:
 - Package / artifact name and version
 - Scope
 - Reason
@@ -181,5 +181,5 @@ Every authorized dependency change must be documented in the PR summary with:
 - `.claude/skills/java-backend-agent/SKILL.md` — Maven dependency governance and validation
 - `.claude/skills/frontend-ui-agent/SKILL.md` — npm dependency governance and validation
 - `.claude/skills/frontend-api-agent/SKILL.md` — npm dependency governance and validation
-- `.claude/skills/team-lead/SKILL.md` — dependency authorization, review, and escalation routing
+- `.claude/skills/team-lead/SKILL.md` — dependency review, escalation routing
 - `.claude/skills/security-agent/SKILL.md` — dependency security review section

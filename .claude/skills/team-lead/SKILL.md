@@ -1190,7 +1190,7 @@ Team Lead decides shared file edits autonomously and records every shared file c
 
 Default: prefer existing dependencies and platform capabilities. Dependency changes are allowed when justified — the goal is visibility, reporting, validation, and risk-based review.
 
-When a requirement or agent response implies adding, removing, or updating a dependency (frontend `package.json` or backend `pom.xml`), load `.claude/policies/dependency-addition-policy.md` before authorizing or rejecting. The policy defines Architecture Review and Security Review trigger conditions, validation requirements, lockfile rules, and enforcement points.
+When an agent reports a dependency change, load `.claude/policies/dependency-addition-policy.md`. The policy defines Architecture Review and Security Review trigger conditions, validation requirements, lockfile rules, and enforcement points.
 
 ### Team Lead Dependency Review Workflow
 
