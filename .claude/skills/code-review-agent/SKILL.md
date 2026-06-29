@@ -87,6 +87,27 @@ Load `.claude/policies/gitignore-compliance-policy.md` and `.claude/policies/rep
 
 Do not fix the violation. Return the structured output below to Team Lead.
 
+### Dependency Manifest Changes
+
+If `package.json` or `pom.xml` appears in the diff, verify that the implementing agent's execution report contains a `## Dependency Report` block.
+
+The block must include all of the following:
+- [ ] Manifest changed (`package.json` / `pom.xml`)
+- [ ] Each dependency added, removed, or updated — name, version or version range, scope/type (`compile`, `test`, `devDependencies`, etc.), and reason
+- [ ] Validation command/tool executed (e.g. `npm audit`, `./mvnw dependency:resolve`, `./mvnw dependency:tree`)
+- [ ] Validation result and any findings
+
+If lockfiles appear in the diff (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`):
+- [ ] `package-lock.json` must never be staged (existing gitignore gate handles this — flag if it slipped through)
+- [ ] Other lockfiles in the diff must be consistent with the stated dependency change
+
+If `package.json` or `pom.xml` changed and no `## Dependency Report` block exists in the execution report:
+
+Return `REQUIRES_CHANGES` with finding:
+> Dependency manifest changed without required `## Dependency Report` evidence. Implementing agent must emit this block when adding, removing, or updating dependencies.
+
+**Do not** check for Team Lead pre-authorization. The `## Dependency Report` block is the required evidence. Pre-authorization is not required under the current policy.
+
 ### Backend
 - [ ] Domain logic is in `domain/` classes, not in controllers or repositories.
 - [ ] Controllers are thin: validate input, call service, return DTO.

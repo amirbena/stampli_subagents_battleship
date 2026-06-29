@@ -1199,7 +1199,9 @@ When an agent reports a dependency change or submits an execution report contain
 1. Read the `## Dependency Report` block — manifest changed, dependencies added/removed/updated, validation tool used, and findings.
 2. Record the change under `## Dependency Changes` in `reports/runs/<workflow-run-id>/team-lead-plan.md`.
 3. Apply Architecture escalation triggers (see policy). Dependency addition alone does not trigger Architecture — only when the dependency materially affects runtime boundaries, service contracts, persistence, networking, auth/authz, deployment topology, observability strategy, or long-term maintainability. If triggered, route to Architecture Agent (not a blocking gate — sequence it alongside or before the next implementation step).
-4. Apply Security escalation triggers (see policy). Dependency addition alone does not trigger Product Agent. Decide: reuse existing Security review (if it naturally covers the change) or trigger an additional Security pass.
+4. Apply Security escalation triggers (see policy) and decide: reuse existing Security review (if it naturally covers the change) or trigger an additional Security pass.
+   - Dependency addition alone does **not** trigger Product Agent. Product is triggered only if the dependency is part of a user-facing behavior change, a new product capability, a UX change, an external API/user contract change, or an acceptance-criteria change.
+   - Dependency addition alone does **not** trigger Architecture Agent. Architecture is triggered only if the dependency materially affects runtime boundaries, service contracts, persistence, networking, auth/authz, deployment topology, observability strategy, ownership, or long-term maintainability (same conditions as step 3).
 5. Include the dependency change in the final PR summary with validation result summary and reviews performed.
 
 Dependency changes must be visible in Team Lead decision records and the PR summary. No dependency change may be omitted from the report.
