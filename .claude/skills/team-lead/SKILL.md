@@ -1085,29 +1085,15 @@ After Security closure is APPROVED:
 
 **Transitive CVE routing — apply when `Direct or transitive = transitive` in the Security Agent report:**
 
-```
-If Direct or transitive = transitive:
-  1. Read .claude/policies/transitive-cve-remediation-policy.md
-  2. Read the transitive CVE fields from Security Agent's report:
-     parent dependency, dependency chain, earliest safe parent version,
-     transitive scope, possible remediation paths, recommended path,
-     rationale, narrow/expanded scope, and no-compatible-safe-path status.
-  3. Apply the policy preference order to confirm or select the remediation strategy.
-  4. If strategy is parent-major, OR exclusion-plus-replacement affecting runtime/classpath/bundle,
-     OR direct-resolution-override of a cross-cutting runtime library:
-     → Trigger Architecture Agent before routing to the implementing agent.
-  5. If no-compatible-safe-path = true:
-     → Use the No compatible safe version: true hard-stop path in Step CVE-1.
-     Do not route to an implementing agent.
-  6. Route to the owning implementation agent with the confirmed strategy name.
-     Do not encode package-manager syntax — pass the ecosystem-neutral strategy name only.
-  7. Preserve the original validation mode. Do not downgrade or replace quality gates.
-  8. After the implementing agent reports done, route to Security Agent for CVE closure verification.
-     Security Agent must confirm the CVE is absent from the full resolved dependency chain.
-  9. If strategy was classified as expanded scope: route to Code Review for broader (full) review,
-     not delta review.
-  10. If strategy was classified as narrow scope: route to Code Review for delta review.
-```
+1. Load `.claude/policies/transitive-cve-remediation-policy.md`.
+2. Read transitive CVE fields from Security Agent's report: parent dependency, dependency chain, earliest safe parent version, transitive scope, possible remediation paths, recommended path, rationale, narrow/expanded scope, no-compatible-safe-path status.
+3. Apply preference order (Section 2) to confirm or select the remediation strategy.
+4. If strategy is `parent-major`, `exclusion-plus-replacement` affecting runtime/classpath/bundle, or `direct-resolution-override` of a cross-cutting runtime library → apply Architecture escalation conditions (Section 6). Trigger Architecture Agent before routing to the implementing agent.
+5. If no-compatible-safe-path = true → apply CVE-1 hard-stop above. Do not route to an implementing agent.
+6. Route to the owning implementation agent with the confirmed strategy name only. Do not encode package-manager syntax.
+7. Preserve the original validation mode. Do not downgrade or replace quality gates.
+8. After the implementing agent reports done, route to Security Agent for CVE closure verification. Security Agent must confirm the CVE is absent from the full resolved dependency chain.
+9. If expanded scope → full Code Review, not delta. If narrow scope → delta Code Review.
 
 ### Playwright/E2E Re-trigger Continuation
 
