@@ -5,12 +5,13 @@
 # Canonical gate ordering model:
 # 1. This file defines the default gate set and order.
 # 2. Team Lead may add or reorder gates when evidence requires it (e.g., minimal-contract
-#    review before E2E for CVE remediation with contract risk).
+#    review before Full E2E when frontend-backend boundary contract risk exists).
 # 3. Any evidence-driven gate reordering must be documented in team-lead-plan.md and
 #    the Finding Registry.
 # 4. Minimal contract review (Review Mode: minimal-contract) is an optional early
-#    classification gate for CVE remediation — it is NOT final Code Review and is not
-#    listed in the gate set below.
+#    classification gate for frontend-backend boundary contract risk (before Full E2E) —
+#    may run for CVE remediation or non-CVE findings; it is NOT final Code Review and
+#    is not listed in the gate set below.
 # 5. Final Code Review (code-review-report.md with Review Purpose: final) always runs
 #    after validation evidence exists (after E2E if E2E ran, after targeted validation
 #    if E2E was not required).
@@ -54,5 +55,6 @@ modes:
 # - Security review is optional in cheap/normal unless the route triggers it.
 # - Playwright/E2E runs before final Code Review when E2E is required by the E2E Decision Rule.
 # - All findings return to Team Lead — never directly to developer agents.
-# - CVE remediation may add a minimal-contract review gate before E2E; see
-#   .claude/skills/team-lead/policies/cve-remediation-routing-policy.md.
+# - Frontend-backend boundary contract risk may add a minimal-contract review gate before
+#   Full E2E (CVE or non-CVE); see cve-remediation-routing-policy.md Section 6 for
+#   trigger/skip conditions and contract-breaking-escalation-policy.md for non-CVE path.

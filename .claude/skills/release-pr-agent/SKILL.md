@@ -93,7 +93,7 @@ Before writing `release-summary.md` or creating the PR, read every artifact list
 | Test results | `reports/runs/<id>/test-results.md` | If it exists |
 | Infra non-modification check | `reports/runs/<id>/infra-non-modification-check.md` | If it exists |
 | Validation gap check | `reports/runs/<id>/validation-gap-check.md` | If it exists |
-| Minimal contract review | `reports/runs/<id>/code-review-minimal-contract.md` | If it exists (CVE remediation runs only — read for evidence summary, do NOT treat as final Code Review) |
+| Minimal contract review | `reports/runs/<id>/code-review-minimal-contract.md` | If it exists (may exist for CVE remediation or non-CVE frontend-backend boundary contract risk flows — read for evidence summary, do NOT treat as final Code Review; does not satisfy the final Code Review gate) |
 
 If any always-required artifact is missing or stale, stop and report to Team Lead before continuing.
 

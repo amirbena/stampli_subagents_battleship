@@ -894,6 +894,26 @@ Apply policy steps for:
 - Architecture re-trigger conditions (escalation procedure Step 6)
 - broader Code Review conditions (escalation procedure Step 9)
 - documentation requirements (escalation procedure Step 10)
+- Security re-trigger conditions (see `### Security Re-trigger Conditions` in the policy)
+- optional minimal-contract review availability (see `### Optional Minimal-Contract Review Before Full E2E` in the policy)
+
+**Optional minimal-contract review before Full E2E:**
+When the escalation policy's Step 2 scope classification is `Frontend + Backend` (API response shape, DTO consumed by frontend, endpoint contract, generated client/API wrapper behavior, auth/session response visible to frontend, frontend API hook changed because backend request/response shape changed), **and the selected E2E mode is `Full`**, Team Lead **may** invoke `code-review-agent` with `Review Mode: minimal-contract` before Playwright warmup. Use this only when the planned Full E2E / gameplay validation depends on the potentially broken frontend-backend contract.
+
+**Do not invoke minimal-contract review when:**
+- E2E mode is `None` or `Smoke`
+- The scope is `Frontend-only` or `Backend-only`
+- Frontend and backend both changed but the frontend-backend contract did not change
+- The finding is non-boundary (persistence-internal, module-internal, test-only)
+
+If invoked:
+- spawn `code-review-agent` with `Review Mode: minimal-contract`; write to `reports/runs/<workflow-run-id>/code-review-minimal-contract.md`, not `code-review-report.md`
+- read `Contract Integrity`, `E2E Required`, `Required Validation Layer`, and impact fields
+- if `Contract Integrity: Blocked` — route the issue to the responsible owner before starting Full E2E; do not start Playwright warmup
+- if `Contract Integrity: OK` — continue to the selected validation path
+- apply the same mechanics used in the CVE flow: read impact fields (Architecture/Product/Security High → re-trigger before proceeding), select Required Validation Layer, respect the E2E guard, route to delta/final Code Review as required
+- a PASS does not satisfy final Code Review; do not treat this as a CVE remediation flow unless the finding is actually a CVE
+- final Code Review with `Review Purpose: final` is still required before release
 
 Then Team Lead performs these orchestration actions inline:
 
@@ -1220,6 +1240,7 @@ Before routing to Release PR Agent, confirm:
 - SHA Validity Gate passed (review is still valid for the current HEAD)
 - Finding Registry shows no open Critical findings
 - All required gate reports exist with current Workflow Run ID
+- `reports/runs/<workflow-run-id>/code-review-report.md` has `Review Purpose: final` — `Review Purpose: minimal-contract` or `delta` does not satisfy the final Code Review gate (enforced by release-pr-agent; verified here as a pre-flight check)
 - `reports/runs/<workflow-run-id>/validation-gap-check.md` exists and all Medium/High gaps are either resolved or escalated
 - Working tree is clean
 - Branch is not `main`
