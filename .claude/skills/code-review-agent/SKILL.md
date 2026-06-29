@@ -155,8 +155,15 @@ If a finding crosses boundaries, choose the owner that must make the first code 
 Every finding must include:
 - `Blocks PR: Yes/No`
 - `Severity: Critical / High / Medium / Low`
+- `Contract Breaking: Yes / No`
 
 Only Critical findings block PR. High/Medium/Low findings should be documented and returned to Team Lead. Team Lead decides whether to fix or document unresolved non-critical findings.
+
+**`Contract Breaking` field definition:**
+- `Yes` — this finding reveals that an API contract, state machine, serialization format, HTTP status code, frontend hook/state/API-client interface, persistence/data contract, auth/authz behavior, deployment/startup behavior, build artifact behavior, user-facing behavior, or system boundary changed post-implementation. Team Lead uses this field to trigger the Contract-Breaking Evidence Escalation rule.
+- `No` — this finding is a local implementation, style, test, maintainability, or code-quality issue with no contract change.
+
+Code Review must also flag when **broader review is required** because the fix affects contracts, multiple layers, runtime behavior, build/deployment behavior, or user-facing behavior — not just the immediate changed files.
 
 ## Delta Mode
 
@@ -183,6 +190,18 @@ Escalate to **full review** when any of the following is true:
 - The scope of changes in the diff extends beyond the dependency and its direct callers
 - New public contracts, endpoints, or serialization formats were introduced
 - `security-agent` flagged breaking-change risk as `high`
+
+**Additional checks when `Direct or transitive = transitive`:**
+- [ ] Dependency Report includes transitive-specific fields: dependency chain, parent dependency name and version, transitive scope, possible remediation paths, recommended path, rationale, and narrow/expanded scope classification
+- [ ] Dependency chain is documented (full resolution path from application to vulnerable transitive — not just the vulnerable package name)
+- [ ] Selected remediation path is documented and consistent with the strategy preference order in `.claude/policies/transitive-cve-remediation-policy.md`
+- [ ] Effective dependency tree or lockfile evidence confirms the vulnerable transitive resolves to the fixed version in the full dependency graph (not only in the direct dependency list)
+- [ ] No unrelated transitive dependency drift present — no packages outside the documented remediation chain changed versions
+- [ ] Manifest and lockfile or effective dependency changes are consistent with the selected strategy
+- [ ] Override or exclusion scope matches the selected strategy and does not exclude more than the documented vulnerable transitive
+- [ ] No runtime, classpath, or deployed bundle mismatch is apparent from the evidence
+- [ ] Security closure (from the re-run Security Agent report) confirms the CVE is absent from the full dependency chain, not only from the direct dependency declaration
+- [ ] If strategy was expanded scope: confirm broader (full) review was used — delta review is not sufficient for expanded-scope remediations
 
 ## Outputs
 

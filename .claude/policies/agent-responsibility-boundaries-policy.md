@@ -169,3 +169,10 @@ When Architecture discovers a product-semantic gap (behavior Product did not def
 
 See also: `.claude/skills/architect-agent/SKILL.md` for the `REQUIRES_CHANGES` finding format.
 See also: `.claude/skills/team-lead/SKILL.md` Step 3 for the routing row.
+
+
+---
+
+## Execution Responsibility
+
+Every execution agent (implementation, review, QA, research, Explore) must execute its assigned task in the current run and return the output that matches the assigned task type. Responses that defer work to a future run are invalid. Plans, analysis reports, review findings, and recommendations are valid outputs when the assigned task explicitly requests that output type. See `CLAUDE.md` Execution Contract and `team-lead/SKILL.md` Subagent Execution Contract for the full definition of valid/invalid responses and NO_WORK_PERFORMED handling.

@@ -14,6 +14,30 @@ You are working inside a Gen4 multi-agent software factory building a multiplaye
 - Product defines what the user should experience, not how the code implements it. Product implementation notes are non-binding — execution agents choose the smallest safe implementation.
 - If a frontend-only implementation requires state or capabilities not already present in the data layer, the agent must stop and return to Team Lead for reclassification rather than inventing missing state.
 
+## Execution Contract
+
+This applies to every agent and every Claude Code session in this repository.
+
+The core rule: **produce the output that matches the assigned task type, in the current run.** Do not defer work to a future run or promise to report later.
+
+| Assigned task type | Valid output |
+|---|---|
+| Implementation / file changes | Files changed, validation run, summary, risks |
+| Inspection / file reading | Inspection findings with evidence |
+| Review | Review findings with evidence |
+| Analysis / read-only investigation | Analysis report with evidence — no file changes required |
+| Plan / proposed approach | Concrete plan with reasoning — this is the complete valid output |
+| Recommendation | Recommendation with reasoning — this is the complete valid output |
+| Blocked | Exact blocker, what remains unverified, safest next action |
+
+**Invalid responses** (these defer the assigned work rather than performing it):
+- "I will inspect…" / "I am running…" / "I'll report back…"
+- "Here is how I would implement it…" when the task asked for actual implementation
+- A plan when the task asked for inspection, implementation, or actual review findings
+- Status-only update with no completed or partial work
+
+**Plans and recommendations are valid outputs** when the task explicitly asks for a plan, proposed approach, strategy, analysis, or recommendation. A plan deferred to a future run is invalid; a plan produced now is valid.
+
 ## Orchestration Continuation Semantics
 
 - Foreground agent calls return inline to Team Lead, which reads the artifact and continues immediately.

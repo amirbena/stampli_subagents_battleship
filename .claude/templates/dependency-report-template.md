@@ -99,7 +99,23 @@ Team Lead reads this block to record the change in `team-lead-plan.md` and to de
 | Security verification command | (e.g. `npm audit`, `./mvnw dependency:check`) |
 | Security verification result | (paste relevant audit output confirming the CVE is resolved) |
 | No compatible safe version | `false` / `true: <explanation>` |
+
+### Transitive CVE Remediation Fields (optional — include only when `Direct or transitive = transitive`)
+
+| Field | Value |
+|---|---|
+| Parent dependency | (direct dependency that introduces the vulnerable transitive — `name@version`) |
+| Dependency chain | `<app → parent@ver → vuln-lib@ver>` |
+| Earliest safe parent ver | (earliest parent version that resolves the transitive CVE — or "none identified") |
+| Transitive scope | `production-runtime` / `test-only` / `build-only` / `unknown` |
+| Possible remediation paths | (comma-separated from: `parent-patch`, `parent-minor`, `direct-resolution-override`, `exclusion-plus-replacement`, `parent-major`, `dependency-replacement`, `no-compatible-safe-path`) |
+| Recommended remediation path | (the single selected path) |
+| Remediation rationale | (why this path was selected over alternatives) |
+| Narrow or expanded scope | `narrow` / `expanded` |
+| Effective dependency evidence | (command run and relevant output confirming the vulnerable transitive resolves to the fixed version in the full dependency graph) |
 ```
+
+Do not include the transitive CVE remediation fields for direct CVE fixes or ordinary dependency additions — they are optional and conditional on the transitive classification.
 
 ---
 

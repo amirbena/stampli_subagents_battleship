@@ -29,6 +29,7 @@ These apply to all agents or all implementation agents:
 | `gitignore-compliance-policy.md` | Files matching `.gitignore` must not be staged; `package-lock.json` always local | release-pr-agent, code-review-agent, all agents |
 | `reports-and-artifacts-policy.md` | `reports/` is local execution evidence — never staged or committed | release-pr-agent, code-review-agent, Team Lead |
 | `demo-config-policy.md` | Classifies demo/local config vs real credentials; what security must flag | infrastructure-agent, security-agent |
+| `transitive-cve-remediation-policy.md` | Strategy preference order, scope classification, escalation conditions, and code review expectations for CVEs affecting transitive dependencies | security-agent, team-lead, code-review-agent |
 
 ## Java Family Policies (`.claude/policies/java/`)
 
@@ -62,7 +63,7 @@ These are Team Lead internal routing and classification policies:
 | `frontend-split-decision-policy.md` | Criteria for splitting into two frontend agents |
 | `frontend-test-routing-policy.md` | Routes frontend test failures to correct agent |
 | `git-branch-policy.md` | Branch creation, sync, naming decisions (Cases A–J) |
-| `qa-failure-routing-policy.md` | Routes QA findings back to owning agent |
+| `qa-failure-routing-policy.md` | Routes QA findings to owning agent; reports contract-breaking failures to Team Lead for validation escalation |
 | `requirement-intent-classification-policy.md` | WHAT-change vs HOW-change classification |
 | `requirement-similarity-policy.md` | Interrupted-run similarity detection and branch routing |
 | `test-failure-routing-policy.md` | Classification and routing table for all test failures |

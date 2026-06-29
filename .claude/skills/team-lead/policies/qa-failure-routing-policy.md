@@ -43,3 +43,14 @@ A failed run becomes workflow failure only if:
 2. It was routed to the responsible agent
 3. Allowed fix attempts were exhausted (see QA Cycle Limits in team-lead/SKILL.md)
 4. The feature is unsafe, impossible to implement, or unreleasable in current state
+
+## Contract-Breaking QA Failures
+
+QA failures that reveal any of the following must be reported to Team Lead as **validation-escalation evidence** before routing the fix to an implementation agent:
+- Contract break (API response shape, HTTP status code, serialization format, hook/state/API-client interface, auth/session behavior changed post-implementation)
+- Integration break (frontend/backend boundary mismatch — frontend assumes contract that backend does not fulfill)
+- Critical user-flow break (game start, login, session, multiplayer flow, onboarding, or any user path covered by acceptance criteria is broken)
+- Deployment/startup contract break (container health check failure, startup crash, environment behavior mismatch)
+- User-facing behavior drift (user-visible outcome does not match acceptance criteria)
+
+**Team Lead owns validation reclassification.** This policy routes failures to owners and reports contract-breaking findings to Team Lead. It does not independently choose or change validation mode. After Team Lead receives a contract-breaking QA finding, Team Lead applies the Contract-Breaking Evidence Escalation rule (see `team-lead/SKILL.md`) to determine whether to escalate validation mode and which validation layers are required.
