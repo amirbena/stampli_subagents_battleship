@@ -211,7 +211,7 @@ Profile-specific wiring          → backend-integration-tests-agent → @Spring
 
 ### Review Validity Model
 
-Every `code-review-report.md` and `security-report.md` records the SHA (`Generated From Commit`) at the time of review. Before routing to release, Team Lead runs `git diff --name-only <last-reviewed-sha>..HEAD`. If production code changed after the review, a delta or full re-review is required. Post-review fix routing follows three severity levels (Small / Medium / Large). See `.claude/metadata/review-validity-schema.md`.
+Every `code-review-report.md` and `security-report.md` records the SHA (`Generated From Commit`) at the time of review. Before routing to release, Team Lead runs `git diff --name-only <last-reviewed-sha>..HEAD`. If production code changed after the review, a delta or full re-review is required. Post-review fix routing follows three severity levels (Small / Medium / Large). See `.claude/metadata/review/review-validity-schema.md`.
 
 ### Run Isolation
 Every workflow run writes to its own directory:

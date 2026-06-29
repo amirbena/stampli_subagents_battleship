@@ -612,7 +612,7 @@ Only after warmup is confirmed ready: proceed to Step 5.
 
 **Cleanup — mandatory on success, failure, or early stop:**
 
-After `playwright-e2e-agent` finishes (pass or fail), and on any early stop (pre-gate failure, warmup failure, integration test failure that prevents E2E). Use the cleanup sequence matching the current OS from `.claude/runbooks/e2e-warmup.md → Cleanup`:
+After `playwright-e2e-agent` finishes (pass or fail), and on any early stop (pre-gate failure, warmup failure, integration test failure that prevents E2E). Use the cleanup sequence matching the current OS from `.claude/runbooks/team-lead/e2e-warmup.md → Cleanup`:
 
 macOS/Linux (bash):
 ```bash
@@ -620,7 +620,7 @@ kill $(cat /tmp/e2e-backend.pid) 2>/dev/null || true
 rm -f /tmp/e2e-backend.pid /tmp/e2e-backend.log
 ```
 
-Windows (PowerShell) — see `.claude/runbooks/e2e-warmup.md → Cleanup` for the `taskkill`/`Remove-Item` sequence.
+Windows (PowerShell) — see `.claude/runbooks/team-lead/e2e-warmup.md → Cleanup` for the `taskkill`/`Remove-Item` sequence.
 
 Skip cleanup when no warmup was started (Smoke or None mode, or when the warmup reuse path exited early).
 
@@ -839,7 +839,7 @@ When `security-agent` returns `REQUIRES_CHANGES`:
 5. After the owner agent reports done:
    a. Read the fix report and confirm the relevant files or behavior were addressed.
    b. Run the SHA Validity Gate (Step 14) against the current HEAD.
-   c. Determine re-review scope from `.claude/metadata/review-validity-schema.md` (Small/Medium/Large).
+   c. Determine re-review scope from `.claude/metadata/review/review-validity-schema.md` (Small/Medium/Large).
    d. Re-spawn `security-agent` (delta or full, per severity).
 6. Read the new `security-report.md`. The security gate advances only after the new report is `APPROVED`.
 7. Update the Finding Registry — increment attempt count, record new evidence, update status.

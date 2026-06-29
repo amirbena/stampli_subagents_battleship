@@ -254,7 +254,7 @@ Read the detection report to gather inputs for similarity detection:
 cat reports/runs/<prior-run-id>/interrupted-run-detection.md 2>/dev/null || true
 ```
 
-Then load `.claude/policies/requirement-similarity-policy.md` and collect all five signals (branch slug alignment, requirement area overlap, AC inheritance, dirty file scope match, prior PR alignment). Classify the new requirement as `same | extension | related | unrelated | unclear`.
+Then load `.claude/skills/team-lead/policies/requirement-similarity-policy.md` and collect all five signals (branch slug alignment, requirement area overlap, AC inheritance, dirty file scope match, prior PR alignment). Classify the new requirement as `same | extension | related | unrelated | unclear`.
 
 **The similarity classification drives which Case (A–I) applies:**
 
