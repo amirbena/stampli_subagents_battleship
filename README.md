@@ -39,6 +39,8 @@ Requirements flow through an autonomous agent pipeline (planning → implementat
 | GitHub CLI | — | `gh --version` |
 
 **First-time setup:**
+
+macOS / Linux:
 ```bash
 # Frontend — install dependencies (once after clone or package.json change)
 cd apps/frontend && npm install && cd ../..
@@ -50,11 +52,30 @@ cd apps/backend && ./mvnw clean install && cd ../..
 cd apps/frontend && npx playwright install --with-deps && cd ../..
 ```
 
+Windows (PowerShell):
+```powershell
+# Frontend
+cd apps/frontend; npm install; cd ../..
+
+# Backend
+cd apps/backend; .\mvnw.cmd clean install; cd ../..
+
+# Playwright browsers
+cd apps/frontend; npx playwright install --with-deps; cd ../..
+```
+
 **Claude Code local setup** — the agent pipeline requires two local configuration steps before running `/requirement`.
 
-**1. Enable agent teams** (add to your shell profile or export before each session):
+**1. Enable agent teams** (set before each session):
+
+macOS / Linux — add to your shell profile or export before each session:
 ```bash
 export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+```
+
+Windows (PowerShell):
+```powershell
+$env:CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = '1'
 ```
 
 **2. Create `.claude/settings.local.json`** in the project root.
@@ -95,8 +116,15 @@ Commands that are **denied** (blocked outright):
 > `.claude/settings.json` is the shared project settings file — do not add broad local permissions there.
 
 **API key:**
+
+macOS / Linux:
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+Windows (PowerShell):
+```powershell
+$env:ANTHROPIC_API_KEY = 'sk-ant-...'
 ```
 
 **GitHub CLI auth** (required for the release phase):
@@ -111,8 +139,14 @@ gh auth status   # must show: Logged in
 
 Copy the example file before running locally or via Docker Compose:
 
+macOS / Linux:
 ```bash
 cp apps/backend/.env.example apps/backend/.env
+```
+
+Windows:
+```powershell
+copy apps\backend\.env.example apps\backend\.env
 ```
 
 `apps/backend/.env` is gitignored and must never be committed. Contents of `.env.example`:
@@ -178,9 +212,16 @@ The run scripts treat the two ports differently:
 **Health-check based detection (not just "is the port open?").** A listening socket alone is not trusted. The script calls the backend health endpoint `GET http://localhost:8080/api/v1/health` and only reuses the process when it returns HTTP `200` with the identity token `battleship-backend` in the body. Anything else on `8080` is treated as a conflict.
 
 **If port 8080 is occupied by a non-backend process:** the script stops with an error rather than guessing. Find and stop the process, then re-run:
+
+macOS / Linux:
 ```bash
-lsof -i :8080        # macOS / Linux — identify the process holding 8080
-# Windows:  netstat -ano | findstr :8080
+lsof -i :8080        # identify the process holding 8080
+```
+
+Windows:
+```cmd
+netstat -ano | findstr :8080
+taskkill /PID <pid> /F
 ```
 Once `8080` is free (or it is the real battleship backend), re-run the script.
 
@@ -188,8 +229,15 @@ Once `8080` is free (or it is the real battleship backend), re-run the script.
 
 ## Docker Compose (full stack)
 
+macOS / Linux:
 ```bash
 cp apps/backend/.env.example apps/backend/.env   # first time only
+docker compose --env-file apps/backend/.env up --build
+```
+
+Windows:
+```powershell
+copy apps\backend\.env.example apps\backend\.env   # first time only
 docker compose --env-file apps/backend/.env up --build
 ```
 
@@ -218,9 +266,18 @@ docker compose --env-file apps/backend/.env down -v
 ## Run Without Docker
 
 **Backend:**
+
+macOS / Linux:
 ```bash
 cd apps/backend
 ./mvnw spring-boot:run
+# http://localhost:8080/api/v1
+```
+
+Windows:
+```powershell
+cd apps\backend
+.\mvnw.cmd spring-boot:run
 # http://localhost:8080/api/v1
 ```
 
@@ -236,8 +293,15 @@ npm run dev
 ## Testing
 
 **Backend unit tests:**
+
+macOS / Linux:
 ```bash
 cd apps/backend && ./mvnw test
+```
+
+Windows:
+```powershell
+cd apps\backend; .\mvnw.cmd test
 ```
 
 **Frontend unit + integration tests:**
@@ -248,10 +312,19 @@ npm run test:watch    # watch mode
 ```
 
 **Playwright E2E:**
+
+macOS / Linux:
 ```bash
 cd apps/frontend
 npm run test:e2e                                   # against dev server (auto-starts)
 E2E_BASE_URL=http://localhost:3000 npm run test:e2e  # against docker-compose
+```
+
+Windows (PowerShell):
+```powershell
+cd apps\frontend
+npm run test:e2e                                        # against dev server (auto-starts)
+$env:E2E_BASE_URL='http://localhost:3000'; npm run test:e2e  # against docker-compose
 ```
 
 ---
@@ -271,16 +344,18 @@ The pipeline runs autonomously: requirement intake → product spec → architec
 
 | Problem | Fix |
 |---------|-----|
-| `mvnw: Permission denied` | `chmod +x apps/backend/mvnw` |
+| `mvnw: Permission denied` (macOS / Linux) | `chmod +x apps/backend/mvnw` |
+| On Windows, use `mvnw.cmd` not `./mvnw` | Replace `./mvnw` with `.\mvnw.cmd` in all commands |
 | `no main manifest attribute` in `maven-wrapper.jar` | Run `mvn wrapper:wrapper -Dmaven=3.9.6` inside `apps/backend/` to regenerate the wrapper |
-| `./run` says "Existing battleship backend detected" | Expected — a backend is already running on `8080` (Docker Compose or a prior `./run`); the script reuses it instead of starting a duplicate. Nothing to fix. |
-| `./run` fails: port 8080 in use but no battleship backend responded | A non-backend process holds `8080`. `lsof -i :8080` (Windows: `netstat -ano \| findstr :8080`), stop it, then re-run. The backend never falls back to another port. |
-| Backend won't start — port 8080 in use | `lsof -i :8080` then kill the process |
-| Frontend won't start — port 3001 in use | `lsof -i :3001` then kill the process |
+| `./run` / `.\.run\run.ps1` says "Existing battleship backend detected" | Expected — a backend is already running on `8080` (Docker Compose or a prior run); the script reuses it. Nothing to fix. |
+| Run script fails: port 8080 in use but no battleship backend responded | A non-backend process holds `8080`. macOS/Linux: `lsof -i :8080`. Windows: `netstat -ano \| findstr :8080`. Stop the process, then re-run. The backend never falls back to another port. |
+| Backend won't start — port 8080 in use | macOS/Linux: `lsof -i :8080` then kill. Windows: `netstat -ano \| findstr :8080` then `taskkill /PID <pid> /F` |
+| Frontend won't start — port 3001 in use | macOS/Linux: `lsof -i :3001`. Windows: `netstat -ano \| findstr :3001` |
 | Docker containers unhealthy | `docker compose logs postgres` — check DB creds in `.env` |
 | Agents pause on every tool call | Create `.claude/settings.local.json` locally (it is gitignored per Claude Code's global ignore — see Claude Code local setup above) |
 | `gh` not authenticated | `gh auth login` then `gh auth status` |
-| Playwright browsers missing | `cd apps/frontend && npx playwright install --with-deps` |
+| Playwright browsers missing | macOS/Linux: `cd apps/frontend && npx playwright install --with-deps`. Windows: `cd apps\frontend; npx playwright install --with-deps` |
+| PowerShell execution policy blocks `.ps1` | Run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once, or invoke with `powershell -ExecutionPolicy Bypass -File .\.run\run.ps1` |
 
 ---
 
